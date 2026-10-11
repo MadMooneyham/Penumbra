@@ -126,7 +126,7 @@ page. SEQ, EDIT and ARP show the part you choose with ALGORITHM.
 | ARP | TB-3PO, the 303 line generator (on a 303). |
 | SEQ | The selected part's steps, with its LENGTH and RATE (on a 303 also DIRECTION and TRANSPOSE). |
 | PLAY | Start and stop. |
-| REC | Record on and off: drum hits, 303 notes, knob moves, and in SONG mode the song. On a 303 the keys become a keyboard while it's on. |
+| REC | Record on and off: drum hits, 303 notes, knob moves, and on the SONG screen the song. On a 303 the keys become a keyboard while it's on. |
 | White keys | Steps. On HOME, patterns. On MASTER and FX they do nothing. |
 | Black keys | Drum tracks, or the break's slices. On HOME they mute parts; on the mixer they pick a channel. |
 
@@ -284,6 +284,12 @@ notes you play are written: step by step while the pattern is stopped, live whil
 OCT- and OCT+ change the octave. Play a key while still holding another and the 303 slides
 between them. Press REC again to go back to steps.
 
+**Free play.** To play the 303 without writing anything, press SEQ, turn SELECT to the KEYS page
+and set FREE PLAY to ON. The keys then play the 303 on every 303 screen, stopped or playing, so
+you can try lines and turn EDIT's knobs as you go; the top line says FREE PLAY. Nothing is
+written until you press REC, which records as above. Set FREE PLAY back to OFF for the steps.
+Each 303 has its own, and both are off at power-on.
+
 **The pages.** EDIT has TONE (CUTOFF, RESO, ENVMOD, DECAY) and VOICE (ACCENT, WAVE, saw or
 square, DRIVE, SLIDE time); TUNE, VOLUME, DRIVE TYPE (off, soft or RAT) and ACCENT DECAY are in
 SEL's list. SEQ has the line's LENGTH (1–64 steps), RATE, DIRECTION (forward, reverse, ping-pong
@@ -433,7 +439,7 @@ Press REC to turn recording on, and again to turn it off.
   step, from step 1. Hold ENV while pressing a key for an accent, or LFO for a slide. For a rest,
   hold ENV and press OCT- or OCT+; for a tie, hold LFO and press OCT- or OCT+.
 - **Knob moves:** with REC on and the pattern playing, turn any sound knob (section 11).
-- **The song:** in SONG mode (section 12).
+- **The song:** REC + PLAY on the SONG screen (section 12).
 
 ---
 
@@ -511,9 +517,11 @@ parts are muted. To open the song, press HOME twice (HOME again comes back to th
 - **Repeat a bar:** on the SONG screen's second page (turn SELECT), REPEAT plays the selected bar
   up to 8 times (x2 … x8 shows at the end of its row), so four bars of the same pattern are one
   row.
-- **Play the song:** set MODE to SONG, in the SONG screen's SEL list or in GLO, then press PLAY. The song starts at the selected bar and loops. While it plays, the top
-  line shows S and the current bar number.
-- **Record the song:** in SONG mode, turn on REC and press PLAY. As it plays, change patterns
+- **Play the song:** press PLAY on the SONG screen. The song starts at the selected bar and
+  loops, and keeps playing wherever you go (HOME for mutes, EDIT for sounds) until you stop it.
+  While it plays, the top line shows S and the current bar number. PLAY anywhere else plays the
+  patterns: whatever screen you start from decides, and the top line says which (S or P).
+- **Record the song:** on the SONG screen, turn on REC and press PLAY. As it plays, change patterns
   and mute parts however you like. Each bar is written into the song as it goes by, starting
   from the bar you started on, and the song grows if you play past its end. Recording
   replaces what was in those bars before.
@@ -602,7 +610,6 @@ Press GLO for these settings, in five sections (MIDI, AUDIO, KEYS AND SCREEN, PR
 | LIGHTS | ON: the key lights show the steps, and the unlit buttons glow dimly so they can be read. KEYS: the key lights only. OFF: neither. |
 | KEY SOUND | STOPPED (the default): picking a drum or editing a 303 step is silent while the pattern plays, unless REC is on. ALWAYS: you always hear it. The 303 keyboard always plays either way. |
 | THEME | The screen colour: green, amber, cyan, red or mono. |
-| MODE | PATTERN, or SONG to play the song. |
 | SAVE PROJECT | Saves everything. |
 | AUTOSAVE | ON (the default): while the pattern is stopped, changes are saved by themselves once nothing has been touched for four seconds. OFF: only SAVE saves. |
 | CLEAR PATTERN | Clears all five parts of the current pattern. |

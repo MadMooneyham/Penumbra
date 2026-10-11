@@ -12,10 +12,6 @@ turn K1 -5
 turn SELECT 1
 turn K4 2
 expect songbar1.0 1
-tap SEL
-turn SELECT 7
-turn ALGO 1
-tap HOME
 expect songon 1
 turn K1 -5
 tap PLAY
@@ -31,3 +27,9 @@ expect ppat0 2
 wait 1920
 expect songpos 1
 expect ppat0 1
+# started on the SONG screen, the song keeps playing on HOME; stopped there, PLAY plays the patterns
+tap HOME
+expect songon 1
+expect songpos 1
+tap PLAY
+expect songon 0

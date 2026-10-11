@@ -42,6 +42,7 @@ typedef struct {
     uint8_t mixsel;                    /* MIX's PARTS: the part the knobs set (black keys 1-5) */
     int8_t oct;
     uint8_t rec;
+    uint8_t freeplay[NBASS];           /* SEQ > FREE PLAY: the keys play the 303, nothing written (not saved) */
     uint8_t wpos[NBASS];
     int8_t held_step;
     uint8_t step_edited;
@@ -124,6 +125,8 @@ static song_t *song(void) { return &proj.arr.song; }
 static int is_303(void) { return ui.part == PART_303A || ui.part == PART_303B; }
 static int is_drum(void) { return ui.part == PART_909 || ui.part == PART_808; }
 static int bidx(void) { return ui.part == PART_303B ? 1 : 0; }
+static int kbd_on(void) { return is_303() && (ui.rec || ui.freeplay[bidx()]); }   /* the keys a keyboard */
+static uint8_t kbd_held_note[NBASS];
 static int held_note_of(const bpart_t *bp, int s);
 
 /* ============================================================ text helpers === */
@@ -175,8 +178,8 @@ static void say(const char *a, const char *b)
 
 /* =============================================================== param refs === */
 enum { R_NONE, R_ENG, R_SWING, R_DLEN, R_DRATE, R_BLEN, R_BRATE, R_BDIR, R_BTRANS, R_GEN, R_BRKSET,
-       R_BRKSLOT, R_TEMPO, R_ACCENT, R_CLKOUT, R_NOTEOUT, R_PALETTE, R_KEYLED, R_KEYSOUND, R_AUTOSAVE, R_ACT, R_SBAR, R_SPAT, R_SMODE,
-       R_SLEN, R_STALLS, R_HDR, R_TAPE, R_MIDICH, R_OUTLOUD, R_SREP, R_BATT, R_USBFULL };   /* R_TAPE: FX's one-knob TAPE (DIGI .. worn tape) */          /* R_HDR: a list's section header (a = its group), never selected */
+       R_BRKSLOT, R_TEMPO, R_ACCENT, R_CLKOUT, R_NOTEOUT, R_PALETTE, R_KEYLED, R_KEYSOUND, R_AUTOSAVE, R_ACT, R_SBAR, R_SPAT,
+       R_SLEN, R_STALLS, R_HDR, R_TAPE, R_MIDICH, R_OUTLOUD, R_SREP, R_BATT, R_USBFULL, R_FREEPLAY };   /* R_TAPE: FX's one-knob TAPE (DIGI .. worn tape) */          /* R_HDR: a list's section header (a = its group), never selected */
 typedef struct { uint8_t kind, a, b, c; } pref_t;
 #define PR(k, a, b, c) ((pref_t){(k), (a), (b), (c)})
 #define NONE PR(R_NONE, 0, 0, 0)
@@ -216,14 +219,14 @@ static const char *const OUT_N[] = {"NORMAL", "LOUD"};
 static const x0x_param_t OUT_P = {"OUTPUT", 1, 0, OUT_N};
 static const char *const USBA_N[] = {"FOLLOWS KNOB", "FULL"};
 static const x0x_param_t USBA_P = {"USB AUDIO", 1, 0, USBA_N};
+static const x0x_param_t FREEPLAY_P = {"FREE PLAY", 1, 0, ONOFF_N};
 static const x0x_param_t SREP_P = {"REPEAT", 7, 0, 0};    /* the bar plays 1-8 times */
 static const char *const BATT_N[] = {"EMPTY", "1/3", "2/3", "FULL", "USB POWER", "..."};
 static const x0x_param_t BATT_P = {"BATTERY", 5, 0, BATT_N};   /* read only (plat_battery) */
-static const char *const MODE_N[] = {"PATTERN", "SONG"};
 static const x0x_param_t SONG_P[] = {
     {"909", NPAT - 1, 0, 0}, {"808", NPAT - 1, 0, 0}, {"303A", NPAT - 1, 0, 0}, {"303B", NPAT - 1, 0, 0},
     {"BREAK", NPAT - 1, 0, 0},
-    {"MODE", 1, 0, MODE_N}, {"LENGTH", NSONG, 0, 0},
+    {"LENGTH", NSONG, 0, 0},
 };
 
 /* the song's bar k exists from here on: a new bar repeats the one before (the first: what plays) */
@@ -278,13 +281,13 @@ static const x0x_param_t *pref_desc(pref_t r)
         return &d;
     }
     case R_SPAT: return &SONG_P[r.a % NPARTS];
-    case R_SMODE: return &SONG_P[5];
     case R_MIDICH: return &MIDICH_P[r.a % NPARTS];
     case R_OUTLOUD: return &OUT_P;
     case R_USBFULL: return &USBA_P;
+    case R_FREEPLAY: return &FREEPLAY_P;
     case R_SREP: return &SREP_P;
     case R_BATT: return &BATT_P;
-    case R_SLEN: return &SONG_P[6];
+    case R_SLEN: return &SONG_P[5];
     case R_STALLS: return &STALLS_P;
     case R_TAPE: {
         static const x0x_param_t d = {"TAPE", 127, 72, 0};
@@ -335,10 +338,10 @@ static int pref_get(pref_t r)
         int k = ui.song_sel < sg->len ? ui.song_sel : sg->len - 1;
         return k >= 0 ? sg->bar[k].pat[r.a] : seq.ppat[r.a];
     }
-    case R_SMODE: return seq.song_on;
     case R_MIDICH: return seq.ch[r.a % NPARTS] == SEQ_CH_OFF ? 0 : seq.ch[r.a % NPARTS] + 1;
     case R_OUTLOUD: return proj.set.out_loud;
     case R_USBFULL: return proj.set.usb_full;
+    case R_FREEPLAY: return ui.freeplay[r.a];
     case R_SREP: return ui.song_sel < song()->len ? song()->bar[ui.song_sel].mute >> 5 : 0;
     case R_BATT: return plat_battery() < 0 ? 5 : plat_battery();
     case R_SLEN: return song()->len;
@@ -411,10 +414,16 @@ static void pref_set(pref_t r, int v)
         song_fill(ui.song_sel);
         song()->bar[ui.song_sel].pat[r.a] = (uint8_t)v;
         break;
-    case R_SMODE: seq.song_on = (uint8_t)v; break;
     case R_MIDICH: seq.ch[r.a % NPARTS] = (uint8_t)(v ? v - 1 : SEQ_CH_OFF); break;
     case R_OUTLOUD: proj.set.out_loud = (uint8_t)v; engine_out_loud(v); break;
     case R_USBFULL: proj.set.usb_full = (uint8_t)v; engine_usb_full(v); break;
+    case R_FREEPLAY:
+        ui.freeplay[r.a] = (uint8_t)v;
+        if (!v && kbd_held_note[r.a]) {                /* a key still down: let it go */
+            engine_bass_off(r.a);
+            kbd_held_note[r.a] = 0;
+        }
+        break;
     case R_SREP:
         if (ui.song_sel < NSONG) {
             song_bar_t *b;
@@ -759,7 +768,11 @@ static void build_pages(void)
         if (is_drum())
             add_page("SEQUENCE", PR(R_DLEN, p, 0, 0), PR(R_DRATE, p, 0, 0), NONE, NONE);   /* (the swing: HOME's, all parts') */
         else if (is_303())
+        {
             add_page("SEQUENCE", PR(R_BLEN, b, 0, 0), PR(R_BRATE, b, 0, 0), PR(R_BDIR, b, 0, 0), PR(R_BTRANS, b, 0, 0));
+            pg_grp = GR_NONE;                          /* (not the pattern's: no P1 in its name) */
+            add_page("KEYS", PR(R_FREEPLAY, b, 0, 0), NONE, NONE, NONE);
+        }
         else {
             add_page("GROOVE", PR(R_BRKSET, 0, 0, BRK_COMPLEX), PR(R_BRKSET, 0, 0, BRK_ANCHOR),
                      PR(R_BRKSET, 0, 0, BRK_ROLL), PR(R_BRKSET, 0, 0, BRK_FILL));
@@ -929,7 +942,6 @@ static void open_list_of_pages(void)
     if (ui.view == V_PERF)
         list_add(PR(R_ACT, ACT_PERF_TEST, 0, 0));
     if (ui.view == V_SONG) {
-        list_add(PR(R_SMODE, 0, 0, 0));
         list_add(PR(R_SLEN, 0, 0, 0));
         list_add(PR(R_ACT, ACT_SONG_INS, 0, 0));
         list_add(PR(R_ACT, ACT_SONG_DEL, 0, 0));
@@ -961,7 +973,6 @@ static void open_global(void)
     list_add(PR(R_KEYSOUND, 0, 0, 0));
     list_add(PR(R_PALETTE, 0, 0, 0));
     list_rows[ui.list_n++] = PR(R_HDR, GR_PROJECT, 0, 0);
-    list_add(PR(R_SMODE, 0, 0, 0));
     list_add(PR(R_ACT, ACT_SAVE, 0, 0));
     list_add(PR(R_AUTOSAVE, 0, 0, 0));
     list_add(PR(R_ACT, ACT_CLEAR_PAT, 0, 0));
@@ -1939,7 +1950,6 @@ static void bass_write(int b, int note, int gate)
     mark_dirty();
 }
 
-static uint8_t kbd_held_note[NBASS];
 static void bass_kbd(int key, int down)
 {
     int b = bidx(), n = kbd_note(key);
@@ -2143,7 +2153,7 @@ static void key_event(int k, int down)
         else if (w >= 0)
             drum_step(w, down);
     } else if (is_303()) {
-        if (ui.rec)                                    /* REC: the keys play and write notes */
+        if (kbd_on())                                  /* REC: the keys play and write notes; FREE PLAY: play */
             bass_kbd(k, down);
         else if (w >= 0)
             bass_step_key(w, down);
@@ -2362,7 +2372,7 @@ static void button_tap(int b)
                 say("MUTATED", 0);
             }
             mark_dirty();
-        } else if (is_303() && ui.rec && steps_view()) {   /* pitch entry: the keyboard's octave */
+        } else if (kbd_on() && steps_view()) {        /* the keyboard's octave */
             if (ui.btn & (1u << B_LFO)) {                 /* LFO + OCT: a tie; ENV + OCT: a rest */
                 ui.btn_used |= 1u << B_LFO;
                 bass_write(bidx(), 0, G_TIE);
@@ -2422,7 +2432,9 @@ static void input(void)
         if (ch & (1u << i))
             key_event((int)i, (keys >> i) & 1u);
     build_pages();
-    seq.song_rec = (uint8_t)(seq.song_on && ui.rec);  /* SONG mode + REC: the song is being written */
+    if (!seq.playing)                                  /* PLAY plays what is on screen: the song on SONG, */
+        seq.song_on = ui.view == V_SONG;               /* else the patterns; playing, it keeps going */
+    seq.song_rec = (uint8_t)(seq.song_on && ui.rec);  /* the song + REC: the song is being written */
     if (ui.overlay == O_ASK) {                         /* a question: the knobs wait */
         for (i = 0; i < NE; i++)
             enc((int)i);
@@ -2893,9 +2905,10 @@ static void draw_header(void)
         if (ui.view == V_GEN)
             x = cv_text(x, vc(&FONT_S, 1, 17), &FONT_S, "TB-3PO", C_HI) + 6;
         else if (ui.view == V_SEQ)
-            x = cv_text(x, vc(&FONT_S, 1, 17), &FONT_S, is_303() && ui.rec ? "SEQ KEYS" : "SEQ", is_303() && ui.rec ? C_AMB : C_HI) + 6;
-        else if (is_303() && ui.rec)
-            x = cv_text(x, vc(&FONT_S, 1, 17), &FONT_S, "KEYS", C_AMB) + 6;
+            x = cv_text(x, vc(&FONT_S, 1, 17), &FONT_S, !kbd_on() ? "SEQ" : ui.rec ? "SEQ KEYS" : "FREE PLAY",
+                        kbd_on() ? C_AMB : C_HI) + 6;
+        else if (kbd_on())                            /* REC: KEYS (written); FREE PLAY: said so */
+            x = cv_text(x, vc(&FONT_S, 1, 17), &FONT_S, ui.rec ? "KEYS" : "FREE PLAY", C_AMB) + 6;
     } else {
         x = cv_text(4, vc(&FONT_B, 1, 17), &FONT_B, VIEW_N[ui.view], C_HI) + 6;
         if (drum_mix_page() >= 0)                     /* MIX: 909 / MIX: 808 (whose tracks these are) */
@@ -3709,6 +3722,10 @@ static uint16_t footer_text(const char **a, const char **b, const char **c)
         *a = "KEYS WRITE NOTES";
         *b = "ENV+OCT: REST";
         *c = "LFO+OCT: TIE";
+    } else if (kbd_on()) {
+        *a = "FREE PLAY: KEYS PLAY";
+        *b = "OCT: OCTAVE";
+        *c = "REC: WRITE";
     } else if (is_303()) {
         *a = "PRESS: ON";
         *b = "TAP: OFF";
@@ -4019,7 +4036,7 @@ static void leds(void)
                 else if ((int)i != ui.sel[ui.part] && sm_any(d0->hit[i]) && !mu)
                     d |= 1u << BLACK_KEY[i];
             }
-        } else if (is_303() && !ui.rec) {             /* notes bright, ties dim */
+        } else if (is_303() && !kbd_on()) {           /* notes bright, ties dim */
             const bpart_t *bp = &cur_pat()->bass[bidx()];
             int ph = eng_step[TRK_BASS0 + bidx()];
             for (i = 0; i < 16; i++) {

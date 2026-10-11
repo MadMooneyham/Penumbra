@@ -1,0 +1,36 @@
+# SEQ > KEYS > FREE PLAY on a 303: the keys play it on every 303 screen and write nothing;
+# off, the white keys are steps again; REC still writes (the factory pattern's 303A is empty)
+wait 300
+turn ALGO 2
+expect part 2
+tap SEQ
+turn SELECT 1
+turn K1 1
+key w4 down
+wait 100
+key w4 up
+key w0 down
+wait 100
+key w0 up
+expect gate0.4 0
+expect gate0.0 0
+tap EDIT
+key w4 down
+wait 100
+key w4 up
+expect gate0.4 0
+shot freeplay_edit.png
+# REC with FREE PLAY on: the keys write again, from step 1
+tap REC
+key w4 down
+wait 100
+key w4 up
+expect gate0.0 1
+tap REC
+# off: a white key turns its step on
+tap SEQ
+turn K1 -1
+key w8 down
+wait 100
+key w8 up
+expect gate0.8 1
