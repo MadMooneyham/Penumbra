@@ -43,6 +43,10 @@ code in the browser, with sound, played with the mouse, a touch screen or the ke
 Edge, connect the FM-1 with a USB data cable and press Install. Don't unplug it while it's
 writing; when it finishes, the FM-1 restarts into X0X.
 
+**Update:** the same way. An update keeps your project: the patterns, sounds, song and settings.
+Installing another firmware does not: it keeps its own things in the same memory, so coming back
+to X0X starts with an empty project.
+
 **Go back:** "Back to the stock firmware", at the bottom of the same page, puts M-VAVE's firmware
 back (download the FM-1 V15 file from the link there, choose it, press the button). M-VAVE's own
 updater, M-UPGRADE, works too.
