@@ -3,6 +3,17 @@
 The newest version first. Install it with the [web installer](../install/); the
 [manual](../manual/) covers everything in detail.
 
+## 1.0.6 · 11 October 2026
+
+- **Free play on the 303s:** press SEQ, turn SELECT to the KEYS page and set FREE PLAY to ON. The keys
+  play the 303 on every 303 screen without writing anything, so you can try lines and shape the sound
+  first; REC still records.
+- **The song plays from the SONG screen:** press PLAY there and the song plays from the selected bar,
+  and keeps playing wherever you go. PLAY anywhere else plays the patterns. The MODE setting is gone.
+- **GLO > USB AUDIO:** FULL keeps USB audio at full level whatever the MASTER knob says, so you can
+  record over the cable with the speaker turned down. FOLLOWS KNOB (the default) is as before.
+- GLO is in sections: MIDI, AUDIO, KEYS AND SCREEN, PROJECT, SYSTEM.
+
 ## 1.0.5 · 10 October 2026
 
 - A sharper check on the second processor core: on an FM-1 whose second core misreads, X0X now also
