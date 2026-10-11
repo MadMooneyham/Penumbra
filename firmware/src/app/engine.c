@@ -208,6 +208,33 @@ void engine_out_loud(int on)
     out_lim = on ? 1.0f : 2.0f;
 }
 
+/* USB AUDIO FULL (#12): the render at full level, for the USB tap, and the MASTER knob after it, for
+ * the speaker, headphones and line out (with the master's ~10 ms glide). The limiter then works at
+ * full level too: turned down, the FM-1 plays what it sends, quieter. */
+static volatile int usb_full;
+static float vol_after = -1.0f;
+void engine_usb_full(int on) { usb_full = on; }
+
+void engine_volume(int32_t *out_lr, uint32_t n)
+{
+    float vol = (float)plat_master() / 4096.0f, v = vol_after < 0.0f ? vol : vol_after;
+    uint32_t i;
+    if (!usb_full) {
+        vol_after = -1.0f;
+        return;
+    }
+    for (i = 0; i < n; i++) {
+        if (v != vol) {
+            v += (vol - v) * 0.0022651f;
+            if (fm_fabsf(vol - v) < 1e-5f)
+                v = vol;
+        }
+        out_lr[2u * i] = (int32_t)((float)out_lr[2u * i] * v);
+        out_lr[2u * i + 1u] = (int32_t)((float)out_lr[2u * i + 1u] * v);
+    }
+    vol_after = v;
+}
+
 void engine_sound_defaults(sound_t *s)
 {
     int t, v, i;
@@ -693,7 +720,7 @@ void engine_render(int32_t *out_lr, uint32_t n)
 {
     static float out_l[256], out_r[256];
     uint32_t done = 0, i;
-    float vol = (float)plat_master() / 4096.0f;
+    float vol = usb_full ? 1.0f : (float)plat_master() / 4096.0f;   /* (FULL: engine_volume) */
     int p;
     if (n > 256u)
         n = 256u;

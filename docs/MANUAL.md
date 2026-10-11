@@ -590,7 +590,7 @@ GLUE compressor and VOLUME. Turning COMP or FILTER sets their details again.
 
 ![GLOBAL](img/screen-global.png)
 
-Press GLO for these settings:
+Press GLO for these settings, in five sections (MIDI, AUDIO, KEYS AND SCREEN, PROJECT, SYSTEM):
 
 | Setting | What it does |
 |---|---|
@@ -598,6 +598,7 @@ Press GLO for these settings:
 | NOTES OUT | Sends the patterns out as MIDI notes. |
 | 909 … BREAK MIDI CH | Each part's MIDI channel, for notes in and out: 1–16, or OFF to ignore incoming notes for that part (and send none). |
 | OUTPUT | NORMAL, or LOUD: 6 dB more at the headphones and line out (and USB audio), for headphones that need it. The master's LIMIT (on by default) keeps it from clipping. |
+| USB AUDIO | FOLLOWS KNOB (the default): USB audio is as loud as the FM-1, MASTER knob and all. FULL: USB audio stays at full level whatever the knob says, so you can record over the cable with the speaker turned down. |
 | LIGHTS | ON: the key lights show the steps, and the unlit buttons glow dimly so they can be read. KEYS: the key lights only. OFF: neither. |
 | KEY SOUND | STOPPED (the default): picking a drum or editing a 303 step is silent while the pattern plays, unless REC is on. ALWAYS: you always hear it. The 303 keyboard always plays either way. |
 | THEME | The screen colour: green, amber, cyan, red or mono. |

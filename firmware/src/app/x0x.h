@@ -36,7 +36,8 @@ typedef struct {
     uint8_t midi_ch[5];                  /* each part's MIDI channel (in and out): 0 = its default (an older
                                           * project), 1-16, 17 = OFF */
     uint8_t out_loud;                    /* 1: the output 6 dB hotter (the codec's full scale) */
-    uint8_t rsv[2];                      /* room to grow: an older, shorter object loads (zeros here) */
+    uint8_t usb_full;                    /* 1: USB audio at full level, the MASTER knob for the FM-1's own outputs */
+    uint8_t rsv[1];                      /* room to grow: an older, shorter object loads (zeros here) */
 } settings_t;
 
 /* the song and the motion lanes: one blob, split across OBJ_SONG and OBJ_MOTION */

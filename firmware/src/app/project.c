@@ -488,6 +488,7 @@ void project_apply_io(void)
         seq.ch[p] = (uint8_t)(!v ? DEF[p] : v > 16 ? SEQ_CH_OFF : v - 1);
     }
     engine_out_loud(proj.set.out_loud);
+    engine_usb_full(proj.set.usb_full);
 }
 
 /* 0 = saved and verified; -7 = the patterns, song and motion do not fit (nothing was written) */

@@ -417,6 +417,7 @@ static void run_ms(uint32_t ms)
             for (k = 0; k < ENG_PROF_N; k++)
                 pr0[k] = eng_prof[k];
             engine_render(blk, 256);
+            engine_volume(blk, 256);
 #ifdef X0X_WEB
             web_audio(blk, 256);                         /* the browser build: to the AudioWorklet */
 #endif

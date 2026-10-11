@@ -176,7 +176,7 @@ static void say(const char *a, const char *b)
 /* =============================================================== param refs === */
 enum { R_NONE, R_ENG, R_SWING, R_DLEN, R_DRATE, R_BLEN, R_BRATE, R_BDIR, R_BTRANS, R_GEN, R_BRKSET,
        R_BRKSLOT, R_TEMPO, R_ACCENT, R_CLKOUT, R_NOTEOUT, R_PALETTE, R_KEYLED, R_KEYSOUND, R_AUTOSAVE, R_ACT, R_SBAR, R_SPAT, R_SMODE,
-       R_SLEN, R_STALLS, R_HDR, R_TAPE, R_MIDICH, R_OUTLOUD, R_SREP, R_BATT };   /* R_TAPE: FX's one-knob TAPE (DIGI .. worn tape) */          /* R_HDR: a list's section header (a = its group), never selected */
+       R_SLEN, R_STALLS, R_HDR, R_TAPE, R_MIDICH, R_OUTLOUD, R_SREP, R_BATT, R_USBFULL };   /* R_TAPE: FX's one-knob TAPE (DIGI .. worn tape) */          /* R_HDR: a list's section header (a = its group), never selected */
 typedef struct { uint8_t kind, a, b, c; } pref_t;
 #define PR(k, a, b, c) ((pref_t){(k), (a), (b), (c)})
 #define NONE PR(R_NONE, 0, 0, 0)
@@ -214,6 +214,8 @@ static const x0x_param_t MIDICH_P[NPARTS] = {   /* 0 = OFF (no notes in or out),
     {"BREAK MIDI CH", 16, 4, 0}};
 static const char *const OUT_N[] = {"NORMAL", "LOUD"};
 static const x0x_param_t OUT_P = {"OUTPUT", 1, 0, OUT_N};
+static const char *const USBA_N[] = {"FOLLOWS KNOB", "FULL"};
+static const x0x_param_t USBA_P = {"USB AUDIO", 1, 0, USBA_N};
 static const x0x_param_t SREP_P = {"REPEAT", 7, 0, 0};    /* the bar plays 1-8 times */
 static const char *const BATT_N[] = {"EMPTY", "1/3", "2/3", "FULL", "USB POWER", "..."};
 static const x0x_param_t BATT_P = {"BATTERY", 5, 0, BATT_N};   /* read only (plat_battery) */
@@ -279,6 +281,7 @@ static const x0x_param_t *pref_desc(pref_t r)
     case R_SMODE: return &SONG_P[5];
     case R_MIDICH: return &MIDICH_P[r.a % NPARTS];
     case R_OUTLOUD: return &OUT_P;
+    case R_USBFULL: return &USBA_P;
     case R_SREP: return &SREP_P;
     case R_BATT: return &BATT_P;
     case R_SLEN: return &SONG_P[6];
@@ -335,6 +338,7 @@ static int pref_get(pref_t r)
     case R_SMODE: return seq.song_on;
     case R_MIDICH: return seq.ch[r.a % NPARTS] == SEQ_CH_OFF ? 0 : seq.ch[r.a % NPARTS] + 1;
     case R_OUTLOUD: return proj.set.out_loud;
+    case R_USBFULL: return proj.set.usb_full;
     case R_SREP: return ui.song_sel < song()->len ? song()->bar[ui.song_sel].mute >> 5 : 0;
     case R_BATT: return plat_battery() < 0 ? 5 : plat_battery();
     case R_SLEN: return song()->len;
@@ -410,6 +414,7 @@ static void pref_set(pref_t r, int v)
     case R_SMODE: seq.song_on = (uint8_t)v; break;
     case R_MIDICH: seq.ch[r.a % NPARTS] = (uint8_t)(v ? v - 1 : SEQ_CH_OFF); break;
     case R_OUTLOUD: proj.set.out_loud = (uint8_t)v; engine_out_loud(v); break;
+    case R_USBFULL: proj.set.usb_full = (uint8_t)v; engine_usb_full(v); break;
     case R_SREP:
         if (ui.song_sel < NSONG) {
             song_bar_t *b;
@@ -638,7 +643,8 @@ static void pref_value(pref_t r, char *num, char *unit) { pref_value_of(r, pref_
 /* ===================================================================== pages === */
 #define MAXPAGES 14
 /* page groups: whose values a page holds (the SEL list's headers, the header's colour) */
-enum { GR_NONE, GR_TRACK, GR_TMIX, GR_KIT, GR_PAT, GR_SOUND, GR_MORE };
+enum { GR_NONE, GR_TRACK, GR_TMIX, GR_KIT, GR_PAT, GR_SOUND, GR_MORE,
+       GR_MIDI, GR_AUDIO, GR_KEYS, GR_PROJECT, GR_SYSTEM };   /* (the last five: GLO's sections) */
 #define MAXMORE 14
 typedef struct {
     pref_t r[MAXPAGES][4];
@@ -891,6 +897,11 @@ static void hdr_name(int g, char *t)
     case GR_KIT: put_s(put_s(t, PART_N[ui.part]), ": ALL TRACKS"); break;
     case GR_PAT: put_s(put_i(put_s(t, "P"), seq.ppat[ui.part] + 1), ": THE PATTERN"); break;
     case GR_MORE: put_s(t, "MORE"); break;
+    case GR_MIDI: put_s(t, "MIDI"); break;
+    case GR_AUDIO: put_s(t, "AUDIO"); break;
+    case GR_KEYS: put_s(t, "KEYS AND SCREEN"); break;
+    case GR_PROJECT: put_s(t, "PROJECT"); break;
+    case GR_SYSTEM: put_s(t, "SYSTEM"); break;
     default: put_s(put_s(t, PART_N[ui.part]), ": THE SOUND"); break;
     }
 }
@@ -937,24 +948,32 @@ static void open_list_of_pages(void)
 static void open_global(void)
 {
     ui.list_n = 0;
+    list_rows[ui.list_n++] = PR(R_HDR, GR_MIDI, 0, 0);
     list_add(PR(R_CLKOUT, 0, 0, 0));
     list_add(PR(R_NOTEOUT, 0, 0, 0));
     for (int p = 0; p < NPARTS; p++)
         list_add(PR(R_MIDICH, p, 0, 0));
+    list_rows[ui.list_n++] = PR(R_HDR, GR_AUDIO, 0, 0);
     list_add(PR(R_OUTLOUD, 0, 0, 0));
+    list_add(PR(R_USBFULL, 0, 0, 0));
+    list_rows[ui.list_n++] = PR(R_HDR, GR_KEYS, 0, 0);
     list_add(PR(R_KEYLED, 0, 0, 0));
     list_add(PR(R_KEYSOUND, 0, 0, 0));
     list_add(PR(R_PALETTE, 0, 0, 0));
+    list_rows[ui.list_n++] = PR(R_HDR, GR_PROJECT, 0, 0);
     list_add(PR(R_SMODE, 0, 0, 0));
     list_add(PR(R_ACT, ACT_SAVE, 0, 0));
     list_add(PR(R_AUTOSAVE, 0, 0, 0));
     list_add(PR(R_ACT, ACT_CLEAR_PAT, 0, 0));
     list_add(PR(R_ACT, ACT_RESET, 0, 0));
+    list_rows[ui.list_n++] = PR(R_HDR, GR_SYSTEM, 0, 0);
     list_add(PR(R_ACT, ACT_PERF, 0, 0));
     list_add(PR(R_ACT, ACT_ABOUT, 0, 0));
     list_add(PR(R_BATT, 0, 0, 0));
     put_s(list_title, "GLOBAL");
     ui.list_sel = ui.list_top = 0;
+    while (list_skip(ui.list_sel))
+        ui.list_sel++;
     ui.overlay = O_LIST;
 }
 
@@ -2170,12 +2189,14 @@ static void key_event(int k, int down)
 
 static void list_move(int d)
 {
-    int s = ui.list_sel + d;
-    while (s > 0 && s < ui.list_n - 1 && list_skip(s))   /* over a section header */
-        s += d;
-    s = s < 0 ? 0 : s >= ui.list_n ? ui.list_n - 1 : s;
-    if (list_skip(s))
-        s = ui.list_sel;
+    int s = ui.list_sel, step = d < 0 ? -1 : 1, t;
+    for (; d; d -= step) {                             /* a row at a time, over the section headers */
+        for (t = s + step; t >= 0 && t < ui.list_n && list_skip(t); t += step)
+            ;
+        if (t < 0 || t >= ui.list_n)
+            break;
+        s = t;
+    }
     ui.list_sel = (uint8_t)s;
     if (ui.list_sel < ui.list_top)
         ui.list_top = ui.list_sel;
