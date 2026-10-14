@@ -423,7 +423,7 @@ static void pref_set(pref_t r, int v)
     case R_USBFULL: proj.set.usb_full = (uint8_t)v; engine_usb_full(v); break;
     case R_CORES:
         proj.set.one_core = (uint8_t)v;
-        say("2ND CORE", "AT THE NEXT POWER-ON");
+        say("AT THE NEXT POWER-ON", 0);
         break;
     case R_FREEPLAY:
         ui.freeplay[r.a] = (uint8_t)v;
