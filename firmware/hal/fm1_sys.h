@@ -14,10 +14,12 @@
  *   fm1_updata_parm_clear()  zero the record (CRC 0: ignored on a warm reset)
  *   fm1_mailbox_clear()  zero 0x01C7FD80..0x01C7FDFF (boot info, mailbox) at cold start
  *   fm1_mem_readable(a, n) / fm1_peek8(a)   debug reads of RAM / XIP only
+ *   fm1_vdc14_raise(l)   VDC14 up to level l, a step at a time; fm1_vdc14() reads it
  */
 #pragma once
 #include <stdint.h>
 #include "fm1_cc.h"
+#include "fm1_time.h"
 
 #define FM1_P33_CON (*(volatile uint32_t *)0x13E08u)
 #define FM1_P33_DAT (*(volatile uint32_t *)0x13E0Cu)
@@ -75,6 +77,24 @@ static uint8_t fm1_p33_read(uint32_t a)
 static void fm1_p33_write(uint32_t a, uint8_t d) { fm1__p33_op(0, a, d); }
 static void fm1_p33_or(uint32_t a, uint8_t d) { fm1__p33_op(1, a, d); }
 static void fm1_p33_and(uint32_t a, uint8_t d) { fm1__p33_op(2, a, d); }
+
+/* --------------------------------------------------------------- VDC14 --- */
+/* VDC14 (P3_ANA_CON6 [2:0]): 1.25 V + 50 mV a level. The boot loader leaves 3 (1.40 V); JieLi's SDK
+ * runs 4 (1.45 V) from 160 MHz up (system_vdd_clock.c), and the AC791N datasheet allows 1.55 V. At
+ * 1.40 V, under load (both cores, or WiFi in fm1-radio), some units read flash and SRAM wrong; 5
+ * (1.50 V) ran clean on fm1-radio and on zednaked's unit (fm1-x0x#10). Up only, a level per 100 us
+ * (as Jangada's fm1_core_supply); SYSVDD stays where the boot loader set it. */
+#define FM1_P3_ANA_CON6 0x06u
+static uint32_t fm1_vdc14(void) { return fm1_p33_read(FM1_P3_ANA_CON6) & 7u; }
+static void fm1_vdc14_raise(uint32_t level)
+{
+    uint32_t v = fm1_vdc14();
+    while (v < level && v < 7u) {
+        v++;
+        fm1_p33_write(FM1_P3_ANA_CON6, (uint8_t)((fm1_p33_read(FM1_P3_ANA_CON6) & ~7u) | v));
+        fm1_delay_us(100);
+    }
+}
 
 /* ------------------------------------------------------------ watchdog --- */
 #define FM1_P3_WDT_CON 0x80u

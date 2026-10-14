@@ -3412,8 +3412,13 @@ static void draw_perf(int band)
         } else
             put_s(q, plat_cycles_cpu() ? "..." : "? (NO CYCLE COUNTER)");
         cv_text(4, 2, &FONT_B, t, C_WHITE);
+        q = put_i(t, plat_vdc14_mv() / 1000);         /* VDC14 as X0X set it (fm1_sys.h), under the cores */
+        *q++ = '.';
+        q = put_i(q, plat_vdc14_mv() / 10 % 100);
+        put_s(q, "V");
+        text_r(236, 14, &FONT_XS, t, C_DIM);
         if (plat_cpu2_on())                           /* the cores: one after the second gave up (fm1-x0x#10) */
-            text_r(236, 6, &FONT_XS, "2 CORES", C_GRAY);
+            text_r(236, 4, &FONT_XS, "2 CORES", C_GRAY);
         else {
             q = put_s(t, "1 CORE");
             if (plat_cpu2_gave_up() == 1)
@@ -3424,7 +3429,7 @@ static void draw_perf(int band)
                 put_s(q, " TILL POWER-OFF");
             else if (proj.set.one_core)
                 put_s(q, " (GLO)");
-            text_r(236, 6, &FONT_XS, t, plat_cpu2_gave_up() ? RGB(255, 80, 60) : C_GRAY);
+            text_r(236, 4, &FONT_XS, t, plat_cpu2_gave_up() ? RGB(255, 80, 60) : C_GRAY);
         }
         if (perf.test >= 0) {
             int done = perf.phase == 4;
