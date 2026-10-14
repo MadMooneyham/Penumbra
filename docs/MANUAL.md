@@ -615,6 +615,7 @@ Press GLO for these settings, in five sections (MIDI, AUDIO, KEYS AND SCREEN, PR
 | CLEAR PATTERN | Clears all five parts of the current pattern. |
 | FACTORY RESET | Goes back to the factory sounds and empty patterns, with no song and no knob motion. Your saved project is kept until you save over it. |
 | PERFORMANCE | Opens the performance page (below). |
+| 2ND CORE | ON (the default): X0X uses both of the FM-1's processor cores. OFF: one core. Takes effect the next time you switch on. X0X sets it to OFF by itself if it crashes with two cores (see the performance page, below). |
 | ABOUT X0X | Shows the version, how full the memory for patterns is (MEM), and the audio load. |
 | BATTERY | The battery's charge: FULL, 2/3, 1/3 or EMPTY; USB POWER while a computer powers the FM-1. Read only. |
 
@@ -658,6 +659,14 @@ and the busiest moment of the worst case from over the limit to 84%.
 The top right of the performance page says 2 CORES. On some FM-1s the second core reads its work
 wrongly; X0X notices the first time and carries on with one core, and the page says 1 CORE: BAD
 READS in red. Everything still works, but the busiest patterns may drop out.
+
+If X0X crashes while both cores are running, it restarts with one core and sets GLO > 2ND CORE to
+OFF, so it doesn't crash again; the page then says 1 CORE (GLO). To try two cores again, set
+2ND CORE to ON and switch the FM-1 off and on. After a crash while starting, X0X also starts on one
+core, once.
+
+Under the cores, the page shows the voltage X0X runs one of the processor's supplies at: 1.50V.
+The FM-1 starts at 1.40V; at that voltage some FM-1s misread their memory when both cores are busy.
 
 When the FM-1 gets close to its limit, X0X lightens the load by itself instead of dropping out:
 the 303s stop oversampling (bright, resonant notes get a touch grittier) and the 808's sounds end

@@ -3,6 +3,16 @@
 The newest version first. Install it with the [web installer](../install/); the
 [manual](../manual/) covers everything in detail.
 
+## 1.0.7 · 14 October 2026
+
+- **A steadier supply for both cores:** X0X raises one of the processor's supplies from 1.40V to 1.50V
+  when it starts. At 1.40V, some FM-1s misread their memory when both cores are busy, and crash.
+  GLO > PERFORMANCE shows the voltage under the cores.
+- **GLO > 2ND CORE:** ON (the default) or OFF, from the next time you switch on. If X0X crashes while
+  both cores are running, it sets this to OFF by itself and carries on with one core, so an FM-1 that
+  can't run both doesn't crash again. After a crash while starting, it starts on one core, once.
+- Thanks to the testers who measured their FM-1s, and to Jangada and Melodee for theirs.
+
 ## 1.0.6 · 11 October 2026
 
 - **Free play on the 303s:** press SEQ, turn SELECT to the KEYS page and set FREE PLAY to ON. The keys
