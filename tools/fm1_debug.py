@@ -6,6 +6,8 @@ a few register and RAM ranges). Needs mido with python-rtmidi.
 
   fm1_debug.py peek ADDR [N]          N words (<= 16) from ADDR
   fm1_debug.py poke ADDR VALUE        write a word, print it before and after
+  fm1_debug.py cores 1|2              GLO > 2ND CORE off (1) or on (2), saved; the FM-1 restarts
+  fm1_debug.py perftest [read]        open the performance page and run its test; read: its results
   fm1_debug.py clock [ITERATIONS]     time a fixed loop against the 24 MHz timer (IRQs off)
 """
 import sys
@@ -14,7 +16,7 @@ import time
 import mido
 
 HDR = [0x7D, 0x46, 0x4C]
-PEEK, POKE, CLOCK = 40, 41, 42
+PEEK, POKE, CLOCK, CORES, PERFT = 40, 41, 42, 43, 44
 
 
 def w35(v):
@@ -65,6 +67,16 @@ def main():
         print(f"{it} iterations: {ticks} ticks = {us:.1f} us = {it / us:.2f} iterations per us;"
               f" C0_TL_CKCNT {c0:08X} -> {c1:08X} ({(c1 - c0) & 0xFFFFFFFF} counted"
               + (f", {((c1 - c0) & 0xFFFFFFFF) / us:.1f} MHz)" if c1 != c0 else ", not counting)"))
+    elif a[0] == "cores":
+        b = ask(CORES, [1 if a[1] == "1" else 0])
+        print("saved, restarting" if b and b[0] else "not saved")
+    elif a[0] == "perftest" and a[1:] == ["read"]:
+        b = ask(PERFT, [1])
+        res = ["%.1f%% (peak %d%%)" % ((b[3 + 3 * k] | b[4 + 3 * k] << 7) / 10, b[5 + 3 * k]) for k in range(3)]
+        print(("done" if b[0] else "not done") + f", {b[1]} core(s), VDC14 {1.25 + 0.05 * b[2]:.2f} V: " + " / ".join(res))
+    elif a[0] == "perftest":
+        ask(PERFT, [])
+        print("perf test started (about 15 s)")
     else:
         sys.exit(__doc__)
 

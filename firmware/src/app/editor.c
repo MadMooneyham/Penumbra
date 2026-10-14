@@ -103,9 +103,13 @@ static int ed_smp_end(uint32_t k, const uint8_t *a, uint32_t na)
  *   PEEK  40 addr n        -> addr, n words      (n <= 16)
  *   POKE  41 addr value    -> addr, old, new
  *   CLOCK 42 iterations    -> 24 MHz ticks a fixed loop took (IRQs off), C0_TL_CKCNT before, after
+ *   CORES 43 off           -> saved (1 ok); sets GLO > 2ND CORE (1 = OFF), saves the settings and restarts
+ *   PERFT 44 [1]           -> starts the performance test on its page; with 1, reads it: done, cores, VDC14
+ *                             level, then per scenario load x 10 (2 x 7 bits) and peak %
  * A number is 5 x 7 bits, least significant first. Only these ranges, word aligned: an address
  * outside them gets no reply (a stray read of a gated block could fault). */
-enum { ED_PEEK = 40, ED_POKE, ED_CLOCK };
+enum { ED_PEEK = 40, ED_POKE, ED_CLOCK, ED_CORES, ED_PERFT };
+static uint8_t ed_restart;                    /* CORES: restart once the reply is out */
 #include "fm1_debug.h"
 static uint32_t ed_u35(const uint8_t *a)
 {
@@ -134,6 +138,31 @@ static int ed_debug(uint32_t cmd, const uint8_t *a, uint32_t na)
         return 1;
     }
 #endif
+    if (cmd == ED_CORES) {
+        if (na < 1u)
+            return 0;
+        proj.set.one_core = (uint8_t)(a[0] & 1u);
+        ed_b(project_save_settings() == 0);
+        ed_restart = 1;
+        return 1;
+    }
+    if (cmd == ED_PERFT) {
+        if (na >= 1u && a[0] == 1u) {
+            ed_b(perf.test >= 0 && perf.phase == 4);
+            ed_b(plat_cpu2_on() ? 2u : 1u);
+            ed_b(plat_vdc14_level);
+            for (i = 0; i < 3u; i++) {
+                ed_b(perf.res_load[i]);
+                ed_b(perf.res_load[i] >> 7);
+                ed_b(perf.res_peak[i]);
+            }
+            return 1;
+        }
+        set_view(V_PERF);
+        perf_test_start();
+        ed_b(1);
+        return 1;
+    }
     if (na < 10u)
         return 0;
     addr = ed_u35(a);
@@ -217,6 +246,8 @@ static void ed_handle(const uint8_t *f, uint32_t n)
     case ED_PEEK:
     case ED_POKE:
     case ED_CLOCK:
+    case ED_CORES:
+    case ED_PERFT:
         if (!ed_debug(cmd, a, na))
             return;
         break;
@@ -267,6 +298,16 @@ static void ed_handle(const uint8_t *f, uint32_t n)
         return;                                       /* not ours: no reply */
     }
     ed_send();
+#if X0X_DEBUG
+    if (ed_restart) {                                 /* CORES: a clean restart, as an install's */
+        fm1_delay_ms(50);
+        bootguard.pending = 0;
+        bootguard.failed = 0;
+        usb_detach();
+        fm1_delay_ms(30);
+        fm1_reboot();
+    }
+#endif
 }
 
 static void ed_service(void)
