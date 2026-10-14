@@ -3,6 +3,13 @@
 The newest version first. Install it with the [web installer](../install/); the
 [manual](../manual/) covers everything in detail.
 
+## 1.0.8 · 14 October 2026
+
+- **Hold ENV and turn a knob** to put it back to its default: the filter, a level, any knob on any page.
+- **Safe mode:** holding OCT- and OCT+ for 5 seconds now reaches the update mode from the safe mode
+  screen too, for an FM-1 that can't start and whose USB doesn't come up.
+- GLO > 2ND CORE says AT THE NEXT POWER-ON when you change it.
+
 ## 1.0.7 · 14 October 2026
 
 - **A steadier supply for both cores:** X0X raises one of the processor's supplies from 1.40V to 1.50V
