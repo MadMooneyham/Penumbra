@@ -325,7 +325,13 @@ static void fm1_main(void)
     seq.accent_q7 = proj.set.accent_q7;
     project_apply_io();                             /* clock and notes out, the MIDI channels, the output */
     engine_brk_loops();
-    plat_cpu2_set(1);                               /* the second core: at power-on, before the audio and the
+    if (plat_cpu2_barred() && !proj.set.one_core) { /* it crashed (or was given up) with two cores: one from now on */
+        proj.set.one_core = 1;
+        project_save_settings();                    /* written now, on one core, not in the session that crashed;
+                                                     * GLO > 2ND CORE turns it back on */
+    }
+    if (!proj.set.one_core && !bootguard.failed)    /* after a failed start, one core (as Melodee) */
+        plat_cpu2_set(1);                           /* the second core: at power-on, before the audio and the
                                                      * timers, as Melodee starts it (started later, it does not
                                                      * reach its entry); if it does not answer, one core */
     audio_init();

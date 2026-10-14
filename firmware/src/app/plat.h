@@ -64,6 +64,7 @@ int plat_cpu2_run(void (*fn)(uint32_t), uint32_t arg);   /* ISR: 1 = the second 
 int plat_cpu2_wait(void);              /* ISR: 0 = done; -1 = it failed (and is off): do the job here */
 int plat_cpu2_gave_up(void);           /* why it is off: 0 no, 1 it read a wrong job (fm1-x0x#10), 2 one did not finish */
 uint32_t plat_cpu2_bad(void);          /* wrong jobs it saw (0 on a unit that runs both cores) */
+int plat_cpu2_barred(void);            /* 1: since power-on it was given up, or core 0 crashed beside it */
 uint32_t plat_xruns(void);
 
 /* performance (the PERF screen; firmware/hal/fm1_perf.h): a counter for timing stages, the CPU's

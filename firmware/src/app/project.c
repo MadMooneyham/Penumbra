@@ -507,3 +507,5 @@ int project_save(void)
         return -2;
     return save_stream();
 }
+
+int project_save_settings(void) { return save_obj(OBJ_SET, &proj.set, sizeof proj.set); }
