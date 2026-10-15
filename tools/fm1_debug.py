@@ -73,7 +73,8 @@ def main():
     elif a[0] == "perftest" and a[1:] == ["read"]:
         b = ask(PERFT, [1])
         res = ["%.1f%% (peak %d%%)" % ((b[3 + 3 * k] | b[4 + 3 * k] << 7) / 10, b[5 + 3 * k]) for k in range(3)]
-        print(("done" if b[0] else "not done") + f", {b[1]} core(s), VDC14 {1.25 + 0.05 * b[2]:.2f} V: " + " / ".join(res))
+        sv = f", SYSVDD {0.93 + 0.03 * b[12]:.2f} V" if len(b) > 12 else ""
+        print(("done" if b[0] else "not done") + f", {b[1]} core(s), VDC14 {1.25 + 0.05 * b[2]:.2f} V{sv}: " + " / ".join(res))
     elif a[0] == "perftest":
         ask(PERFT, [])
         print("perf test started (about 15 s)")

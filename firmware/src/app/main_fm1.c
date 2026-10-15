@@ -28,7 +28,7 @@ static uint8_t safe_mode;
 #if X0X_DEBUG
 /* development: the slowest block since boot, taken apart (read over USB: tools/fm1_debug.py) */
 extern volatile uint32_t eng_dbg_wait, eng_dbg_nsub;
-extern uint8_t plat_vdc14_level;                /* plat_fm1.c: PERF's VDC */
+extern uint8_t plat_vdc14_level, plat_sysvdd_level;   /* plat_fm1.c: PERF's supplies */
 static volatile uint32_t dbg_tmr;                   /* 24 MHz ticks of TIMER5 nested in the render */
 struct x0x_worst_s {
     uint32_t magic, us, wait, tmr, nsub, half_no, over90, over100, blocks, late_in;
@@ -386,8 +386,10 @@ static void fm1_main(void)
     uint8_t last_pat = 0xFF;
     {
         uint32_t f = irq_save();
-        fm1_vdc14_raise(5);                         /* 1.50 V before anything loads it (fm1_sys.h) */
+        fm1_vdc14_raise(7);                         /* M-VAVE's own supplies before anything loads them: */
+        fm1_sysvdd_raise(15);                       /* 1.60 V, then 1.38 V (fm1_sys.h) */
         plat_vdc14_level = (uint8_t)fm1_vdc14();
+        plat_sysvdd_level = (uint8_t)fm1_sysvdd();
         flash_ok = FL_FAR(fl_jedec_ram)() == 0x856014u;   /* the expected 1 MiB part, else RAM only */
         irq_restore(f);
         if (flash_ok) {

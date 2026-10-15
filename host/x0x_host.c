@@ -235,7 +235,8 @@ int plat_cpu2_wait(void) { return 0; }
 int plat_cpu2_gave_up(void) { return 0; }
 uint32_t plat_cpu2_bad(void) { return 0; }
 int plat_cpu2_barred(void) { return 0; }
-int plat_vdc14_mv(void) { return 1500; }
+int plat_vdc14_mv(void) { return 1600; }
+int plat_sysvdd_mv(void) { return 1380; }
 static int host_crash;                            /* "fakecrash": PERF shows a crash record */
 int plat_last_crash(uint32_t v[5])
 {

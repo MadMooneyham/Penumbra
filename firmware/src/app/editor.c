@@ -156,6 +156,7 @@ static int ed_debug(uint32_t cmd, const uint8_t *a, uint32_t na)
                 ed_b(perf.res_load[i] >> 7);
                 ed_b(perf.res_peak[i]);
             }
+            ed_b(plat_sysvdd_level);
             return 1;
         }
         set_view(V_PERF);

@@ -144,8 +144,9 @@ int plat_cpu2_run(void (*fn)(uint32_t), uint32_t arg) { return fm1_cpu1_run(fn, 
 int plat_cpu2_wait(void) { return fm1_cpu1_wait(); }
 int plat_cpu2_gave_up(void) { return fm1_c1_gave_up; }
 uint32_t plat_cpu2_bad(void) { return fm1_c1_mb.bad; }
-uint8_t plat_vdc14_level;                       /* main_fm1.c, at start */
+uint8_t plat_vdc14_level, plat_sysvdd_level;    /* main_fm1.c, at start */
 int plat_vdc14_mv(void) { return 1250 + 50 * plat_vdc14_level; }
+int plat_sysvdd_mv(void) { return 930 + 30 * plat_sysvdd_level; }
 int plat_last_crash(uint32_t v[5])                   /* fm1_crash (.noinit): a warm reset keeps it, power-off clears it */
 {
     if (fm1_crash.magic != FM1_CRASH_MAGIC)

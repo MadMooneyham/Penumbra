@@ -3433,7 +3433,10 @@ static void draw_perf(int band)
         } else
             put_s(q, plat_cycles_cpu() ? "..." : "? (NO CYCLE COUNTER)");
         cv_text(4, 2, &FONT_B, t, C_WHITE);
-        q = put_i(t, plat_vdc14_mv() / 1000);         /* VDC14 as X0X set it (fm1_sys.h), under the cores */
+        q = put_i(t, plat_sysvdd_mv() / 1000);        /* SYSVDD / VDC14 as X0X set them (fm1_sys.h), under the cores */
+        *q++ = '.';
+        q = put_i(q, plat_sysvdd_mv() / 10 % 100);
+        q = put_i(put_s(q, " / "), plat_vdc14_mv() / 1000);
         *q++ = '.';
         q = put_i(q, plat_vdc14_mv() / 10 % 100);
         put_s(q, "V");
