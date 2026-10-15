@@ -668,8 +668,9 @@ OFF, so it doesn't crash again; the page then says 1 CORE (GLO). To try two core
 2ND CORE to ON and switch the FM-1 off and on. After a crash while starting, X0X also starts on one
 core, once.
 
-Under the cores, the page shows the voltage X0X runs one of the processor's supplies at: 1.50V.
-The FM-1 starts at 1.40V; at that voltage some FM-1s misread their memory when both cores are busy.
+Under the cores, the page shows the voltages X0X runs the processor's two supplies at: 1.38 / 1.60V,
+the same as M-VAVE's own firmware. The FM-1's boot loader starts them lower, at 1.26 / 1.40V; at
+those voltages some FM-1s misread their memory when both cores are busy.
 
 When the FM-1 gets close to its limit, X0X lightens the load by itself instead of dropping out:
 the 303s stop oversampling (bright, resonant notes get a touch grittier) and the 808's sounds end
