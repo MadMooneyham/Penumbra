@@ -432,6 +432,15 @@ static void patterns_defaults(void)
         pattern_init(&proj.pat[i], 0x3B0u + (uint32_t)i * 977u, 0x5A1u + (uint32_t)i * 613u);
 }
 
+/* the flash was written behind project.c's back (a restore over USB, backup.c): what it knew the objects held is gone,
+ * so the next save writes each one */
+void project_flash_changed(void)
+{
+    int i;
+    for (i = 0; i < OBJ_NOBJ; i++)
+        stored_known[i] = 0;
+}
+
 /* each object is read straight into its place in proj: a load copies only a valid payload */
 int project_load(void)
 {
@@ -439,8 +448,6 @@ int project_load(void)
     settings_t set;
     project_defaults();
     packed_len = 0;
-    for (i = 0; i < OBJ_NOBJ; i++)                   /* (again after a restore: what the flash held before is gone) */
-        stored_known[i] = 0;
     set = proj.set;
     if (load_settings(&set) == 0 && set.magic == PROJ_MAGIC)
         proj.set = set;

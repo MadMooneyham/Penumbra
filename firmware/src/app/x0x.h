@@ -61,7 +61,8 @@ int project_load(void);                  /* 0 = loaded; else defaults are in pla
 int project_save(void);                  /* 0 = saved and verified; -7 = too much to fit (nothing written) */
 int project_save_settings(void);         /* the settings alone (proj.set as it is): 0 = saved */
 void project_apply_io(void);             /* the settings into the sequencer and the engine: MIDI, the output */
-int project_mem_pct(void);               /* how full the room for patterns, song and motion is, % */
+int project_mem_pct(void);
+void project_flash_changed(void);        /* a restore wrote the flash: the next save writes every object */               /* how full the room for patterns, song and motion is, % */
 
 void ui_init(void);
 void ui_frame(void);
