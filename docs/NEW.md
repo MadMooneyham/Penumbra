@@ -3,6 +3,15 @@
 The newest version first. Install it with the [web installer](../install/); the
 [manual](../manual/) covers everything in detail.
 
+## 1.1.0 · 15 October 2026
+
+- X0X works with a screen reader. Plug the FM-1 into a computer and open the
+  [FM-1 Screen Reader](https://charlesvestal.github.io/fm1-reader/) in Chrome or Edge. It reads out
+  what the screen shows: each page and its knobs, a knob's value as you turn it, list rows with their
+  place, help cards, questions, steps you put on or off, play and stop, and every message, in words
+  ("bass drum tune 37"). It can speak with its own voice or pass the words to your own screen reader
+  (VoiceOver, NVDA, JAWS). The FM-1 stays silent until the page connects, so a DAW never sees it.
+
 ## 1.0.9 · 15 October 2026
 
 - A new [backup page](../backup/) saves your project to a file and puts it back, so you can keep several

@@ -759,6 +759,18 @@ Record it in any audio app, or monitor it live through one. The FM-1 keeps its U
 with the computer's clock, so live monitoring doesn't drift or drop out. The first moment after an
 app opens the input can click while the FM-1 settles.
 
+### Screen reader
+
+X0X can tell a screen reader what its screen shows. Connect the FM-1 by USB, open the
+[FM-1 Screen Reader](https://charlesvestal.github.io/fm1-reader/) in Chrome or Edge, and click
+Connect. It reads out the page you're on and its knobs, a knob's value as you turn it, list rows
+with their place ("clock out on, 1 of 20"), help cards, questions, steps you put on or off, play and
+stop, and every message, in words: "bass drum tune 37", not "BD TUNE 37".
+
+The page can speak with its own voice, at the speed and pitch you choose, or pass everything to your
+own screen reader (VoiceOver, NVDA, JAWS, TalkBack). Press W to hear the whole screen again. The FM-1
+says nothing until the page connects, so a DAW on the same cable never sees it.
+
 ---
 
 ## 17. Troubleshooting

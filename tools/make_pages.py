@@ -85,6 +85,7 @@ at your own risk.</div>
   <a href="manual/"><strong>Manual</strong><span>Getting started in ten steps, then everything else.</span></a>
   <a href="breaks/"><strong>Your own breaks</strong><span>Drop in loops and send them to the BREAK part, from Chrome or Edge.</span></a>
   <a href="backup/"><strong>Back up your project</strong><span>Save your project to a file, and load it back later. Keep as many as you like.</span></a>
+  <a href="https://charlesvestal.github.io/fm1-reader/"><strong>Screen reader</strong><span>Hear what the screen shows, with the page's voice or your own screen reader.</span></a>
   <a href="firmware/__PKG__"><strong>Download __PKG__</strong><span>For the command-line installer: <code>python3 tools/fm1_install.py __PKG__</code></span></a>
   <a href="__REPO__"><strong>Source</strong><span>GitHub, GPL-3.0. Built on Felucca by Hügelton Instruments.</span></a>
 </nav>
@@ -144,6 +145,12 @@ def main(pkg, version, out):
     shutil.copytree(emu, out / "emu")
     # the screen reader's words files (fm1-reader): every one ever made, for the devices that point at them
     shutil.copytree(SRC / "web" / "words", out / "words")
+    (out / "reader").mkdir()                     # (the screen reader's first test address: moved)
+    (out / "reader" / "index.html").write_text(
+        '<!doctype html>\n<meta charset="utf-8">\n<title>FM-1 Screen Reader</title>\n'
+        '<meta http-equiv="refresh" content="0; url=https://charlesvestal.github.io/fm1-reader/">\n'
+        '<p>The screen reader has moved: <a href="https://charlesvestal.github.io/fm1-reader/">'
+        'charlesvestal.github.io/fm1-reader</a>.</p>\n', encoding="utf-8")
     (out / ".nojekyll").write_text("")
     print(f"site: {out}: index.html, install/ ({product}), manual/, breaks/, backup/, new/, firmware/{name} ({len(raw)} B)")
 
