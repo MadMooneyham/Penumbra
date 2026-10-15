@@ -5,34 +5,31 @@ The newest version first. Install it with the [web installer](../install/); the
 
 ## 1.0.9 · 15 October 2026
 
-- **Back up your project:** the new [backup page](../backup/) saves the project to a file on your computer
-  and puts it back, so you can keep several projects, or try another firmware and come back. The FM-1 asks
-  before a restore replaces anything. Break loops aren't in the backup: load them again from their WAVs.
-- **A filter on the break:** press EDIT on the break, then turn SELECT to SOUND. FILTER is one knob: OFF in
-  the middle, a low-pass to the left, a high-pass to the right, to leave a loop's hats under your own
+- A new [backup page](../backup/) saves your project to a file and puts it back, so you can keep several
+  projects or try another firmware and come back. The FM-1 asks before a restore replaces anything.
+  Break loops aren't included; load them again from their WAVs.
+- The break has a filter. Press EDIT on the break and turn SELECT to SOUND. Turn FILTER left for a
+  low-pass and right for a high-pass; the middle is off. A high-pass leaves a loop's hats under your own
   kick and snare.
-- **The FM-1's own supplies:** X0X now runs the processor's two supplies at 1.38 / 1.60V, the voltages
-  M-VAVE's own firmware uses. Some FM-1s crashed with both cores at the lower voltages X0X inherited.
-  GLO > PERFORMANCE shows them.
-- **A crash you can photograph:** after a crash, GLO > PERFORMANCE keeps its numbers in red until you
-  switch off.
-- A save cut off by switching off now loads the save before it, instead of an empty project.
+- X0X runs the processor at 1.38 / 1.60V, the voltages M-VAVE's own firmware uses. Some FM-1s crashed
+  with both cores at the lower voltages custom firmware inherited. GLO > PERFORMANCE shows them.
+- After a crash, GLO > PERFORMANCE keeps its numbers in red until you switch off, so you can photograph
+  them.
+- A save cut off by switching off loads the save before it, instead of an empty project.
 
 ## 1.0.8 · 14 October 2026
 
-- **Hold ENV and turn a knob** to put it back to its default: the filter, a level, any knob on any page.
-- **Safe mode:** holding OCT- and OCT+ for 5 seconds now reaches the update mode from the safe mode
-  screen too, for an FM-1 that can't start and whose USB doesn't come up.
+- Hold ENV and turn a knob to put it back to its default.
+- In safe mode, hold OCT- and OCT+ for 5 seconds to reach the update mode.
 - GLO > 2ND CORE says AT THE NEXT POWER-ON when you change it.
 
 ## 1.0.7 · 14 October 2026
 
-- **A steadier supply for both cores:** X0X raises one of the processor's supplies from 1.40V to 1.50V
-  when it starts. At 1.40V, some FM-1s misread their memory when both cores are busy, and crash.
-  GLO > PERFORMANCE shows the voltage under the cores.
-- **GLO > 2ND CORE:** ON (the default) or OFF, from the next time you switch on. If X0X crashes while
-  both cores are running, it sets this to OFF by itself and carries on with one core, so an FM-1 that
-  can't run both doesn't crash again. After a crash while starting, it starts on one core, once.
+- GLO > 2ND CORE turns the second core on or off from the next start. It's on by default. If X0X
+  crashes with both cores running, it turns the second core off by itself and carries on with one. After
+  a crash while starting, it starts on one core, once.
+- X0X raises one of the processor's supplies from 1.40V to 1.50V when it starts. At 1.40V, some FM-1s
+  misread their memory when both cores are busy, and crash.
 - Thanks to the testers who measured their FM-1s, and to Jangada and Melodee for theirs.
 
 ## 1.0.6 · 11 October 2026
