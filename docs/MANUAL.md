@@ -45,7 +45,8 @@ writing; when it finishes, the FM-1 restarts into X0X.
 
 **Update:** the same way. An update keeps your project: the patterns, sounds, song and settings.
 Installing another firmware does not: it keeps its own things in the same memory, so coming back
-to X0X starts with an empty project.
+to X0X starts with an empty project. To keep it, save it to a file first (see
+[Back up your project](#back-up-your-project)).
 
 **Go back:** "Back to the stock firmware", at the bottom of the same page, puts M-VAVE's firmware
 back (download the FM-1 V15 file from the link there, choose it, press the button). M-VAVE's own
@@ -679,6 +680,39 @@ most useful thing you can send.
 
 KNOB 1 turns on some extra counters (STALLS). They're experimental: if the FM-1 acts up with them
 on, switch it off and on again.
+
+</details>
+
+### Back up your project
+
+X0X keeps one project. To keep more, or to keep yours while you try other firmware, save it to a
+file on your computer and load it back later. Open the
+[backup page](https://charlesvestal.github.io/fm1-x0x/backup/) in Chrome or Edge, with the FM-1
+connected by USB.
+
+**Back up:** press Back up. The project goes to an .x0b file in your downloads: the sounds, all 32
+patterns, the song, the knob motion, the tempo and the settings. X0X can keep playing, but changes it
+hasn't saved yet go in the file only when it's stopped.
+
+**Restore:** stop X0X, choose a backup and press Restore. X0X checks the whole file before anything
+changes. Then its screen asks RESTORE FROM USB? Press SEL to restore, or HOME to keep what you have.
+The backup replaces the project on the FM-1, and X0X loads it at once.
+
+A backup doesn't hold your break loops. Keep their WAV files, and load them again on the
+[break loops page](https://charlesvestal.github.io/fm1-x0x/breaks/). A backup made with an earlier
+version of X0X restores in a later one.
+
+<details><summary>From the command line</summary>
+
+With the FM-1 connected, run:
+
+```
+python3 tools/x0x_backup.py backup my-song.x0b
+python3 tools/x0x_backup.py restore my-song.x0b
+```
+
+`python3 tools/x0x_backup.py info my-song.x0b` shows what a backup holds. The files are the same as
+the backup page's.
 
 </details>
 
