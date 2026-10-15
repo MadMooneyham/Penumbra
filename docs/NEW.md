@@ -3,6 +3,21 @@
 The newest version first. Install it with the [web installer](../install/); the
 [manual](../manual/) covers everything in detail.
 
+## 1.0.9 · 15 October 2026
+
+- **Back up your project:** the new [backup page](../backup/) saves the project to a file on your computer
+  and puts it back, so you can keep several projects, or try another firmware and come back. The FM-1 asks
+  before a restore replaces anything. Break loops aren't in the backup: load them again from their WAVs.
+- **A filter on the break:** press EDIT on the break, then turn SELECT to SOUND. FILTER is one knob: OFF in
+  the middle, a low-pass to the left, a high-pass to the right, to leave a loop's hats under your own
+  kick and snare.
+- **The FM-1's own supplies:** X0X now runs the processor's two supplies at 1.38 / 1.60V, the voltages
+  M-VAVE's own firmware uses. Some FM-1s crashed with both cores at the lower voltages X0X inherited.
+  GLO > PERFORMANCE shows them.
+- **A crash you can photograph:** after a crash, GLO > PERFORMANCE keeps its numbers in red until you
+  switch off.
+- A save cut off by switching off now loads the save before it, instead of an empty project.
+
 ## 1.0.8 · 14 October 2026
 
 - **Hold ENV and turn a knob** to put it back to its default: the filter, a level, any knob on any page.
