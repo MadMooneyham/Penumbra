@@ -7,9 +7,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>X0X installer</title>
+<title>Install · X0X</title>
 <style>
-  :root { --bg: #fff; --fg: #000; --dim: #777; }
+  :root { --bg: #fff; --fg: #000; --dim: #6b6b6b; }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) { --bg: #000; --fg: #fff; --dim: #888; }
   }
@@ -31,6 +31,10 @@
   input[type=file] { font: inherit; font-size: 13px; color: var(--dim); max-width: 100%; }
   .home { display: inline-block; font-weight: 700; letter-spacing: .03em; color: var(--dim); text-decoration: none; margin: 0 0 12px; }
   .home:hover, .home:focus-visible { color: var(--fg); }
+  :focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+  #alert { font-weight: 600; }
+  #alert:empty { display: none; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -46,25 +50,26 @@
   <p class="small"><span data-t="brick"></span>
     <a href="../manual/#recovering-an-fm-1-that-won-t-start" style="color:inherit" data-t="bricklink"></a></p>
   <p class="small" data-t="back"></p>
-  <p class="small"><a href="https://www.m-vave.com/download" target="_blank" rel="noopener" style="color:inherit">www.m-vave.com/download</a></p>
+  <p class="small"><a href="https://www.m-vave.com/download" target="_blank" rel="noopener" style="color:inherit">www.m-vave.com/download<span class="sr" data-t="newtab"></span></a></p>
   <p><button id="go" disabled data-t="install"></button></p>
-  <progress id="bar" max="100" value="0"></progress>
-  <p id="status"></p>
+  <progress id="bar" max="100" value="0" data-t-label="progress"></progress>
+  <p id="status" role="status"></p>
+  <p id="alert" role="alert"></p>
   <pre id="log"></pre>
   <h2 data-t="stockh"></h2>
   <p class="small" data-t="stockwhy"></p>
   <p class="small"><span data-t="keep"></span> <a href="../backup/" style="color:inherit" data-t="keeplink"></a></p>
   <ol class="small">
     <li><span data-t="stock1"></span> <a id="stocklink" href="https://yms-file-store.oss-cn-hongkong.aliyuncs.com/software/firmware/FM-1.fwsc" style="color:inherit">FM-1.fwsc</a></li>
-    <li><span data-t="stock2"></span><br><input type="file" id="stockfile" accept=".fwsc"></li>
+    <li><label for="stockfile" data-t="stock2"></label><br><input type="file" id="stockfile" accept=".fwsc"></li>
     <li data-t="stock3"></li>
   </ol>
   <p><button id="stockgo" disabled data-t="stockinstall"></button></p>
   <p><a href="../manual/" style="color:inherit" data-t="manual"></a></p>
-  <p class="small">X0X is built on Felucca by Leo Kuroshita (@kurogedelic), <a href="https://hugelton.com" target="_blank" rel="noopener" style="color:inherit">Hügelton Instruments</a>,
+  <p class="small">X0X is built on Felucca by Leo Kuroshita (@kurogedelic), <a href="https://hugelton.com" target="_blank" rel="noopener" style="color:inherit">Hügelton Instruments<span class="sr" data-t="newtab"></span></a>,
     with the 909 from 9W9 and ER-99, the 808 from 8W8, the 303 from schwung-303 (Open303), TB-3PO, and BB Gen's break generator. The manual's Credits list them all.<br>
     Fonts: Barlow Semi Condensed and Terminus (SIL OFL 1.1). M-VAVE and FM-1 are trademarks of their respective owners.<br>
-    <span data-t="license"></span> <a href="https://github.com/charlesvestal/fm1-x0x" target="_blank" rel="noopener" style="color:inherit">github.com/charlesvestal/fm1-x0x</a></p>
+    <span data-t="license"></span> <a href="https://github.com/charlesvestal/fm1-x0x" target="_blank" rel="noopener" style="color:inherit">github.com/charlesvestal/fm1-x0x<span class="sr" data-t="newtab"></span></a></p>
 </main>
 <script type="module">
 /*LIB*/
@@ -106,6 +111,7 @@ const TEXT = {
     badpkg: "インストールするファイルが壊れています。ページを再読み込みしてください。",
     leave: "書き込み中です。ページを閉じないでください。",
     license: "GPL-3.0、無保証。ソース:",
+    newtab: "（新しいタブで開きます）", progress: "書き込みの進み具合", percent: "%",
   },
   en: {
     intro: "Connect the FM-1 by USB. (Works in Chrome or Edge.)",
@@ -143,6 +149,7 @@ const TEXT = {
     badpkg: "The file to install is damaged. Reload the page.",
     leave: "Writing. Do not close the page.",
     license: "GPL-3.0, no warranty. Source:",
+    newtab: " (opens in a new tab)", progress: "Install progress", percent: " percent",
   },
 };
 let lang = "en";                                 /* X0X: English first (the manual is English); 日本語 is a click away */
@@ -151,13 +158,30 @@ let lastKey = null, lastArg = "";
 function applyLang() {
   document.documentElement.lang = lang;
   document.querySelectorAll("[data-t]").forEach((e) => { e.textContent = t(e.dataset.t); });
+  document.querySelectorAll("[data-t-label]").forEach((e) => e.setAttribute("aria-label", t(e.dataset.tLabel)));
   $("lang").textContent = t("other");
-  if (lastKey) $("status").textContent = t(lastKey) + lastArg;
+  $("lang").lang = lang === "ja" ? "en" : "ja";
+  if (lastKey) show(t(lastKey) + lastArg, FAILS.has(lastKey));
 }
 $("lang").addEventListener("click", () => { lang = lang === "ja" ? "en" : "ja"; applyLang(); });
 applyLang();
-const sayK = (k, arg = "") => { lastKey = k; lastArg = arg; $("status").textContent = t(k) + arg; };
-const say = (txt) => { lastKey = null; $("status").textContent = txt; };
+/* the step in words in a status region (polite), a failure in an alert; progress at most every 2 s or 10 percent */
+const FAILS = new Set(["nomidi", "loadfail", "stopped", "error", "denied", "notfound", "model", "lost", "noloader", "noreturn",
+                       "mismatch", "badpkg", "stockbad"]);
+function show(txt, fail) {
+  $(fail ? "status" : "alert").textContent = "";
+  $(fail ? "alert" : "status").textContent = txt;
+}
+const sayK = (k, arg = "") => { lastKey = k; lastArg = arg; shown = { k, at: performance.now(), pct: -100 }; show(t(k) + arg, FAILS.has(k)); };
+const say = (txt) => { lastKey = null; show(txt, false); };
+let shown = { k: null, at: 0, pct: -100 };
+function sayPct(k, pct) {
+  const now = performance.now();
+  if (shown.k === k && now - shown.at < 2000 && pct - shown.pct < 10) return;
+  lastKey = k; lastArg = `, ${Math.floor(pct)}${t("percent")}`;
+  shown = { k, at: now, pct };
+  show(t(k) + lastArg, false);
+}
 const log = (t) => { $("log").textContent += t + "\n"; };
 let image = null;
 const meta = /*META*/;
@@ -209,9 +233,9 @@ async function run(img, product, isStock) {
     const step = (k, a) => {
       log(`${k} ${a ?? ""}`);
       if (k === "start") sayK("start");
-      if (k === "verify") { sayK("verify"); $("bar").value = (a / total) * 100; }
+      if (k === "verify") { $("bar").value = (a / total) * 100; sayPct("verify", $("bar").value); }
       if (k === "loader") sayK("loader");
-      if (k === "write") { sayK("write"); $("bar").value = ((74 + a) / total) * 100; }
+      if (k === "write") { $("bar").value = ((74 + a) / total) * 100; sayPct("write", $("bar").value); }
       if (k === "reboot") sayK("reboot");
       if (k === "done") { $("bar").value = 100; sayK(isStock ? "stockdone" : "done"); }
     };

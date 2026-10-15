@@ -18,5 +18,18 @@ emcc -O2 -ffp-contract=off -std=gnu99 -Wall -Wno-unused-function -Wno-unused-par
     -DX0X_HOST -DX0X_WEB "-DX0X_VERSION=\"$(printf %s "${X0X_VERSION:-DEV}" | tr a-z A-Z)\"" -Ifirmware/src -Ifirmware/src/dsp -Ibuild/gen \
     --no-entry -sSTANDALONE_WASM -sSTACK_SIZE=1048576 -sINITIAL_MEMORY=33554432 -sFILESYSTEM=0 \
     -o build/emu/x0x.wasm web/emu/x0x_web.c $U
-cp web/emu/index.html web/emu/worklet.js build/emu/
+cp web/emu/index.html web/emu/worklet.js web/emu/words.js build/emu/
+# the screen reader's voice (the "This page's voice" choice): fm1-reader's tts.js and eSpeak NG, beside X0X
+R=../fm1-reader/web
+if [ -f "$R/tts.js" ]; then
+    rm -rf build/emu/reader && mkdir -p build/emu/reader
+    cp "$R/tts.js" "$R/tts_worker.js" build/emu/reader/
+    cp -R "$R/espeak" build/emu/reader/espeak
+    tail -n +4 web/emu/words.js > build/emu/.words_check
+    tail -n +2 "$R/words.js" | cmp -s - build/emu/.words_check || \
+        echo "note: web/emu/words.js differs from $R/words.js: copy it again (keep its first three lines)"
+    rm -f build/emu/.words_check
+else
+    echo "note: no $R: the emulator is built without the page's voice (the screen reader still works)"
+fi
 echo "emu: build/emu ($(wc -c < build/emu/x0x.wasm) B wasm)"

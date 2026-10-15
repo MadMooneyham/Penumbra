@@ -3,7 +3,8 @@
 """Make the X0X site for GitHub Pages (https://charlesvestal.github.io/fm1-x0x/):
 
   index.html                  what X0X is, and the three ways in: install, manual, source
-  emu/                        X0X in the browser (web/emu: build/emu, from web/emu/build.sh)
+  emu/                        X0X in the browser (web/emu: build/emu, from web/emu/build.sh), with the screen reader
+                              (words.js, words/ below, and fm1-reader's voice in emu/reader/)
   install/index.html          the web installer (web/x0x_installer.html, with fm1pkg.js, fm1ota.js
                               and the package's metadata inlined; Chrome or Edge, Web MIDI)
   breaks/index.html           your own break loops onto the FM-1 (web/x0x_breaks.html with
@@ -42,7 +43,7 @@ LANDING = """<!doctype html>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
 <style>
-:root { --ground: #f4f5f6; --ink: #1c1f23; --muted: #5b626a; --rule: #d9dde1; --accent: #c8700a; --card: #fff; color-scheme: light; }
+:root { --ground: #f4f5f6; --ink: #1c1f23; --muted: #5b626a; --rule: #d9dde1; --accent: #a35a08; --card: #fff; color-scheme: light; }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) { --ground: #131518; --ink: #e6e8eb; --muted: #9aa1a9; --rule: #2d3137; --accent: #f0a043; --card: #1a1d21; color-scheme: dark; }
 }
@@ -56,10 +57,12 @@ h1 { font: 700 2.6rem/1.1 "Barlow Semi Condensed", "Barlow", sans-serif; margin:
 .ways { display: grid; gap: 12px; margin: 0 0 2rem; }
 .ways a { display: block; text-decoration: none; color: var(--ink); background: var(--card); border: 1px solid var(--rule);
           border-radius: 10px; padding: 14px 18px; }
-.ways a:hover, .ways a:focus-visible { border-color: var(--accent); outline: none; }
+.ways a:hover { border-color: var(--accent); }
+.ways a:focus-visible { border-color: var(--accent); outline: 2px solid var(--accent); outline-offset: 2px; }
 .ways .card { background: var(--card); border: 1px solid var(--rule); border-radius: 10px; padding: 14px 18px; }
 .ways .card a { color: var(--accent); text-decoration: none; border: 0; padding: 0; background: none; display: inline; }
 .ways .card a:hover, .ways .card a:focus-visible { text-decoration: underline; }
+.ways .card a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .ways .card a.new { font: 400 .95rem "Barlow", sans-serif; margin-left: .5rem; }
 .ways strong { font: 600 1.25rem "Barlow Semi Condensed", "Barlow", sans-serif; color: var(--accent); display: block; }
 .ways span { color: var(--muted); font-size: .95rem; }
@@ -67,6 +70,7 @@ p.small { color: var(--muted); font-size: .9rem; }
 .video { position: relative; aspect-ratio: 16 / 9; max-width: 100%; margin: 1.5rem 0; border-radius: 6px; overflow: hidden; background: #000; }
 .video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
 a { color: var(--accent); }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 </style>
 </head>
 <body>
@@ -147,10 +151,11 @@ def main(pkg, version, out):
     shutil.copytree(SRC / "web" / "words", out / "words")
     (out / "reader").mkdir()                     # (the screen reader's first test address: moved)
     (out / "reader" / "index.html").write_text(
-        '<!doctype html>\n<meta charset="utf-8">\n<title>FM-1 Screen Reader</title>\n'
-        '<meta http-equiv="refresh" content="0; url=https://charlesvestal.github.io/fm1-reader/">\n'
-        '<p>The screen reader has moved: <a href="https://charlesvestal.github.io/fm1-reader/">'
-        'charlesvestal.github.io/fm1-reader</a>.</p>\n', encoding="utf-8")
+        '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>Screen reader · X0X</title>\n'
+        '<meta http-equiv="refresh" content="0; url=https://charlesvestal.github.io/fm1-reader/">\n</head>\n<body>\n<main>\n'
+        '<h1>The screen reader has moved</h1>\n<p>It is now at <a href="https://charlesvestal.github.io/fm1-reader/">'
+        'charlesvestal.github.io/fm1-reader</a>.</p>\n</main>\n</body>\n</html>\n', encoding="utf-8")
     (out / ".nojekyll").write_text("")
     print(f"site: {out}: index.html, install/ ({product}), manual/, breaks/, backup/, new/, firmware/{name} ({len(raw)} B)")
 

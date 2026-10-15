@@ -80,7 +80,7 @@ The newest version first. Install it with the [web installer](../install/); the
 - A step's probability can be a cycle. Hold a step and turn SELECT down past 5% for 1:2, 2:2, 1:3 … 8:8.
   A step at 1:4 plays on the first of every four passes of its pattern, 2:4 on the second.
 
-![STEP 15: 1:4, the open hat on the first of every four passes](img/new/1.0.1-cycle.png)
+![The 909 grid with OH selected; the top line says STEP 15: 1:4. The OH P-LOCK STEP 15 knobs: DECAY 97, TUNE 64.](img/new/1.0.1-cycle.png "STEP 15: 1:4, the open hat on the first of every four passes")
 
 ## 1.0 · 10 October 2026
 
@@ -93,13 +93,13 @@ The newest version first. Install it with the [web installer](../install/); the
 - The drums have a mixer with per-track mutes, sends and hit meters.
 - A new [break tool](../breaks/) loads and manages your own loops from the browser (BR1, BR2…).
 
-![HOME: a line per part in every pattern with notes](img/new/1.0-home.png)
-![The 303's steps on SEQ, two ties as one long note](img/new/1.0-303-steps.png)
-![A p-lock: the kick's own TUNE on step 5](img/new/1.0-plock.png)
-![Probability: STEP 3 at 50%](img/new/1.0-probability.png)
-![The 909 mixer, its meters lit by a hit](img/new/1.0-drum-mixer.png)
-![MASTER: the output level, the pump at work](img/new/1.0-master.png)
-![The song, bar 1 played four times](img/new/1.0-song-repeat.png)
+![HOME: a line of steps for each part, 909, 808, 303A, 303B and BRK, and a row of pattern slots. PERFORM: TEMPO 125 bpm, SWING 50%, FILTER OFF, PUMP 4.0 dB.](img/new/1.0-home.png "HOME: a line per part in every pattern with notes")
+![303A on SEQ: the notes on the piano roll, one long note where two are tied. The P1 SEQUENCE knobs: LENGTH 16 st, RATE 1/16, DIRECTION FWD, TRANSP 0 st.](img/new/1.0-303-steps.png "The 303's steps on SEQ, two ties as one long note")
+![The 909 with BD's step 5 held: BD P-LOCK STEP 5 (1/2), TUNE 54 marked as locked, ATTACK 13, DECAY 80, P.DPTH 0.](img/new/1.0-plock.png "A p-lock: the kick's own TUNE on step 5")
+![The 909 grid with OH selected; the top line says STEP 3: 50%. The OH P-LOCK STEP 3 knobs: DECAY 97, TUNE 64.](img/new/1.0-probability.png "Probability: STEP 3 at 50%")
+![MIX: 909: a meter and a fader for each track, BD to RD, OH selected. The 909 MIX: OH knobs: LEVEL 60, PAN C, REV 0, DLY 0.](img/new/1.0-drum-mixer.png "The 909 mixer, its meters lit by a hit")
+![The MIX screen: the output's waveform pumping, COMP -12dB, PUMP 4.0dB, AUDIO LOAD 3%. The MASTER knobs: DRIVE 41, COMP 75%, PUMP 4.0 dB, FILTER OFF.](img/new/1.0-master.png "MASTER: the output level, the pump at work")
+![The SONG screen: bar 1 plays P1 on every part, with x4 beside it; bar 2 P2, bar 3 P5, bar 4 END. The REPEAT knob reads x4.](img/new/1.0-song-repeat.png "The song, bar 1 played four times")
 
 ### Sequencing
 - 303 note entry is new. REC turns the keys into a keyboard, and ties show as one long note. Hold a step and press OCT to move it an octave.

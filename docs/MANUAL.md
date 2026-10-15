@@ -6,7 +6,7 @@ into a song, record knob moves, and give single steps a sound and a chance of th
 
 New in this version: see [What's new](https://charlesvestal.github.io/fm1-x0x/new/).
 
-![The FM-1 (a drawing), running X0X, each control labelled](img/fm1-panel.svg)
+![A drawing of the FM-1 running X0X. On the left the knobs MASTER (volume), SELECT (page), PRESETS (pattern) and ALGORITHM (part), with OCT- and OCT+ below them (16 steps back and forward); the screen in the middle; on the right KNOB1 to KNOB4 (the page's four values) above two rows of buttons: FX (effects), SEL (list all), ENV (hold: accent), LFO (mixer), EDIT (sound), GLO (settings), then HOME (pattern, song), SAVE (save; hold: copy), ARP (TB-3PO), SEQ (steps), PLAY/STOP and REC (record). Below, the black keys (drum tracks, break slices, part mutes, mixer channels) and the white keys (steps; on HOME, patterns). Section 3 lists each control.](img/fm1-panel.svg "The FM-1 (a drawing), running X0X, each control labelled")
 
 ---
 
@@ -135,7 +135,7 @@ page. SEQ, EDIT and ARP show the part you choose with ALGORITHM.
 a pattern from any screen, and + a black key mutes a drum track (on the 909 or 808 screen) or a
 channel (on the mixer).
 
-![What the keys do](img/fm1-keys.svg)
+![The keys: white keys 1 to 16 are steps 1 to 16 (on HOME, patterns). Black keys 1 to 11 are the 909's tracks BD, SD, LT, MT, HT, RS, CP, CH, OH, CR and RD (the 808's on the 808, the break's slices on BREAK, part mutes on HOME).](img/fm1-keys.svg "What the keys do")
 
 (The SEL button is labelled SCL in Felucca.)
 
@@ -150,8 +150,8 @@ In a list, SELECT moves, ALGORITHM changes the highlighted value, and SEL runs a
 return arrow (an action). HOME goes back. X0X always asks before doing anything that would lose
 notes: SEL for yes, HOME for no.
 
-![A list](img/screen-list.png)
-![A question](img/screen-ask.png)
+![The MIX screen as a list: LEVEL -5 dB (highlighted), PAN C, REV 0%, DLY 0%, 909 SD LEVEL 58, 909 SD PAN C. At the bottom: SELECT: MOVE, ALGO: CHANGE, HOME: BACK.](img/screen-list.png "A list")
+![A question in a box over the screen: FACTORY RESET? SOUND, PATTERNS, SONG, with SEL YES and HOME NO.](img/screen-ask.png "A question")
 
 > **Not sure what a button does?** Hold it for a second on its own: a card says what it does on
 > the screen you're on, with its combinations. Let go and nothing happens.
@@ -186,7 +186,7 @@ choose.
 
 ## 4. The screen
 
-![The 909](img/screen-909.png)
+![The 909 screen, pattern P1 at 125 BPM, playing: a grid of 16 steps for the tracks BD to RD and the accents (AC), SD selected. The SD knobs: TUNE 64, TONE 68, SNAPPY 64, DECAY 41.](img/screen-909.png "The 909")
 
 The **top line** shows, from left to right:
 
@@ -215,7 +215,7 @@ pattern does, and are copied with it; the sound stays the same whatever pattern 
 The **footer** at the very bottom says what the keys do on this screen (BLACK: TRACK, WHITE:
 STEP). Until you first press a button it says HOLD ANY BUTTON: WHAT IT DOES.
 
-![Turning a knob](img/screen-readout.png)
+![The 909 screen while KNOB1 turns: a box over the grid says SD TUNE 70, and the TUNE knob below is highlighted at 70.](img/screen-readout.png "Turning a knob")
 
 ---
 
@@ -267,7 +267,7 @@ conga sits where the tom does.
 
 There are two identical 303s. Each has its own sound and its own line.
 
-![303A](img/screen-303.png)
+![The 303A screen: the pattern's notes on a piano roll from A1 to A3, with rows for accents (AC) and slides (SL), the scale A MIN and SEED B5CD. The 303A TONE knobs: CUTOFF 48, RESO 100, ENVMOD 85, DECAY 64.](img/screen-303.png "303A")
 
 **Steps.** Press a white key to turn that step on; tap it again to turn it off. To edit a step,
 press SEQ, hold the step's key and turn the knobs: KNOB 1 sets the note, KNOB 2 the gate (REST,
@@ -302,7 +302,7 @@ or random) and TRANSPOSE. Each 303's level, pan and sends are on the mixer (LFO)
 
 TB-3PO writes 303 lines for you. Pick a 303 with ALGORITHM and press ARP.
 
-![TB-3PO](img/screen-tb3po.png)
+![303A with TB-3PO: the generated line on the piano roll, A MIN, SEED B5CD. The P1 GENERATE knobs: DENS 70%, ACCENT 40%, SLIDE 25%, OCTS 2. At the bottom: OCT+: NEW LINE, OCT-: MUTATE.](img/screen-tb3po.png "TB-3PO")
 
 Press **OCT+** to write a completely new line, or **OCT-** to mutate the current one (about a
 quarter of its steps change).
@@ -327,7 +327,7 @@ To edit the line by hand, press SEQ; to shape its sound, EDIT.
 
 The break is a drum loop cut into eight slices, which X0X rearranges as it plays.
 
-![The break, slice 5 playing](img/screen-break.png)
+![The BREAK screen: the loop's waveform cut into 8 slices, the one playing highlighted, all 8 ON; A 909 GR, B 909 FL, PLAYING A. The P1 LOOPS knobs: LOOP A 909 GR, LOOP B 909 FL, B CHANCE 0%, PITCH 0.](img/screen-break.png "The break, slice 5 playing")
 
 **Steps.** The white keys are the bar's 16 steps: press one to let the break play there, tap it
 again to stop it.
@@ -389,7 +389,7 @@ BUILDING.md.
 
 ## 9. Patterns
 
-![HOME](img/screen-home.png)
+![HOME, pattern P1 at 125 BPM: a row of pattern slots, then a line of steps for each part: 909, 808, 303A, 303B and BRK. The PERFORM knobs: TEMPO 125 bpm, SWING 50%, FILTER OFF, PUMP 4.0 dB.](img/screen-home.png "HOME")
 
 There are 32 patterns. A pattern holds each part's steps, length and rate, the break's settings,
 the swing, and any knob motion, p-locks and probabilities. Sounds, effects and master settings
@@ -452,7 +452,7 @@ All three give steps values of their own, and all three are saved with the patte
 
 ### Knob motion
 
-![A recorded cutoff sweep playing](img/screen-motion.png)
+![The 303A screen playing a recorded cutoff sweep: a dot beside CUTOFF marks its motion, and it reads 18; RESO 100, ENVMOD 85, DECAY 64.](img/screen-motion.png "A recorded cutoff sweep playing")
 
 Turn on REC, press PLAY and turn any sound knob. X0X records the knob on the steps where you moved
 it, fills in short pauses so a slow sweep has no gaps, and on playback glides from step to step.
@@ -507,7 +507,7 @@ Each part counts its own passes, from 1 again whenever you press PLAY or it chan
 
 ## 12. Song
 
-![SONG](img/screen-song.png)
+![The SONG screen, song S3 at 120 BPM: bar 1 plays P1 on all five parts, bar 2 P2 (303B P5), bar 3 P1 with the 808 silent, and bar 4 is END; bar 3 is playing. The BAR knobs: BAR 1, 303B P1, BREAK P1, REPEAT x1.](img/screen-song.png "SONG")
 
 A song is a list of up to 192 bars. Each bar says which pattern each part plays and which
 parts are muted. To open the song, press HOME twice (HOME again comes back to the pattern).
@@ -535,7 +535,7 @@ Press SEL on the SONG screen for LENGTH, INSERT BAR, DELETE BAR and CLEAR SONG.
 
 ## 13. Effects
 
-![FX](img/screen-fx.png)
+![The FX screen: REVERB and DELAY sends for 909, 808, 303A, 303B and BRK as bars; DELAY 1/8. TAPE, FEEDBACK 40%, REVERB 57. The REVERB knobs: DECAY 73, TONE 57.](img/screen-fx.png "FX")
 
 There is one reverb and one delay, and every part can send to both: each part's sends are on the
 mixer's PARTS page (LFO), each drum track's on 909 MIX and 808 MIX. FX shows how much every part
@@ -553,7 +553,7 @@ the echoes between left and right.
 
 ## 14. Mix and master
 
-![MIX, with the compressor pumping](img/screen-mix.png)
+![The MIX screen with the compressor pumping: the output's waveform, a gain reduction meter (GR), COMP -14dB, PUMP 11.5dB, AUDIO LOAD 0%. The MASTER knobs: DRIVE 41, COMP 78%, PUMP 11.5 dB, FILTER OFF.](img/screen-mix.png "MIX, with the compressor pumping")
 
 Press LFO to open the mixer; press it again (or turn SELECT) for its four pages. The red bar on
 the right is the compressor's gain reduction.
@@ -599,7 +599,7 @@ GLUE compressor and VOLUME. Turning COMP or FILTER sets their details again.
 
 ## 15. Settings and saving
 
-![GLOBAL](img/screen-global.png)
+![The GLOBAL list: CLOCK OUT ON (highlighted), NOTES OUT OFF, 909 MIDI CH 10, 808 MIDI CH 11, 303A MIDI CH 2, 303B MIDI CH 3.](img/screen-global.png "GLOBAL")
 
 Press GLO for these settings, in five sections (MIDI, AUDIO, KEYS AND SCREEN, PROJECT, SYSTEM):
 

@@ -7,10 +7,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>X0X Backup</title>
+<title>Back up · X0X</title>
 <meta name="description" content="Save the project on an FM-1 running X0X to a file, and load it back later. It works in Chrome or Edge.">
 <style>
-  :root { --bg: #fff; --fg: #000; --dim: #777; --rule: #ddd; --accent: #c8700a; --bad: #d33; color-scheme: light; }
+  :root { --bg: #fff; --fg: #000; --dim: #6b6b6b; --rule: #ddd; --accent: #a35a08; --bad: #d33; color-scheme: light; }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) { --bg: #000; --fg: #fff; --dim: #888; --rule: #333; --accent: #f0a043; --bad: #f55; color-scheme: dark; }
   }
@@ -41,6 +41,8 @@
   kbd { font: inherit; font-weight: 600; font-size: .9em; border: 1px solid var(--rule); border-bottom-width: 2px; padding: 0 4px; }
   .home { display: inline-block; font-weight: 700; letter-spacing: .03em; color: var(--dim); text-decoration: none; margin: 0 0 12px; }
   .home:hover, .home:focus-visible { color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+  label.pick { position: relative; }
   a { color: inherit; }
 </style>
 </head>
@@ -52,8 +54,8 @@
     like this way, and keep your songs safe while you try other firmware.</p>
   <p class="small">Connect the FM-1 by USB with X0X running, and use Chrome or Edge. There is nothing to install.</p>
 
-  <div id="statusBox" role="status" aria-live="polite"><p id="status">Plug in the FM-1 running X0X.</p></div>
-  <progress id="bar" max="100" value="0" hidden></progress>
+  <div id="statusBox"><p id="status" role="status">Plug in the FM-1 running X0X.</p><p id="alert" role="alert"></p></div>
+  <progress id="bar" max="100" value="0" hidden aria-label="Progress"></progress>
 
   <section aria-labelledby="bh">
     <h2 id="bh">Back up</h2>
@@ -351,9 +353,19 @@ class Link {
 const $ = (id) => document.getElementById(id);
 const bar = $("bar");
 let busy = false, picked = null;
+// the step in a status region (polite), a failure in an alert; progress at most every 2 s or 10 percent
+let shown = { key: "", at: 0, pct: -100 };
 function say(html, kind = "") {
-  $("status").innerHTML = html;
+  $(kind === "err" ? "status" : "alert").innerHTML = "";
+  $(kind === "err" ? "alert" : "status").innerHTML = html;
   $("statusBox").className = "status" + (kind ? " " + kind : "");
+  shown = { key: "", at: performance.now(), pct: -100 };
+}
+function sayPct(key, html, pct) {
+  const now = performance.now();
+  if (shown.key === key && now - shown.at < 2000 && pct - shown.pct < 10) return;
+  say(html);
+  shown = { key, at: now, pct };
 }
 function progress(v) { bar.hidden = v == null; if (v != null) bar.value = v; }
 function setBusy(on) {
@@ -384,7 +396,7 @@ $("backup").addEventListener("click", async () => {
     dev = await connect();
     say("Receiving the backup from X0X&hellip;");
     progress(0);
-    const { image, flags } = await PB.backup(dev.link, (n) => { say(`Receiving the backup: ${n.toLocaleString("en")} bytes`); bar.removeAttribute("value"); });
+    const { image, flags } = await PB.backup(dev.link, (n) => { sayPct("recv", `Receiving the backup: ${n.toLocaleString("en")} bytes`, 0); bar.removeAttribute("value"); });
     const d = new Date(), pad = (v) => String(v).padStart(2, "0");
     const name = `x0x-backup-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.x0b`;
     const url = URL.createObjectURL(new Blob([image], { type: "application/octet-stream" }));
@@ -434,7 +446,7 @@ $("restore").addEventListener("click", async () => {
     say("Sending the backup to X0X&hellip;");
     progress(0);
     const code = await PB.restore(dev.link, picked.image, (what, pct) => {
-      if (what === "progress") { say(`Sending the backup: ${Math.floor(pct)}%`); progress(pct); }
+      if (what === "progress") { sayPct("send", `Sending the backup: ${Math.floor(pct)} percent`, pct); progress(pct); }
       if (what === "ask") {
         progress(100);
         say("Sent and checked. X0X now asks <b>RESTORE FROM USB?</b> on the FM-1. Press <kbd>SEL</kbd> to restore, or <kbd>HOME</kbd> to keep what you have.", "ask");

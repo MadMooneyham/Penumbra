@@ -10,13 +10,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>X0X break loops</title>
+<title>Break loops · X0X</title>
 <style>
-  :root { --bg: #fff; --fg: #000; --dim: #777; --rule: #ddd; --wave: #999; --accent: #c8700a; color-scheme: light; }
+  :root { --bg: #fff; --fg: #000; --dim: #6b6b6b; --rule: #ddd; --wave: #999; --accent: #a35a08; --bad: #c62828; color-scheme: light; }
   @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) { --bg: #000; --fg: #fff; --dim: #888; --rule: #333; --wave: #666; --accent: #f0a043; color-scheme: dark; }
+    :root:not([data-theme="light"]) { --bg: #000; --fg: #fff; --dim: #888; --rule: #333; --wave: #666; --accent: #f0a043; --bad: #f55; color-scheme: dark; }
   }
-  :root[data-theme="dark"] { --bg: #000; --fg: #fff; --dim: #888; --rule: #333; --wave: #666; --accent: #f0a043; color-scheme: dark; }
+  :root[data-theme="dark"] { --bg: #000; --fg: #fff; --dim: #888; --rule: #333; --wave: #666; --accent: #f0a043; --bad: #f55; color-scheme: dark; }
   body { margin: 0; background: var(--bg); color: var(--fg);
          font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; }
   main { max-width: 640px; margin: 0 auto; padding-inline: 16px; padding-block: 48px; }
@@ -44,7 +44,10 @@
   .full { height: 4px; background: var(--rule); margin: 16px 0 6px; }
   .full > div { height: 100%; background: var(--accent); }
   #room { font-size: 13px; color: var(--dim); margin: 0 0 16px; }
-  #room.bad { color: #d33; }
+  #room.bad { color: var(--bad); }
+  :focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+  #alert { color: var(--fg); font-weight: 600; font-size: 14px; }
+  #alert:empty { display: none; }
   progress { width: 100%; height: 4px; }
   .home { display: inline-block; font-weight: 700; letter-spacing: .03em; color: var(--dim); text-decoration: none; margin: 0 0 12px; }
   .home:hover, .home:focus-visible { color: var(--accent); }
@@ -61,7 +64,8 @@
 
   <div class="bar">
     <button id="connect">Connect</button>
-    <span id="status"></span>
+    <span id="status" role="status"></span>
+    <span id="alert" role="alert"></span>
   </div>
 
   <div id="list"><div class="empty">Connect to see the loops on the FM-1.</div></div>
@@ -78,8 +82,8 @@
     <button id="send" disabled>Send to the FM-1</button>
     <button class="quiet" id="discard" hidden>Discard changes</button>
   </div>
-  <progress id="progress" max="100" value="0" hidden></progress>
-  <input type="file" id="files" multiple accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.m4a,.ogg">
+  <progress id="progress" max="100" value="0" hidden aria-label="Progress"></progress>
+  <input type="file" id="files" multiple accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.m4a,.ogg" aria-label="Loops to add" tabindex="-1">
 
   <p class="small" style="margin-top:32px">Loops follow the tempo by playing faster or slower, so their pitch
     follows it too; the break's PITCH knob shifts it. Removing a loop renumbers the ones after it, so patterns
@@ -101,11 +105,21 @@ let link = null, busy = false, readOk = false;
 // new one until it's encoded; s: the samples, for the picture), and the slots as read ({hdr, data} or null)
 let loops = [], dev = [null, null, null], replaceAt = -1;
 
-function say(t) { $("status").textContent = t; }
+// the step in a status region, a failure in an alert; progress at most every 2 s or 10 percent
+function say(t) { $("alert").textContent = ""; $("status").textContent = t; shown = { t, at: performance.now(), pct: -100 }; }
+function fail(t) { $("status").textContent = ""; $("alert").textContent = t; }
+let shown = { t: "", at: 0, pct: -100 };
+function sayPct(t, frac) {
+  const pct = Math.floor(frac * 100), now = performance.now();
+  if (shown.t === t && now - shown.at < 2000 && pct - shown.pct < 10) return;
+  $("alert").textContent = "";
+  $("status").textContent = `${t}, ${pct} percent`;
+  shown = { t, at: now, pct };
+}
 const bytesOf = (l) => (l.n + 1) >> 1;
 
 // ---- the list ----------------------------------------------------------------
-function render() {
+function render(focusAt = -1) {
   const list = $("list");
   list.textContent = "";
   if (!readOk)
@@ -116,11 +130,11 @@ function render() {
     const r = document.createElement("div");
     r.className = l.isNew ? "loop new" : "loop";
     r.innerHTML = `<div class="name">BR${i + 1}<small>${(l.n / SLOT_RATE).toFixed(1)} s${l.isNew ? " · new" : ""}</small></div>
-      <canvas width="900" height="80"></canvas>
-      <div class="acts"><button class="link rep">Replace</button><button class="link del">Remove</button></div>`;
+      <canvas width="900" height="80" aria-hidden="true"></canvas>
+      <div class="acts"><button class="link rep" aria-label="Replace BR${i + 1}">Replace</button><button class="link del" aria-label="Remove BR${i + 1}">Remove</button></div>`;
     if (l.file) r.title = l.file;
     r.querySelector(".rep").onclick = () => { replaceAt = i; $("files").multiple = false; $("files").click(); };
-    r.querySelector(".del").onclick = () => { loops.splice(i, 1); render(); };
+    r.querySelector(".del").onclick = () => { loops.splice(i, 1); render(i); say(`BR${i + 1} removed.`); };
     r.querySelector(".rep").disabled = r.querySelector(".del").disabled = busy;
     r.ondragover = (ev) => { ev.preventDefault(); ev.stopPropagation(); r.classList.add("over"); };
     r.ondragleave = () => r.classList.remove("over");
@@ -139,6 +153,10 @@ function render() {
   $("discard").disabled = busy;
   $("add").disabled = busy || !readOk;
   $("connect").disabled = busy;
+  if (focusAt >= 0) {                                // the focused button went with its loop: the next one's, or Add
+    const rows = list.querySelectorAll(".loop .del");
+    (rows[Math.min(focusAt, rows.length - 1)] || $("add")).focus();
+  }
 }
 
 // one loop's waveform: its peak in each pixel column
@@ -219,7 +237,8 @@ async function addFiles(list, at = -1) {
       got.push({ adpcm: null, n: s.length, s, file: f.name, isNew: true, rate, x });
     } catch (_) { bad.push(f.name); }
   }
-  say(bad.length ? `Couldn't read ${bad.join(", ")}.` : "");
+  if (bad.length) fail(`Couldn't read ${bad.join(", ")}. Use WAV, AIFF, MP3 or FLAC files.`);
+  else say(got.length === 1 ? `${at >= 0 ? `BR${at + 1} replaced` : "1 loop added"}.` : `${got.length} loops added.`);
   if (at >= 0 && got.length) loops[at] = got[0];
   else loops.push(...got);
   render();
@@ -301,7 +320,7 @@ async function readAll() {
       if (!nz[k]) continue;
       const hdr = await readBytes(k, 0, SLOT_HDR_LEN), h = parseSlot(hdr);
       if (!h) continue;
-      const data = await readBytes(k, SLOT_DATA_OFF, h.dataLen, (f) => { bar.value = (k + f) / NSLOT * 100; });
+      const data = await readBytes(k, SLOT_DATA_OFF, h.dataLen, (f) => { bar.value = (k + f) / NSLOT * 100; sayPct("Reading the loops", bar.value / 100); });
       dev[k] = { hdr, data };
       for (const z of h.zones) {
         const adpcm = data.slice(z.off, z.off + ((z.n + 1) >> 1));
@@ -319,7 +338,7 @@ async function readAll() {
 async function run(fn) {
   busy = true;
   render();
-  try { await fn(); } catch (e) { say(e.message || String(e)); }
+  try { await fn(); } catch (e) { fail(e.message || String(e)); }
   busy = false;
   render();
 }
@@ -332,7 +351,7 @@ async function readFromDevice() {
   say("Reading the loops…");
   await readAll();
   $("connect").textContent = "Read again";
-  say("");
+  say(`Read ${loops.length} loop${loops.length === 1 ? "" : "s"} from the FM-1.`);
 }
 
 $("connect").onclick = () => run(readFromDevice);
@@ -362,6 +381,7 @@ $("send").onclick = () => run(async () => {
       if (r[4]) throw new Error("Writing to the FM-1 failed.");
       sent += Math.min(256, im.data.length - off);
       bar.value = sent / total * 100;
+      sayPct("Sending", sent / total);
     }
     const e = await link.req(13, [k, ...pack7(im.hdr)], 5000);
     if (e[1]) throw new Error("The FM-1 didn't accept the loops.");

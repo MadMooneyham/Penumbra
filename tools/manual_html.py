@@ -8,7 +8,9 @@
 add their own); the default is a complete document that opens in any browser.
 
 Handles what the manual uses: headings, paragraphs, **bold**, `code`, lists, tables, fenced
-code, rules, and the contents list (linked to the sections by number)."""
+code, rules, and the contents list (linked to the sections by number). An image is
+![what it shows](src "caption"): the alt text says what the picture shows (a screen: its text), the
+caption what it is for; without a caption, the alt text is both."""
 import base64
 import html
 import re
@@ -21,7 +23,7 @@ PART_COLOURS = {"909": "#e8860f", "808": "#e0483e", "303A": "#4fae3a", "303B": "
 CSS = """
 :root {
   --ground: #f4f5f6; --sheet: #ffffff; --ink: #1c1f23; --muted: #5b626a; --rule: #d9dde1;
-  --accent: #c8700a; --code-bg: #eef0f2; --swatch-ring: rgba(0,0,0,.18);
+  --accent: #a35a08; --code-bg: #eef0f2; --swatch-ring: rgba(0,0,0,.18);
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -70,6 +72,11 @@ td:first-child { white-space: nowrap; }
 a.home { color: inherit; text-decoration: none; }
 main > a.home { display: inline-block; font: 700 1rem "Barlow Semi Condensed", "Barlow", sans-serif; letter-spacing: .03em; color: var(--muted); margin: 0 0 .4rem; }
 a.home:hover { color: var(--accent); }
+pre:focus-visible, .table:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+.skip { position: absolute; left: 16px; top: -100px; background: var(--sheet); color: var(--accent); padding: 8px 14px;
+        border: 2px solid var(--accent); border-radius: 8px; font-weight: 600; z-index: 10; }
+.skip:focus { top: 12px; }
 .callout { border-left: 3px solid var(--accent); background: var(--sheet); border-radius: 0 8px 8px 0; padding: 10px 16px; margin: 0 0 1.2rem; max-width: 65ch; }
 .callout p { margin: 0; }
 details { border: 1px solid var(--rule); border-radius: 8px; padding: 0 16px; margin: 0 0 1.2rem; }
@@ -91,6 +98,25 @@ nav.contents li { break-inside: avoid; }
 """
 
 
+# a table wider than the page scrolls: then the keyboard can reach it (and it has a name)
+SCRIPT = """<script>
+(() => {
+  const tables = [...document.querySelectorAll(".table")];
+  tables.forEach((t) => {
+    const th = t.querySelector("th");
+    t.setAttribute("aria-label", "Table" + (th ? ": " + th.textContent : ""));
+  });
+  const fit = () => tables.forEach((t) => {
+    if (t.scrollWidth > t.clientWidth + 1) { t.tabIndex = 0; t.setAttribute("role", "region"); }
+    else { t.removeAttribute("tabindex"); t.removeAttribute("role"); }
+  });
+  fit();
+  addEventListener("resize", fit);
+})();
+</script>
+"""
+
+
 def inline(t):
     t = html.escape(t, quote=False)
     t = re.sub(r"`([^`]+)`", r"<code>\1</code>", t)
@@ -102,7 +128,7 @@ def inline(t):
 
 
 def slug(title):
-    m = re.match(r"(\d+)\.", title)
+    m = re.match(r"(\d+)\. ", title)                 # "8. Break", not "1.0.9 · 15 October" (an id each)
     return f"s{m.group(1)}" if m else re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
 
 
@@ -110,7 +136,7 @@ IMG_BASE = SRC / "docs"
 EMBED = False                                         # --fragment: images as data URIs
 
 
-def figure(caption, src):
+def figure(alt, src, caption=None):
     path = IMG_BASE / src
     if EMBED:
         mime = "image/svg+xml" if src.endswith(".svg") else "image/png"
@@ -118,8 +144,8 @@ def figure(caption, src):
     else:
         url = src
     cls = "wide" if src.endswith(".svg") else "shot"
-    return (f'<figure class="{cls}"><img src="{url}" alt="{html.escape(caption)}" loading="lazy">'
-            f"<figcaption>{inline(caption)}</figcaption></figure>")
+    return (f'<figure class="{cls}"><img src="{url}" alt="{html.escape(alt)}" loading="lazy">'
+            f"<figcaption>{inline(caption or alt)}</figcaption></figure>")
 
 
 def convert(md):
@@ -135,16 +161,18 @@ def convert(md):
             j = i + 1
             while j < len(lines) and not lines[j].startswith("```"):
                 j += 1
-            out.append("<pre><code>" + html.escape("\n".join(lines[i + 1:j]), quote=False) + "</code></pre>")
+            label = "Command" if j - i == 2 else "Commands"     # a pre scrolls: the keyboard can reach it
+            out.append(f'<pre tabindex="0" aria-label="{label}"><code>' + html.escape("\n".join(lines[i + 1:j]), quote=False) +
+                       "</code></pre>")
             i = j + 1
             continue
         if ln.startswith("!["):                      # consecutive image lines: one row of figures
             figs = []
             while i < len(lines) and (lines[i].startswith("![") or (not lines[i].strip() and i + 1 < len(lines)
                                                                     and lines[i + 1].startswith("!["))):
-                m = re.match(r"!\[(.*)\]\((.*)\)", lines[i])
+                m = re.match(r'!\[(.*)\]\((\S+)(?: "(.*)")?\)', lines[i])
                 if m:
-                    figs.append(figure(m.group(1), m.group(2)))
+                    figs.append(figure(m.group(1), m.group(2), m.group(3)))
                 i += 1
             out.append('<div class="figs">' + "".join(figs) + "</div>")
             continue
@@ -238,7 +266,7 @@ def main():
     dst = Path(args[1]) if len(args) > 1 else SRC / "docs" / "manual.html"
     md = src.read_text()
     h1 = re.search(r"^# (.+)$", md, re.M)
-    title, what = ("X0X Manual", "The manual") if not h1 or h1.group(1) == "X0X" else (f"X0X: {h1.group(1)}", h1.group(1))
+    title, what = ("Manual · X0X", "The manual") if not h1 or h1.group(1) == "X0X" else (f"{h1.group(1)} · X0X", h1.group(1))
     body = convert(md)
     page = (f"<title>{html.escape(title)}</title>\n"
             f'<meta name="description" content="{html.escape(what)} for X0X, groovebox firmware for the M-VAVE FM-1.">\n'
@@ -246,12 +274,16 @@ def main():
             '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n'
             '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&'
             'family=Barlow+Semi+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400&display=swap">\n'
-            f"<style>{CSS}</style>\n<main>\n{body}\n</main>\n")
+            f"<style>{CSS}</style>\n<main>\n{body}\n</main>\n{SCRIPT}")
+    skip = re.search(r'</nav>\n<hr>\n<h2 id="([^"]+)"', body)     # past the contents, or to the page
+    page = page.replace("<main>", f'<a class="skip" href="#{skip.group(1) if skip else "content"}">Skip to content</a>\n'
+                        '<main id="content">', 1)
     if not fragment:
-        head, _, rest = page.partition("<main>")
+        head, _, rest = page.partition('<a class="skip"')
+        rest = '<a class="skip"' + rest
         page = ('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
                 '<meta name="viewport" content="width=device-width, initial-scale=1">\n' + head +
-                "</head>\n<body>\n<main>" + rest + "</body>\n</html>\n")
+                "</head>\n<body>\n" + rest + "</body>\n</html>\n")
     dst.write_text(page)
     print(f"{dst}: {len(page)} bytes")
 

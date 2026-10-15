@@ -2,6 +2,8 @@
 // X0X in an AudioWorklet: x0x.wasm is the whole FM-1 app (web/emu/x0x_web.c). Each render
 // quantum asks it for 128 frames, which runs the device's clock forward; between quanta the page's
 // input goes in and, about 30 times a second, the screen, the lights and any saved objects go out.
+// The screen reader (fm1-reader's protocol): the page's reader SysEx goes in through web_sysex, and
+// what the device says (whole F0..F7 frames from web_said_buf) goes out as soon as it is said.
 
 const clock = globalThis.performance ? () => globalThis.performance.now() : () => Date.now();
 
@@ -55,6 +57,10 @@ class X0X extends AudioWorkletProcessor {
       this.ex.web_enc(m.role, m.n | 0);
     } else if (m.type === "master") {
       this.ex.web_master(m.value | 0);
+    } else if (m.type === "sysex") {               // a reader's SysEx, the bytes between F0 and F7
+      const b = (m.bytes || []).slice(0, 64);
+      new Uint8Array(this.mem.buffer, this.ex.web_sysex_in(), b.length).set(b);
+      this.ex.web_sysex(b.length);
     } else if (m.type === "slot") {                // a user break slot: {k, name, zones: [{pcm, rate}]}
       const ex = this.ex, name = new Uint8Array(this.mem.buffer, ex.web_slot_namebuf(), 9);
       name.fill(0);
@@ -107,6 +113,12 @@ class X0X extends AudioWorkletProcessor {
     this.ex.web_render(n);
     this.busy += clock() - t0;
     this.frames += n;
+    const said = this.ex.web_said_len();
+    if (said) {                                       // what the device said for the reader
+      const bytes = new Uint8Array(this.mem.buffer, this.ex.web_said_buf(), said).slice();
+      this.ex.web_said_clear();
+      this.port.postMessage({ type: "said", bytes }, [bytes.buffer]);
+    }
     out[0].set(new Float32Array(this.mem.buffer, this.ex.web_out_l(), n));
     if (out[1]) out[1].set(new Float32Array(this.mem.buffer, this.ex.web_out_r(), n));
     if (currentTime - this.lastFrame >= 1 / 30) {
