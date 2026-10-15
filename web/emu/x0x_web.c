@@ -47,6 +47,23 @@ __attribute__((used, visibility("default"))) void web_render(uint32_t n)
 }
 
 __attribute__((used, visibility("default"))) void web_boot(void) { boot(); }
+
+/* the screen reader (announce.c): the page hands the device a reader's SysEx (between F0 and F7) and takes
+ * what it says back, whole F0..F7 frames, from web_said_buf (web_said_len bytes; web_said_clear when read) */
+static uint8_t said_buf[4096], sx_in[64];
+static uint32_t said_n;
+static void web_said(const uint8_t *p, uint32_t n)
+{
+    if (said_n + n <= sizeof said_buf) {
+        memcpy(said_buf + said_n, p, n);
+        said_n += n;
+    }
+}
+__attribute__((used, visibility("default"))) uint8_t *web_said_buf(void) { return said_buf; }
+__attribute__((used, visibility("default"))) uint32_t web_said_len(void) { return said_n; }
+__attribute__((used, visibility("default"))) void web_said_clear(void) { said_n = 0; }
+__attribute__((used, visibility("default"))) uint8_t *web_sysex_in(void) { return sx_in; }
+__attribute__((used, visibility("default"))) void web_sysex(uint32_t n) { ann_frame(sx_in, n > sizeof sx_in ? sizeof sx_in : n, now_ms); }
 __attribute__((used, visibility("default"))) void web_buttons(uint32_t m) { held_btn = m; }
 __attribute__((used, visibility("default"))) void web_keys(uint32_t m) { held_keys = m; }
 __attribute__((used, visibility("default"))) void web_enc(int role, int32_t n)

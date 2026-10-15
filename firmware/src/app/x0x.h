@@ -70,6 +70,7 @@ void ui_frame(void);
 void ui_input_only(void);
 int ui_dirty(void);
 void ui_say(const char *a, const char *b);
+void ui_warn(const char *a, const char *b);   /* ui_say for what did not happen: a screen reader says it whole */
 /* backup and restore over USB (backup.c) */
 void ui_flush(void);                     /* stopped: the unsaved changes saved now (a backup takes the flash's) */
 void ui_hold_saves(int on);              /* 1: no save until 0 (a backup streams the flash) */

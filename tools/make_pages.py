@@ -142,6 +142,8 @@ def main(pkg, version, out):
     if not (emu / "x0x.wasm").exists():
         raise SystemExit("no build/emu/x0x.wasm: run web/emu/build.sh (needs Emscripten)")
     shutil.copytree(emu, out / "emu")
+    # the screen reader's words files (fm1-reader): every one ever made, for the devices that point at them
+    shutil.copytree(SRC / "web" / "words", out / "words")
     (out / ".nojekyll").write_text("")
     print(f"site: {out}: index.html, install/ ({product}), manual/, breaks/, backup/, new/, firmware/{name} ({len(raw)} B)")
 

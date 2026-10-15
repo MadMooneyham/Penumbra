@@ -371,8 +371,8 @@ static void backup_service(uint32_t req)
         ota_deadline = 0;
         if (begun && rc)
             ui_redraw();                            /* (restored: app_restored drew it all again) */
-        ui_say(!rc ? "RESTORED FROM USB" : rc == RS_E_PLAYING ? "STOP FIRST, THEN RESTORE"
-               : rc == RS_E_NO ? "NOT RESTORED" : "RESTORE FAILED", 0);
+        (rc ? ui_warn : ui_say)(!rc ? "RESTORED FROM USB" : rc == RS_E_PLAYING ? "STOP FIRST, THEN RESTORE"
+                                : rc == RS_E_NO ? "NOT RESTORED" : "RESTORE FAILED", 0);
 #if X0X_DEBUG
         rs_auto = 0;
 #endif
@@ -506,6 +506,12 @@ static void fm1_main(void)
             } else if (fm1_ms - t0 > 5000u) {
                 enter_uboot("UBOOT");
             }
+        }
+        {   /* a screen reader's SysEx (announce.c), before the editor and the updater look */
+            const uint8_t *p;
+            uint32_t n;
+            if (ota_frame_get(&p, &n) && ann_frame(p, n, fm1_ms))
+                ota_frame_done();
         }
         ed_service();                               /* sample upload SysEx */
         backup_service(ota_service());              /* M-UPGRADE handshake; backup and restore */

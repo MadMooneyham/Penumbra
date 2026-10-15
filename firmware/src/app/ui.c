@@ -128,6 +128,7 @@ static int bidx(void) { return ui.part == PART_303B ? 1 : 0; }
 static int kbd_on(void) { return is_303() && (ui.rec || ui.freeplay[bidx()]); }   /* the keys a keyboard */
 static uint8_t kbd_held_note[NBASS];
 static int held_note_of(const bpart_t *bp, int s);
+static void sp_step(int s, int accent);       /* a step put on / off, to a screen reader */
 
 /* ============================================================ text helpers === */
 static char *put_s(char *b, const char *s)
@@ -168,13 +169,17 @@ static char *put_hex(char *b, uint32_t v, int digits)
     return b;
 }
 
-static void say(const char *a, const char *b)
+static void say_as(const char *a, const char *b, uint32_t flags)
 {
     char *q = put_s(ui.msg, a);
     if (b)
         put_s(q, b);
     ui.msg_until = plat_ms() + 1300u;
+    ann_say(a, b, flags);                         /* and to a screen reader (announce.c) */
 }
+static void say(const char *a, const char *b) { say_as(a, b, ANN_NOW); }
+/* something did not happen: a screen reader says it whole (what follows does not cut it off) */
+static void warn(const char *a, const char *b) { say_as(a, b, ANN_NOW | ANN_KEEP); }
 
 /* =============================================================== param refs === */
 enum { R_NONE, R_ENG, R_SWING, R_DLEN, R_DRATE, R_BLEN, R_BRATE, R_BDIR, R_BTRANS, R_GEN, R_BRKSET,
@@ -1325,7 +1330,10 @@ static void save_project(void)
     }
     save_wait = 0;
     rc = project_save();
-    say(rc == -7 ? "MEMORY FULL: NOT SAVED" : rc ? "SAVE FAILED" : "SAVED", 0);
+    if (rc)
+        warn(rc == -7 ? "MEMORY FULL: NOT SAVED" : "SAVE FAILED", 0);
+    else
+        say("SAVED", 0);
     if (!rc)
         ui.dirty = 0;
 }
@@ -1579,7 +1587,10 @@ static void run_action(int act, int arg)
         mark_dirty();
         q = put_i(put_s(t, "P"), seq.ppat[PART_909] + 1);
         put_i(put_s(q, " PASTED TO P"), dst + 1);
-        say(rc ? "MOTION FULL: NOT ALL PASTED" : t, 0);
+        if (rc)
+            warn("MOTION FULL: NOT ALL PASTED", 0);
+        else
+            say(t, 0);
         break;
     }
     case ACT_SONG_INS:
@@ -1680,7 +1691,7 @@ static void motion_touch(pref_t r)
     k = motion_find(proj.arr.lane, seq.ppat[part], part, r.a, r.b, r.c);
     if (ui.rec) {
         if (k < 0 && (k = motion_alloc(proj.arr.lane, seq.ppat[part], part, r.a, r.b, r.c)) < 0) {
-            say("MOTION FULL", 0);
+            warn("MOTION FULL", 0);
             return;
         }
         engine_motion_rec(k);
@@ -1698,7 +1709,7 @@ static void motion_forget(pref_t r)
     part = engine_motion_part(r.a, r.b);
     k = motion_find(proj.arr.lane, seq.ppat[part], part, r.a, r.b, r.c);
     if (k < 0) {
-        say("NO MOTION ON ", pref_name(r));
+        warn("NO MOTION ON ", pref_name(r));
         return;
     }
     motion_clear(proj.arr.lane, k);
@@ -1752,7 +1763,7 @@ static void lock_turn(pref_t r, int e, int role)
     if (!d)
         return;
     if (!lockable(r)) {
-        say("NO P-LOCK: ", caps_of(pref_name(r)));
+        warn("NO P-LOCK: ", caps_of(pref_name(r)));
         return;
     }
     if (is_303())
@@ -1778,7 +1789,7 @@ static void lock_turn(pref_t r, int e, int role)
         return;
     }
     if (k < 0 && (k = motion_alloc(proj.arr.lane, seq.ppat[part], part, r.a, r.b, r.c)) < 0) {
-        say("MOTION FULL", 0);
+        warn("MOTION FULL", 0);
         return;
     }
     l = &proj.arr.lane[k];
@@ -1832,7 +1843,7 @@ static void prob_turn(int e)
         nv = pos < 20 ? 100 - 5 * pos : PROB_COND + pos - 20;
     }
     if (nv != 100 && k < 0 && (k = motion_alloc(proj.arr.lane, seq.ppat[part], part, T_PROB, v, 0)) < 0) {
-        say("MOTION FULL", 0);
+        warn("MOTION FULL", 0);
         return;
     }
     if (k >= 0) {
@@ -1925,6 +1936,7 @@ static void drum_step(int white, int down)
             if (!ui.hold_created && !ui.hold_used && plat_ms() - ui.hold_t0 < STEP_TAP_MS) {
                 sm_flip(bits, s);
                 mark_dirty();
+                sp_step(s, 0);
             }
             if (ui.hold_used)
                 lock_release();
@@ -1936,6 +1948,7 @@ static void drum_step(int white, int down)
         sm_flip(d->accent, s);
         ui.btn_used |= 1u << B_ENV;
         mark_dirty();
+        sp_step(s, 1);
         return;
     }
     ui.hold_step = (int8_t)s;
@@ -1945,6 +1958,7 @@ static void drum_step(int white, int down)
     if (ui.hold_created) {
         sm_flip(bits, s);
         mark_dirty();
+        sp_step(s, 0);
     }
 }
 
@@ -2008,6 +2022,7 @@ static void bass_step_key(int white, int down)
         if (ui.step_created) {
             bp->step[s].flags = G_NOTE;
             mark_dirty();
+            sp_step(s, 0);
         }
         ui.step_preview = key_sounds();               /* as the drum keys */
         if (ui.step_preview)
@@ -2016,6 +2031,7 @@ static void bass_step_key(int white, int down)
         if (!ui.step_created && !ui.step_edited && plat_ms() - ui.step_t0 < STEP_TAP_MS) {   /* a tap takes it off */
             bp->step[s].flags = G_REST;
             mark_dirty();
+            sp_step(s, 0);
         }
         if (ui.step_preview)
             engine_bass_off(b);
@@ -2332,7 +2348,7 @@ static void button_tap(int b)
         break;
     case B_ARP:
         if (!is_303()) {
-            say("TB-3PO: PICK 303A OR 303B", 0);
+            warn("TB-3PO: PICK 303A OR 303B", 0);
             break;
         }
         if (ui.view == V_GEN && ui.overlay == O_NONE)  /* the generator; again: its next page */
@@ -3554,29 +3570,36 @@ static void draw_perf(int band)
 }
 
 /* the readout: the knob being turned, large, across the bottom band */
+/* the readout's knob (ui.touched) and its name: TEMPO, a track's own "BD  TUNE", the pattern's "P3  LENGTH" */
+static const char *readout_name(pref_t *rp)
+{
+    static char t[24];
+    const char *nm;
+    pref_t r;
+    if (ui.touched == 4) {
+        *rp = PR(R_TEMPO, 0, 0, 0);
+        return "TEMPO";
+    }
+    r = *rp = pg.r[cur_page()][ui.touched];
+    nm = caps_of(pref_name(r));
+    if (track_page()) {
+        put_s(put_s(put_s(t, engine_voice_name(ui.part == PART_909 ? T_909 : T_808, ui.sel[ui.part])), "  "), nm);
+        nm = t;
+    } else if (in_pattern(r)) {                          /* (it changes with the pattern) */
+        int pp = r.kind == R_DLEN || r.kind == R_DRATE ? r.a : r.kind >= R_BLEN && r.kind <= R_BTRANS ? NKIT + r.a
+                 : r.kind == R_SWING ? PART_909 : part_view() ? ui.part : PART_909;
+        put_s(put_s(put_i(put_s(t, "P"), seq.ppat[pp] + 1), "  "), nm);
+        nm = t;
+    }
+    return nm;
+}
+
 static void draw_readout(void)
 {
     char num[16], unit[8];
     pref_t r;
     int32_t w, x;
-    const char *nm;
-    if (ui.touched == 4) {
-        r = PR(R_TEMPO, 0, 0, 0);
-        nm = "TEMPO";
-    } else {
-        r = pg.r[cur_page()][ui.touched];
-        nm = caps_of(pref_name(r));
-        static char t[24];
-        if (track_page()) {                              /* a track's own: "BD  Tune" */
-            put_s(put_s(put_s(t, engine_voice_name(ui.part == PART_909 ? T_909 : T_808, ui.sel[ui.part])), "  "), nm);
-            nm = t;
-        } else if (in_pattern(r)) {                      /* the pattern's: "P3  LENGTH" (it changes with it) */
-            int pp = r.kind == R_DLEN || r.kind == R_DRATE ? r.a : r.kind >= R_BLEN && r.kind <= R_BTRANS ? NKIT + r.a
-                     : r.kind == R_SWING ? PART_909 : part_view() ? ui.part : PART_909;
-            put_s(put_s(put_i(put_s(t, "P"), seq.ppat[pp] + 1), "  "), nm);
-            nm = t;
-        }
-    }
+    const char *nm = readout_name(&r);
     pref_value(r, num, unit);
     {   /* one row: the name on the left, the value (+ unit) on the right, both on the box's middle */
         const int32_t bx = 8, by = 14, bw = 224, bh = 50;
@@ -4127,6 +4150,414 @@ static void leds(void)
 }
 
 /* ===================================================================== frame === */
+/* ============================================================ screen reader === */
+/* The screen as text for a screen reader on the computer (announce.c; web/reader): a screen or a page
+ * once it settles, with its knobs; a knob's value as it turns; what a button did (say); the help cards;
+ * questions; a list's rows; steps put on and off; play and stop. WHERE (the reader asks, or it has just
+ * started listening) is everything on the screen. Nothing is built while no reader listens. */
+static struct {
+    uint32_t ctx;                      /* the screen, hashed: a change is said */
+    char knob[ANN_MAX + 1];            /* the readout said last */
+    int16_t list_sel, list_v;
+    int8_t playing, pat;
+    uint8_t started;
+} sp X0X_POOL;
+static char sp_buf[ANN_MAX + 1] X0X_POOL;
+static uint32_t sp_n;
+
+static void sp_cat(const char *s)
+{
+    while (*s && sp_n < ANN_MAX)
+        sp_buf[sp_n++] = *s++;
+    sp_buf[sp_n] = 0;
+}
+static void sp_int(int v)
+{
+    char b[12];
+    put_i(b, v);
+    sp_cat(b);
+}
+static void sp_value(pref_t r)                        /* "64", "-6 DB", "OFF" */
+{
+    char num[16], unit[8];
+    pref_value(r, num, unit);
+    sp_cat(num);
+    if (unit[0]) {
+        sp_cat(" ");
+        sp_cat(unit);
+    }
+}
+static void sp_row(pref_t r)                          /* a list row or a knob: "DECAY 64" */
+{
+    char t[28];
+    if (r.kind == R_NONE)
+        return;
+    if (r.kind == R_HDR) {
+        hdr_name(r.a, t);
+        sp_cat(t);
+        return;
+    }
+    sp_cat(caps_of(pref_name(r)));
+    if (r.kind == R_ACT)
+        return;
+    sp_cat(" ");
+    sp_value(r);
+}
+
+/* where we are: the screen, the knobs' owner, the four knobs */
+static void sp_screen(void)
+{
+    char t[28];
+    int i, pgi = cur_page();
+    if (part_view()) {
+        sp_cat(PART_N[ui.part]);
+        if (ui.view == V_GEN)
+            sp_cat(" TB-3PO");
+        else if (ui.view == V_SEQ)
+            sp_cat(!kbd_on() ? " SEQ" : ui.rec ? " SEQ KEYS" : " FREE PLAY");
+        else if (kbd_on())
+            sp_cat(ui.rec ? " KEYS" : " FREE PLAY");
+    } else {
+        sp_cat(VIEW_N[ui.view]);
+    }
+    if (pg.n) {
+        uint32_t k = 0;
+        knob_tag(t);
+        while (k < sp_n && t[k] == sp_buf[k])
+            k++;
+        if (k < sp_n || (t[k] && t[k] != ' ')) {     /* "909 KIT" after "909": not "909. 909 KIT" */
+            sp_cat(". ");
+            sp_cat(t);
+        } else {
+            sp_cat(t + k);
+        }
+        for (i = 0; i < 4; i++)
+            if (pg.r[pgi][i].kind != R_NONE) {
+                sp_cat(i ? ", " : ": ");
+                sp_row(pg.r[pgi][i]);
+            }
+    }
+}
+
+/* the steps the white keys show, on: "STEPS 1-16 ON: 1 5 9 13" */
+static void sp_steps(void)
+{
+    int c, any = 0, len = steps_len();
+    if (!steps_view() || (!is_drum() && !is_303()))
+        return;
+    sp_cat(". STEPS ");
+    sp_int(ui.spage * 16 + 1);
+    sp_cat("-");
+    sp_int(ui.spage * 16 + 16);
+    sp_cat(" ON:");
+    for (c = 0; c < 16; c++) {
+        int s = step_of(c), on;
+        if (s >= len)
+            break;
+        on = is_drum() ? sm_get(cur_pat()->drum[ui.part].hit[ui.sel[ui.part]], s)
+                       : bstep_gate(&cur_pat()->bass[bidx()].step[s]) != G_REST;
+        if (on) {
+            sp_cat(" ");
+            sp_int(s + 1);
+            any = 1;
+        }
+    }
+    if (!any)
+        sp_cat(" NONE");
+}
+
+/* a card's line, as a sentence after the last: a line going on from the one before (indented, or after a
+ * comma or a colon) joins it; two things on one line (three spaces apart) are two sentences */
+static void sp_line(const char *s)
+{
+    char p = sp_n ? sp_buf[sp_n - 1] : 0;
+    if (*s == ' ' || p == ',' || p == ':')
+        sp_cat(" ");
+    else
+        sp_cat(". ");
+    while (*s == ' ')
+        s++;
+    while (*s && sp_n < ANN_MAX) {
+        if (s[0] == ' ' && s[1] == ' ') {
+            while (*s == ' ')
+                s++;
+            sp_cat(". ");
+            continue;
+        }
+        sp_buf[sp_n++] = *s++;
+    }
+    sp_buf[sp_n] = 0;
+}
+
+/* a list row with where it is: "TUNE 66, 2 OF 14" (the section names not counted) */
+static void sp_list_row(void)
+{
+    int i, k = 0, n = 0;
+    pref_t r = list_rows[ui.list_sel];
+    for (i = 0; i < ui.list_n; i++)
+        if (list_rows[i].kind != R_HDR) {
+            n++;
+            if (i <= ui.list_sel)
+                k = n;
+        }
+    sp_row(r);
+    if (r.kind == R_ACT)
+        sp_cat(", ACTION");
+    sp_cat(", ");
+    sp_int(k);
+    sp_cat(" OF ");
+    sp_int(n);
+}
+
+/* what is in front: a help card, a question, a list, or the screen */
+static void sp_front(int all)
+{
+    sp_n = 0;
+    sp_buf[0] = 0;
+    if (ui.help) {
+        const char *l[HELP_LINES];
+        int n = help_lines(ui.help - 1, l), k;
+        sp_cat(BTN_LABEL[ui.help - 1]);
+        sp_cat(" BUTTON");
+        for (k = 0; k < n; k++)
+            sp_line(l[k]);
+    } else if (ui.overlay == O_ASK) {
+        sp_cat(ui.ask_q[0]);
+        if (ui.ask_q[1][0]) {
+            sp_cat(" ");
+            sp_cat(ui.ask_q[1]);
+        }
+        sp_cat(". SEL: YES. HOME: NO");
+    } else if (ui.overlay == O_LIST) {
+        int i, h = -1;
+        sp_cat(list_title);
+        sp_cat(" LIST. ");
+        for (i = ui.list_sel; i >= 0 && h < 0; i--)   /* the section it is in */
+            if (list_rows[i].kind == R_HDR)
+                h = i;
+        if (h >= 0) {
+            sp_row(list_rows[h]);
+            sp_cat(". ");
+        }
+        sp_list_row();
+    } else {
+        sp_screen();
+        if (all)
+            sp_steps();
+    }
+}
+
+/* the readout as said ("STEP 5 BD  TUNE 37"); empty when there is none */
+static void sp_readout(void)
+{
+    pref_t r;
+    const char *nm;
+    sp_n = 0;
+    sp_buf[0] = 0;
+    if (ui.touched < 0 || (int32_t)(ui.touch_until - plat_ms()) <= 0 || ui.overlay != O_NONE)
+        return;
+    nm = readout_name(&r);
+    if (lock_step() >= 0 && ui.touched < 4) {
+        sp_cat("STEP ");
+        sp_int(lock_step() + 1);
+        sp_cat(" ");
+    }
+    sp_cat(nm);
+    sp_cat(" ");
+    sp_value(r);
+}
+
+static uint32_t sp_ctx_sig(void)
+{
+    uint32_t h = 2166136261u;
+#define MIXIN(v) (h = (h ^ (uint32_t)(v)) * 16777619u)
+    MIXIN(ui.view);
+    MIXIN(ui.part);
+    MIXIN(cur_page());
+    MIXIN(ui.overlay);
+    MIXIN(ui.help);
+    MIXIN(ui.sel[ui.part]);
+    MIXIN(ui.mixsel);
+    MIXIN(kbd_on());
+    MIXIN(ui.overlay == O_ASK ? ui.ask_act : 0);
+    MIXIN(ui.overlay == O_LIST ? (uint32_t)list_title[0] << 8 | (uint32_t)list_title[1] : 0);
+#undef MIXIN
+    return h;
+}
+
+/* a step a key just put on or took off: "STEP 5 ON", "STEP 5 ON C3", "STEP 5 ACCENT" */
+static void sp_step(int s, int accent)
+{
+    char t[32], *q;
+    if (!ann_on())
+        return;
+    q = put_i(put_s(t, "STEP "), s + 1);
+    if (is_drum()) {
+        const dpart_t *d = &cur_pat()->drum[ui.part];
+        if (accent)
+            put_s(q, sm_get(d->accent, s) ? " ACCENT" : " NO ACCENT");
+        else
+            put_s(q, sm_get(d->hit[ui.sel[ui.part]], s) ? " ON" : " OFF");
+    } else if (is_303()) {
+        const bpart_t *bp = &cur_pat()->bass[bidx()];
+        if (bstep_gate(&bp->step[s]) == G_REST)
+            put_s(q, " OFF");
+        else
+            put_note(put_s(q, " ON "), held_note_of(bp, s) + bp->transpose - 24);
+    }
+    ann_say(t, 0, ANN_NOW);
+}
+
+static void speak(void)
+{
+    uint32_t now = plat_ms(), c;
+    int where = ann_where();
+    if (!ann_on()) {
+        sp.started = 0;
+        return;
+    }
+    if (!sp.started || where) {                       /* everything on the screen */
+        sp.started = 1;
+        sp.ctx = sp_ctx_sig();
+        sp_readout();
+        put_s(sp.knob, sp_buf);
+        sp.list_sel = ui.list_sel;
+        sp.playing = (int8_t)seq.playing;
+        sp.pat = (int8_t)seq.ppat[part_view() ? ui.part : PART_909];
+        sp_front(1);
+        ann_say(sp_buf, 0, ANN_NOW);
+        return;
+    }
+    if (seq.playing != sp.playing) {
+        sp.playing = (int8_t)seq.playing;
+        ann_say(seq.playing ? "PLAY" : "STOP", 0, ANN_NOW);
+    }
+    {
+        int pat = seq.ppat[part_view() ? ui.part : PART_909];
+        if (pat != sp.pat) {
+            char t[8];
+            sp.pat = (int8_t)pat;
+            put_i(put_s(t, "P"), pat + 1);
+            ann_later(t, 0, 150u, now);
+        }
+    }
+    c = sp_ctx_sig();
+    if (c != sp.ctx) {                                /* a new screen, page, card or list: said when it settles */
+        sp.ctx = c;
+        sp_readout();                                 /* (a readout left from the page before is not news) */
+        put_s(sp.knob, sp_buf);
+        sp.list_sel = ui.list_sel;
+        sp.list_v = ui.overlay == O_LIST ? (int16_t)pref_get(list_rows[ui.list_sel]) : 0;
+        sp_front(0);
+        ann_later(sp_buf, ANN_NOW, 200u, now);
+        return;
+    }
+    if (ui.overlay == O_LIST && ui.list_sel < ui.list_n) { /* a row moved to, or its value changed */
+        pref_t r = list_rows[ui.list_sel];
+        int v = r.kind == R_ACT || r.kind == R_HDR ? 0 : pref_get(r);
+        if (ui.list_sel != sp.list_sel || v != sp.list_v) {
+            sp.list_sel = ui.list_sel;
+            sp.list_v = (int16_t)v;
+            sp_n = 0;
+            if (ui.list_sel > 0 && list_skip(ui.list_sel - 1)) {   /* the first row of a section: its name first */
+                sp_row(list_rows[ui.list_sel - 1]);
+                sp_cat(". ");
+            }
+            sp_list_row();
+            ann_later(sp_buf, ANN_NOW, 120u, now);
+        }
+        return;
+    }
+    sp_readout();                                     /* a knob turning */
+    if (sp_n && strcmp_s(sp_buf, sp.knob))
+        ann_later(sp_buf, ANN_NOW, 120u, now);
+    put_s(sp.knob, sp_buf);
+}
+
+
+#ifdef X0X_HOST
+/* every screen, page, list row, value name and help card as a screen reader gets them (the "speakdump" command):
+ * KIND <tab> the text sent (fm1-reader/tools/audit.mjs puts it in words with web/words/ and checks it) */
+static void sp_print(const char *kind, const char *t) { printf("%s\t%s\n", kind, t); }
+static void speak_dump(void)
+{
+    static const uint8_t views[] = {V_PART, V_SEQ, V_GEN, V_FX, V_MIX, V_HOME, V_SONG, V_PERF};
+    ui_t keep = ui;
+    int v, p, q, i, b, x;
+    for (v = 0; v < (int)sizeof views; v++)
+        for (p = 0; p < NPARTS; p++) {
+            ui.view = views[v];
+            ui.part = (uint8_t)p;
+            ui.overlay = O_NONE;
+            ui.help = 0;
+            if ((ui.view == V_GEN && !is_303()) || (!part_view() && p))
+                continue;
+            build_pages();
+            for (q = 0; q < pg.n; q++) {
+                *page_of(ui.view) = (uint8_t)q;
+                sp_front(1);
+                sp_print("SCREEN", sp_buf);
+                for (i = 0; i < 4; i++) {
+                    pref_t r = pg.r[q][i];
+                    if (r.kind == R_NONE)
+                        continue;
+                    ui.touched = (int8_t)i;
+                    ui.touch_until = plat_ms() + 1000u;
+                    sp_readout();
+                    sp_print("KNOB", sp_buf);
+                    ui.touched = -1;
+                }
+            }
+            *page_of(ui.view) = 0;
+            open_list_of_pages();
+            for (i = 0; i < ui.list_n; i++) {
+                const x0x_param_t *d = pref_desc(list_rows[i]);
+                if (list_skip(i))
+                    continue;                                /* (a section's name: never selected) */
+                ui.list_sel = (uint8_t)i;
+                sp_front(0);
+                sp_print("ROW", sp_buf);
+                if (d && d->names && list_rows[i].kind != R_ACT)
+                    for (x = 0; x <= d->max; x++) {
+                        char num[16], unit[8];
+                        pref_value_of(list_rows[i], x, num, unit);
+                        put_s(put_s(put_s(put_s(put_s(sp_buf, caps_of(pref_name(list_rows[i]))), " "), num), " "), unit);
+                        sp_print("VALUE", sp_buf);
+                    }
+            }
+            ui.overlay = O_NONE;
+            for (b = 0; b < NB; b++)
+                for (x = 0; x < 2; x++) {
+                    ui.rec = (uint8_t)x;
+                    ui.help = (uint8_t)(b + 1);
+                    sp_front(0);
+                    sp_print("HELP", sp_buf);
+                }
+            ui.help = 0;
+            ui.rec = 0;
+        }
+    ui.view = V_GLO;
+    open_global();
+    for (i = 0; i < ui.list_n; i++) {
+        const x0x_param_t *d = pref_desc(list_rows[i]);
+        if (list_skip(i))
+            continue;
+        ui.list_sel = (uint8_t)i;
+        sp_front(0);
+        sp_print("ROW", sp_buf);
+        if (d && d->names && list_rows[i].kind != R_ACT)
+            for (x = 0; x <= d->max; x++) {
+                char num[16], unit[8];
+                pref_value_of(list_rows[i], x, num, unit);
+                put_s(put_s(put_s(put_s(put_s(sp_buf, caps_of(pref_name(list_rows[i]))), " "), num), " "), unit);
+                sp_print("VALUE", sp_buf);
+            }
+    }
+    ui = keep;
+    build_pages();
+}
+#endif
+
 void ui_init(void)
 {
     int i;
@@ -4179,7 +4610,7 @@ static void autosave(void)
         say("AUTOSAVED", 0);
         break;
     case -7:
-        say("MEMORY FULL: NOT SAVED", 0);
+        warn("MEMORY FULL: NOT SAVED", 0);
         break;
     default:
         break;
@@ -4205,12 +4636,15 @@ void ui_frame(void)
     draw_main();
     draw_knobs();
     leds();
+    speak();
+    ann_tick(plat_ms());
     ui.frame++;
 }
 
 void ui_input_only(void) { input(); }
 int ui_dirty(void) { return ui.dirty != 0; }
 void ui_say(const char *a, const char *b) { say(a, b); }
+void ui_warn(const char *a, const char *b) { warn(a, b); }
 
 /* ---- backup and restore over USB (backup.c) ---- */
 /* a backup, stopped: what is not saved yet saved first (the flash is what it sends); ui_dirty() after it says

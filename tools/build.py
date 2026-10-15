@@ -130,7 +130,8 @@ def generate():
     GEN.mkdir(parents=True, exist_ok=True)
     tools = SRC / "tools"
     cmds = [[tools / "gen_font.py", GEN / "felucca_font.h"],
-            [tools / "gen_drum_samples.py", GEN / "x0x_drum_samples.h"]]
+            [tools / "gen_drum_samples.py", GEN / "x0x_drum_samples.h"],
+            [tools / "gen_words.py", SRC / "firmware" / "words.tsv", SRC / "web" / "words", GEN / "ann_words.h"]]
     procs = [subprocess.Popen([sys.executable, *map(str, c)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                               text=True) for c in cmds]
     failed = []

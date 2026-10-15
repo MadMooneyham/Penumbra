@@ -1,0 +1,36 @@
+# Screen reader (fm1-reader, firmware/src/announce.c): silent until a reader says HELLO, then the whole screen,
+# then what changes: a knob, a page, a step, play and stop, a list row with its place, a help card, a message.
+# (each "said" checks what was said since the one before)
+wait 300
+said_none
+listen
+said 909. BD (1/2): TUNE 34, ATTACK 13, DECAY 80, P.DPTH 0. STEPS 1-16 ON: NONE
+turn K1 3
+wait 400
+said BD  TUNE 37
+tap EDIT
+wait 400
+said 909. BD (2/2): PITCH 45
+tapkey w0
+said STEP 1 ON
+tapkey w0
+said STEP 1 OFF
+tap PLAY
+said PLAY
+tap PLAY
+said STOP
+tap GLO
+wait 400
+said GLOBAL LIST. MIDI. CLOCK OUT ON, 1 OF 20
+turn SELECT 1
+wait 300
+said NOTES OUT OFF, 2 OF 20
+tap GLO
+wait 300
+press SAVE
+wait 1200
+said SAVE BUTTON. TAP: SAVE EVERYTHING
+release SAVE
+wait 300
+where
+said 909. BD (2/2): PITCH 45. STEPS 1-16 ON: NONE
