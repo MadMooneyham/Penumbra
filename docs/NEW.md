@@ -34,18 +34,18 @@ The newest version first. Install it with the [web installer](../install/); the
 
 ## 1.0.6 · 11 October 2026
 
-- **Free play on the 303s:** press SEQ, turn SELECT to the KEYS page and set FREE PLAY to ON. The keys
+- The 303s have free play. Press SEQ, turn SELECT to the KEYS page and set FREE PLAY to ON. The keys
   play the 303 on every 303 screen without writing anything, so you can try lines and shape the sound
   first; REC still records.
-- **The song plays from the SONG screen:** press PLAY there and the song plays from the selected bar,
-  and keeps playing wherever you go. PLAY anywhere else plays the patterns. The MODE setting is gone.
-- **GLO > USB AUDIO:** FULL keeps USB audio at full level whatever the MASTER knob says, so you can
-  record over the cable with the speaker turned down. FOLLOWS KNOB (the default) is as before.
+- The song plays from the SONG screen. Press PLAY there and the song plays from the selected bar, and
+  keeps playing wherever you go. PLAY anywhere else plays the patterns. The MODE setting is gone.
+- Set GLO > USB AUDIO to FULL to keep USB audio at full level whatever the MASTER knob says, so you can
+  record over the cable with the speaker turned down. FOLLOWS KNOB is the default and works as before.
 - GLO is in sections: MIDI, AUDIO, KEYS AND SCREEN, PROJECT, SYSTEM.
 
 ## 1.0.5 · 10 October 2026
 
-- A sharper check on the second processor core: on an FM-1 whose second core misreads, X0X now also
+- X0X checks the second processor core more sharply. On an FM-1 whose second core misreads, it now also
   catches the one misread 1.0.4 could miss, and carries on with one core. Nothing changes on an FM-1
   whose cores both work.
 
@@ -64,25 +64,25 @@ The newest version first. Install it with the [web installer](../install/); the
 ## 1.0.2 · 10 October 2026
 
 - Probability cycles count from the first pass again when the 909 changes pattern, as the other parts
-  already did: switch patterns and a 1:4 step plays on the new pattern's first bar.
+  already did. Switch patterns and a 1:4 step plays on the new pattern's first bar.
 
 ## 1.0.1 · 10 October 2026
 
-- Probability cycles: hold a step and turn SELECT down past 5% for 1:2, 2:2, 1:3 … 8:8. A step at 1:4
-  plays on the first of every four passes of its pattern, 2:4 on the second.
+- A step's probability can be a cycle. Hold a step and turn SELECT down past 5% for 1:2, 2:2, 1:3 … 8:8.
+  A step at 1:4 plays on the first of every four passes of its pattern, 2:4 on the second.
 
 ![STEP 15: 1:4, the open hat on the first of every four passes](img/new/1.0.1-cycle.png)
 
 ## 1.0 · 10 October 2026
 
 ### Highlights
-- Uses both of the FM-1's processor cores: no dropouts, even on the most complex patterns. The busiest test pattern went from about 115% to 68% load. Thanks @keremcode
-- Simpler navigation: HOME for the pattern and song, SEQ for the selected part's steps, EDIT for its sound. Press a button again, or turn SELECT, for the next page.
-- Clearer screens: each knob row says whose knobs they are, a hint line shows what the keys do, holding any button explains it, and labels are clearer throughout.
-- Up to 64 steps per part and 32 patterns
-- Per-step p-locks (on EDIT, hold a step and turn a knob) and probability (hold a step and turn SELECT)
-- A drum mixer with per-track mutes, sends and hit meters
-- A new [break tool](../breaks/): load and manage your own loops from the browser (BR1, BR2…)
+- X0X uses both of the FM-1's processor cores, so there are no dropouts, even on the most complex patterns. The busiest test pattern went from about 115% to 68% load. Thanks @keremcode
+- Navigation is simpler. HOME is for the pattern and song, SEQ for the selected part's steps, EDIT for its sound. Press a button again, or turn SELECT, for the next page.
+- Screens are clearer. Each knob row says whose knobs they are, a hint line shows what the keys do, holding any button explains it, and labels are clearer throughout.
+- Each part has up to 64 steps, and there are 32 patterns.
+- A step can have p-locks and a probability. On EDIT, hold a step and turn a knob for a p-lock. Hold a step and turn SELECT for its probability.
+- The drums have a mixer with per-track mutes, sends and hit meters.
+- A new [break tool](../breaks/) loads and manages your own loops from the browser (BR1, BR2…).
 
 ![HOME: a line per part in every pattern with notes](img/new/1.0-home.png)
 ![The 303's steps on SEQ, two ties as one long note](img/new/1.0-303-steps.png)
@@ -93,31 +93,31 @@ The newest version first. Install it with the [web installer](../install/); the
 ![The song, bar 1 played four times](img/new/1.0-song-repeat.png)
 
 ### Sequencing
-- New 303 note entry: REC turns the keys into a keyboard, ties show as one long note, and holding a step + OCT moves it an octave
-- Copy and paste whole patterns: hold SAVE, then press a white key
-- Song bars can repeat, ×1 to ×8
-- A break step can have its own slice: hold the step and press black keys 1–8
-- The break's COMPLEXITY now eases ROLL and FILL in gently
+- 303 note entry is new. REC turns the keys into a keyboard, and ties show as one long note. Hold a step and press OCT to move it an octave.
+- Hold SAVE and press a white key to copy and paste a whole pattern.
+- Song bars can repeat, ×1 to ×8.
+- A break step can have its own slice. Hold the step and press black keys 1–8.
+- The break's COMPLEXITY now eases ROLL and FILL in gently.
 
 ### Sound and mix
-- Reverb and delay sends on both kicks
-- DECAY on the 909 snare
-- One-knob COMP and FILTER on the master, and the MASTER page shows the output level
-- A calmer factory reverb
-- OUTPUT LOUD, for quiet headphones
-- The 808's hats always choke like the 909's (CHOKE setting removed)
+- Both kicks have reverb and delay sends.
+- The 909 snare has DECAY.
+- The master has one-knob COMP and FILTER, and the MASTER page shows the output level.
+- The factory reverb is calmer.
+- OUTPUT LOUD is for quiet headphones.
+- The 808's hats always choke like the 909's. The CHOKE setting is gone.
 
 ### MIDI
-- A MIDI channel per part, in and out, or OFF
-- A steady tempo readout when following an external clock
+- Each part has a MIDI channel, in and out, or OFF.
+- The tempo readout is steady when following an external clock.
 
 ### Feel and fixes
-- Knobs: no more missed or doubled clicks, and small turns are exact
-- Key lights in two brightness levels: bright for chosen, dim for available
-- Saving waits until you stop, so the audio never cuts out
-- B CHANCE works without PHRASE
-- CLEAR PATTERN no longer leaves a bar showing on HOME
-- The keys no longer trigger steps or slices on the MASTER and FX screens
+- Knobs no longer miss or double clicks, and small turns are exact.
+- Key lights have two brightness levels. A chosen key is bright, an available one dim.
+- Saving waits until you stop, so the audio never cuts out.
+- B CHANCE works without PHRASE.
+- CLEAR PATTERN no longer leaves a bar showing on HOME.
+- The keys no longer trigger steps or slices on the MASTER and FX screens.
 
 Projects saved with 0.10 load as they were.
 
@@ -125,71 +125,71 @@ Projects saved with 0.10 load as they were.
 
 <details><summary>0.10.3-beta · 8 October 2026</summary>
 
-- **PLAY is green**: PLAY uses its green light, and turns red only while recording (REC on). Its glow is green too.
+- PLAY is green. It uses its green light, and turns red only while recording (REC on). Its glow is green too.
 
 </details>
 
 <details><summary>0.10.2-beta · 8 October 2026</summary>
 
-- **Readable buttons in the dark**: the buttons that aren't lit now glow dimly, so their labels can be read on the black FM-1. The KEY LIGHTS setting is now LIGHTS: ON (the default, and what a saved "on" becomes) shows the key lights and the glow, KEYS shows the key lights only, OFF neither.
+- The buttons can be read in the dark. The buttons that aren't lit now glow dimly, so their labels can be read on the black FM-1. The KEY LIGHTS setting is now LIGHTS. ON shows the key lights and the glow, KEYS shows the key lights only, and OFF neither. ON is the default, and a saved "on" becomes ON.
 - The performance page also reports how deep the interrupts' stack has gone.
 
 </details>
 
 <details><summary>0.10.1-beta · 6 October 2026</summary>
 
-- No more zippering when you turn volume, pan or the sends quickly: part volume, pan and sends, the master volume and every drum voice's pan now glide over about 10 ms instead of jumping.
+- Turning volume, pan or the sends quickly no longer zippers. Part volume, pan and sends, the master volume and every drum voice's pan now glide over about 10 ms instead of jumping.
 
 </details>
 
 <details><summary>0.10-beta · 6 October 2026</summary>
 
-- **Fixes the brightness freeze**: setting BRIGHTNESS low could freeze the FM-1, and it then stayed stuck at the boot screen (dim, no input) even after reinstalling. The setting is gone, a saved value is ignored, and the screen is always at full brightness. If your FM-1 is stuck, install 0.10-beta from the web installer.
-- **Stereo**: every part has a PAN (its SENDS page, or MIX > PANS), and so does every 909 voice and 808 track (the last setting on its page). With everything centred it sounds exactly as before.
-- **Stereo reverb**, and a **ping-pong delay** (PING on the FX TAPE page; delay times over one second stay centred).
-- **TRS MIDI IN**: notes, clock and transport from the TRS jack, the same as over USB.
+- This fixes the brightness freeze. Setting BRIGHTNESS low could freeze the FM-1, and it then stayed stuck at the boot screen (dim, no input) even after reinstalling. The setting is gone, a saved value is ignored, and the screen is always at full brightness. If your FM-1 is stuck, install 0.10-beta from the web installer.
+- X0X is stereo. Every part has a PAN on its SENDS page or on MIX > PANS, and so does every 909 voice and 808 track (the last setting on its page). With everything centred it sounds exactly as before.
+- The reverb is stereo, and the delay can ping-pong. The ping-pong delay is PING on the FX TAPE page; delay times over one second stay centred.
+- TRS MIDI IN takes notes, clock and transport from the TRS jack, the same as over USB.
 
 </details>
 
 <details><summary>0.9-beta · 5 October 2026</summary>
 
-- **USB audio**: the FM-1 shows up on a computer as a 44.1 kHz audio input ("X0X FM-1"), no driver. It is resampled to the computer's USB clock, so live monitoring (an AU host, a DAW) doesn't drift or drop out.
-- **USB MIDI clock and transport fixed**: clock, Start, Stop and Continue sent over USB were ignored; X0X now follows a DAW's clock and transport.
-- **Fewer dropouts on busy patterns**: audio renders in 11.6 ms blocks, so a heavy step no longer overruns (adds 5.8 ms of latency).
-- **808**: voices stop once their tail is 60 dB under the hit, saving CPU without changing what you hear.
-- **303**: holding a step no longer toggles it (only a tap does); holding or editing a step follows KEY SOUND like the drum keys, so it's silent while the pattern plays.
-- **TB-3PO**: the GENERATE and SCALE knobs no longer rewrite the line; they set up the next **OCT+** (new line) or **OCT-** (mutate). The screen marks changed settings with a star.
+- Over USB, the FM-1 shows up on a computer as a 44.1 kHz audio input ("X0X FM-1"), with no driver. It is resampled to the computer's USB clock, so live monitoring (an AU host, a DAW) doesn't drift or drop out.
+- USB MIDI clock and transport are fixed. Clock, Start, Stop and Continue sent over USB were ignored; X0X now follows a DAW's clock and transport.
+- Busy patterns drop out less. Audio renders in 11.6 ms blocks, so a heavy step no longer overruns. This adds 5.8 ms of latency.
+- 808 voices stop once their tail is 60 dB under the hit, saving CPU without changing what you hear.
+- On the 303, holding a step no longer toggles it; only a tap does. Holding or editing a step follows KEY SOUND like the drum keys, so it's silent while the pattern plays.
+- On TB-3PO, the GENERATE and SCALE knobs no longer rewrite the line. They set up the next OCT+ (new line) or OCT- (mutate). The screen marks changed settings with a star.
 
 </details>
 
 <details><summary>0.8-beta · 5 October 2026</summary>
 
-- Fast knob turns count: a quick flick no longer gets lost (the encoder decoder keeps up with skipped states)
-- Overload guard: when the FM-1 nears its CPU limit, the 303s drop oversampling and the 808's tails end sooner instead of dropping out; GUARD shows next to the audio load, and the performance page counts how often it engaged
-- Less screen tearing: the display runs at 60 MHz, the main area sends only what changed, and both halves change together. Some tearing remains: the FM-1 has no tearing-sync line
+- Fast knob turns count. A quick flick no longer gets lost, because the encoder decoder keeps up with skipped states.
+- X0X has an overload guard. When the FM-1 nears its CPU limit, the 303s drop oversampling and the 808's tails end sooner instead of dropping out. GUARD shows next to the audio load, and the performance page counts how often it engaged.
+- The screen tears less. The display runs at 60 MHz, the main area sends only what changed, and both halves change together. Some tearing remains, because the FM-1 has no tearing-sync line.
 
 </details>
 
 <details><summary>0.7-beta · 5 October 2026</summary>
 
-- Knob acceleration by speed: turn slowly for single steps, quickly to sweep (a fast half turn covers the whole range).
-- GLO > BRIGHTNESS: the screen's brightness, 1 to 8.
-- tools/upload_breaks.py: no longer crashes when given more loops than fit; retries a write the USB link lost.
+- Knobs accelerate by speed. Turn slowly for single steps, quickly to sweep; a fast half turn covers the whole range.
+- GLO > BRIGHTNESS sets the screen's brightness, 1 to 8.
+- tools/upload_breaks.py no longer crashes when given more loops than fit, and retries a write the USB link lost.
 
 </details>
 
 <details><summary>0.6-beta · 5 October 2026</summary>
 
-- Knobs and LEDs under load: the key/knob/LED matrix scan now keeps its rhythm while the audio renders. Fast knob turns no longer lose their steps, and the LEDs no longer flicker with the audio load. (Found on the first hardware run.)
+- Knobs and LEDs keep up under load. The key/knob/LED matrix scan now keeps its rhythm while the audio renders. Fast knob turns no longer lose their steps, and the LEDs no longer flicker with the audio load. (Found on the first hardware run.)
 
 </details>
 
 <details><summary>0.5-beta · 5 October 2026</summary>
 
-- Undo and redo: HOME + REC / HOME + PLAY, up to 32 steps, for sounds, patterns, the song and knob motion (CLEAR PATTERN and FACTORY RESET included). The screen says what was undone.
-- AUTOSAVE (GLO, on by default): while stopped, changes save themselves after 4 s of quiet. Saves now write only what changed.
-- Help cards: hold any button for a second to see what it does on the current screen, with its combinations.
-- Safe mode: after two failed starts X0X starts with no sound and USB on, so the web installer can always reach it (it used to drop into the chip's update mode, which no installer can see). PLAY tries again.
+- Hold HOME and press REC to undo, or PLAY to redo, up to 32 steps. Undo covers sounds, patterns, the song and knob motion, CLEAR PATTERN and FACTORY RESET included. The screen says what was undone.
+- GLO > AUTOSAVE is on by default. While stopped, changes save themselves after 4 s of quiet. Saves now write only what changed.
+- Hold any button for a second and a help card shows what it does on the current screen, with its combinations.
+- After two failed starts, X0X starts in safe mode with no sound and USB on, so the web installer can always reach it. It used to drop into the chip's update mode, which no installer can see. PLAY tries again.
 - After a crash, the next start says so and shows where.
 - The web installer can put M-VAVE's stock firmware (FM-1 V15) back.
 - The browser version can load your own breaks.
@@ -198,46 +198,46 @@ Projects saved with 0.10 load as they were.
 
 <details><summary>0.4-beta · 4 October 2026</summary>
 
-- Black drum keys select silently while the pattern plays (new GLO > KEY SOUND, default STOPPED); they still sound when stopped and with REC on. ALWAYS keeps the old behaviour.
-- The 303 lines start empty, like the drums: a fresh FM-1 (or FACTORY RESET) no longer plays two generated lines. OCT+ on TB-3PO writes one. Saved projects are unchanged.
-- Delay: a division longer than the 2 s line (1/2. below 90 BPM, 1/2 below 60) now halves and stays on the beat instead of being cut off the grid.
+- Black drum keys select silently while the pattern plays. They still sound when stopped and with REC on. This is the new GLO > KEY SOUND, STOPPED by default; ALWAYS keeps the old behaviour.
+- The 303 lines start empty, like the drums. A fresh FM-1 (or FACTORY RESET) no longer plays two generated lines. OCT+ on TB-3PO writes one. Saved projects are unchanged.
+- A delay division longer than the 2 s line (1/2. below 90 BPM, 1/2 below 60) now halves and stays on the beat instead of being cut off the grid.
 - GLO > ABOUT shows the real version (every release said 0.1).
-- New: X0X in the browser, https://charlesvestal.github.io/fm1-x0x/emu/
-- New: recovering an FM-1 that won't start, from a Mac (manual, Troubleshooting).
+- X0X runs in the browser, at https://charlesvestal.github.io/fm1-x0x/emu/
+- The manual's Troubleshooting section is new. It explains how to recover an FM-1 that won't start, from a Mac.
 
 </details>
 
 <details><summary>0.3-beta · 4 October 2026</summary>
 
-- Fixes the crash on hardware ("X0X CRASH" screen soon after start): a divide-by-zero trap fired in the master limiter. The trap is off and the divide is clamped.
-- Includes the PERFORMANCE screen and PERF TEST (GLO menu) from 0.2-beta.
+- X0X no longer crashes on hardware with the "X0X CRASH" screen soon after start. A divide-by-zero trap fired in the master limiter. The trap is off and the divide is clamped.
+- It includes the PERFORMANCE screen and PERF TEST in the GLO menu from 0.2-beta.
 
 </details>
 
 <details><summary>0.2-beta · 4 October 2026</summary>
 
-**Still not run on a real FM-1.** This build measures itself, so the first install tells us what the FM-1 can do. Installing is at your own risk; M-VAVE's updater (M-UPGRADE) puts the official firmware back.
+It still has not run on a real FM-1. This build measures itself, so the first install tells us what the FM-1 can do. Installing is at your own risk; M-VAVE's updater (M-UPGRADE) puts the official firmware back.
 
-**Please run the performance test:** GLO > PERFORMANCE, then SEL > RUN PERF TEST. It plays three built-in patterns for about 15 seconds, puts your project back as it was, and shows a table. A photo of that screen is the most useful thing you can send.
+Please run the performance test. Open GLO > PERFORMANCE, then SEL > RUN PERF TEST. It plays three built-in patterns for about 15 seconds, puts your project back as it was, and shows a table. A photo of that screen is the most useful thing you can send.
 
-- **Install:** https://charlesvestal.github.io/fm1-x0x/install/
-- **Manual:** https://charlesvestal.github.io/fm1-x0x/manual/
+- Install: https://charlesvestal.github.io/fm1-x0x/install/
+- Manual: https://charlesvestal.github.io/fm1-x0x/manual/
 
 Changes since 0.1-beta:
-- PERFORMANCE page: clock, audio load and peak, dropouts, each part's share of the CPU; RUN PERF TEST
-- Big-beat factory mix (break up front, 909 kick under it, RAT 303s into tape delay, a pumping master)
-- No clicks on the kick: the 909 kick's attack back to 9W9's, the pump eases in, a look-ahead limiter
-- Cheaper engines: silent parts skipped, lighter master, faster tanh, a RAT clipper without square roots or divides
-- The manual rewritten in plain sentences, with a Getting started tour
+- The PERFORMANCE page shows the clock, audio load and peak, dropouts, and each part's share of the CPU. It has RUN PERF TEST.
+- A new big-beat factory mix has the break up front, the 909 kick under it, RAT 303s into tape delay, and a pumping master.
+- The kick no longer clicks. The 909 kick's attack is back to 9W9's, the pump eases in, and there's a look-ahead limiter.
+- The engines are cheaper. Silent parts are skipped, the master is lighter, tanh is faster, and the RAT clipper has no square roots or divides.
+- The manual is rewritten in plain sentences, with a Getting started tour.
 
 </details>
 
 <details><summary>0.1-beta · 4 October 2026</summary>
 
-First public build. **Not yet run on a real FM-1**: the first people to install it are the first test. Installing is at your own risk; M-VAVE's updater (M-UPGRADE) puts the official firmware back.
+First public build. It has not yet run on a real FM-1, so the first people to install it are the first test. Installing is at your own risk; M-VAVE's updater (M-UPGRADE) puts the official firmware back.
 
-- **Install:** https://charlesvestal.github.io/fm1-x0x/install/ (Chrome or Edge, the FM-1 on USB), or `python3 tools/fm1_install.py x0x-0.1-beta.fwsc` with the file below.
-- **Manual:** https://charlesvestal.github.io/fm1-x0x/manual/
+- Install: https://charlesvestal.github.io/fm1-x0x/install/ (Chrome or Edge, the FM-1 on USB), or `python3 tools/fm1_install.py x0x-0.1-beta.fwsc` with the file below.
+- Manual: https://charlesvestal.github.io/fm1-x0x/manual/
 
 What's in it:
 - A 909 (from 9W9 / ER-99) and an 808 (from 8W8), eleven tracks each
