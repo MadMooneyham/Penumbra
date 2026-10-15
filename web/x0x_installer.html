@@ -53,6 +53,7 @@
   <pre id="log"></pre>
   <h2 data-t="stockh"></h2>
   <p class="small" data-t="stockwhy"></p>
+  <p class="small"><span data-t="keep"></span> <a href="../backup/" style="color:inherit" data-t="keeplink"></a></p>
   <ol class="small">
     <li><span data-t="stock1"></span> <a id="stocklink" href="https://yms-file-store.oss-cn-hongkong.aliyuncs.com/software/firmware/FM-1.fwsc" style="color:inherit">FM-1.fwsc</a></li>
     <li><span data-t="stock2"></span><br><input type="file" id="stockfile" accept=".fwsc"></li>
@@ -82,6 +83,8 @@ const TEXT = {
     back: "公式ファームウェアに戻すには、このページ下の「純正ファームウェアに戻す」か、M-VAVE 公式のアップデーター M-UPGRADE（Downloads → PC Software → M-UPGRADE）を使います。",
     stockh: "純正ファームウェアに戻す",
     stockwhy: "M-VAVE の FM-1 V15 を、X0X（またはそのセーフモード）から同じ USB ケーブルで書き込みます。X0X で保存したパターンは消えることがあります。",
+    keep: "他のファームウェアを入れると、X0X のプロジェクトは消えます。先にファイルに保存しておけます:",
+    keeplink: "プロジェクトのバックアップ",
     stock1: "M-VAVE の FM-1 V15 をダウンロード:",
     stock2: "ダウンロードしたファイルを選ぶ:",
     stock3: "FM-1 を USB で接続し、下のボタンを押す。",
@@ -117,6 +120,8 @@ const TEXT = {
     back: "To go back to the official firmware, use \"Back to the stock firmware\" below, or M-VAVE's own updater, M-UPGRADE (Downloads → PC Software → M-UPGRADE).",
     stockh: "Back to the stock firmware",
     stockwhy: "This writes M-VAVE's own FM-1 V15 back, from X0X (or its safe mode, or Felucca) over the same USB cable. Patterns saved in X0X may be lost.",
+    keep: "Installing other firmware replaces X0X's project. To keep it, save it to a file first:",
+    keeplink: "back up your project",
     stock1: "Download M-VAVE's FM-1 V15:",
     stock2: "Choose the file you downloaded:",
     stock3: "Connect the FM-1 by USB and press the button below.",
