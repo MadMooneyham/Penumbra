@@ -439,6 +439,8 @@ int project_load(void)
     settings_t set;
     project_defaults();
     packed_len = 0;
+    for (i = 0; i < OBJ_NOBJ; i++)                   /* (again after a restore: what the flash held before is gone) */
+        stored_known[i] = 0;
     set = proj.set;
     if (load_settings(&set) == 0 && set.magic == PROJ_MAGIC)
         proj.set = set;

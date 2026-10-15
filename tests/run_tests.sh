@@ -51,6 +51,10 @@ for t in drum909 drum808 bass303 breaks; do
     [ -f "tests/host/run_$t.sh" ] && run "$t" sh "tests/host/run_$t.sh"
 done
 run storage sh -c "$CC -O2 -o $OUT/storage_test tests/storage_test.c && $OUT/storage_test"
+# backup and restore over USB (firmware/src/backup.c) on storage.c over a simulated flash: the stream's frames, a
+# restore refused, cut or damaged changing nothing, SEL restoring it all, a power cut at each write: the old project
+# or the new, whole. Then tools/x0x_backup.py against a simulated X0X, on that image
+run backup sh -c "$CC -std=c99 -Wall -Wextra -Werror -Wno-unused-function -O2 -o $OUT/backup_test tests/backup_test.c && $OUT/backup_test $OUT/backup.x0b"
 # the update path, against the firmware package (Felucca's tests; needs ./build.sh)
 if [ -f build/x0x.fwsc ]; then
     run ota-entry sh -c "$CC -o $OUT/ota_test tests/ota_test.c && $OUT/ota_test build/x0x.fwsc"
