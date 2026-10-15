@@ -501,6 +501,8 @@ int project_load(void)
         sound_rev1();
     if (sound_ok && proj.set.snd_rev < 2)             /* before the one-knob COMP, FILTER, TAPE */
         sound_rev2();
+    if (sound_ok && proj.set.snd_rev < 5)             /* before the break's FILTER: off (its pot held a 0) */
+        proj.sound.v[T_BRK][0][2] = engine_param(T_BRK, 0, 2)->def;
     proj.set.snd_rev = PROJ_SND_REV;
     return bad ? -1 : 0;
 }
