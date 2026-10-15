@@ -236,6 +236,14 @@ int plat_cpu2_gave_up(void) { return 0; }
 uint32_t plat_cpu2_bad(void) { return 0; }
 int plat_cpu2_barred(void) { return 0; }
 int plat_vdc14_mv(void) { return 1500; }
+static int host_crash;                            /* "fakecrash": PERF shows a crash record */
+int plat_last_crash(uint32_t v[5])
+{
+    static const uint32_t r[5] = {1, 0x03000470u, 0, 0x00001000u, 0x02007D80u};   /* fm1-x0x#21's first */
+    for (int i = 0; i < 5; i++)
+        v[i] = r[i];
+    return host_crash;
+}
 uint32_t plat_cpu_pct(void) { return cpu_pct; }
 uint32_t plat_xruns(void) { return 0; }
 /* performance: no CPU counter here: the "cycles" are nanoseconds (plat_cycles_hz) */
@@ -1113,6 +1121,8 @@ int main(int argc, char **argv)
             mark_dirty();
         } else if (!strcmp(cmd, "snapproj")) {
             memcpy(pat_snap, proj.pat, sizeof pat_snap);
+        } else if (!strcmp(cmd, "fakecrash")) {
+            host_crash = 1;
         } else if (!strcmp(cmd, "tearsave")) {          /* tearsave N: the next save stops after N object writes */
             store_tear = atoi(a);
         } else if (!strcmp(cmd, "reboot")) {
