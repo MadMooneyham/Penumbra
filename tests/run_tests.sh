@@ -55,6 +55,14 @@ run storage sh -c "$CC -O2 -o $OUT/storage_test tests/storage_test.c && $OUT/sto
 # restore refused, cut or damaged changing nothing, SEL restoring it all, a power cut at each write: the old project
 # or the new, whole. Then tools/x0x_backup.py against a simulated X0X, on that image
 run backup sh -c "$CC -std=c99 -Wall -Wextra -Werror -Wno-unused-function -O2 -o $OUT/backup_test tests/backup_test.c && $OUT/backup_test $OUT/backup.x0b"
+run x0x-backup python3 tests/x0x_backup_test.py $OUT/backup.x0b
+# the web backup page (web/backup/index.html): the same bytes as x0x_backup.py's on that conversation, replayed;
+# then a simulated X0X: a backup and a restore byte for byte, STOP FIRST, HOME, a damaged or another firmware's file
+# not sent
+if command -v node >/dev/null 2>&1; then
+    run backup-page sh -c "python3 tests/x0x_backup_record.py $OUT/backup.x0b $OUT/backup_transcript.json && \
+        node tests/host/backup_page_test.mjs $OUT/backup_transcript.json"
+fi
 # the update path, against the firmware package (Felucca's tests; needs ./build.sh)
 if [ -f build/x0x.fwsc ]; then
     run ota-entry sh -c "$CC -o $OUT/ota_test tests/ota_test.c && $OUT/ota_test build/x0x.fwsc"
