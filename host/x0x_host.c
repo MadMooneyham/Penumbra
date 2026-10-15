@@ -28,6 +28,13 @@
  *   snapline B                   remember 303 B's line on the pattern shown (expect linechgB: 1 = it changed since)
  *   projimg FILE                 a project as the FM-1 holds it in RAM (fm1_debug peek of proj): saved
  *                                to the simulated flash and booted, as if it had been made here
+ *   backup FILE                  a backup over USB (firmware/src/backup.c's image: the six project objects) written
+ *                                to FILE (in OUTDIR), as tools/x0x_backup.py writes it (stopped: the unsaved saved
+ *                                first)
+ *   restore FILE                 a backup (FILE in OUTDIR, or a path with a /) put back as the device does once SEL
+ *                                answers RESTORE FROM USB?: checked whole first; refused while playing (STOP FIRST)
+ *                                or when damaged: nothing changes (expect restore_rc: 0, 10 playing, else damaged)
+ *   backup_damage FILE [head]    a byte of a backup file changed (its middle; head: made Polly's, CRCs right)
  */
 #define X0X_HOST 1
 #include <stdio.h>
@@ -633,11 +640,99 @@ static int load_slot(int k, int z, const char *path)
 
 static bpart_t line_snap[NBASS];                  /* "snapline" */
 static pattern_t pat_snap[NPAT];                  /* "snapproj": the patterns, for "expect projsame" */
+/* ------------------------------------------- backup / restore over USB --- */
+/* backup.c's image, made and taken from the simulated store (the device's side and its safety: tests/backup_test.c) */
+static int restore_rc = -1;
+static uint32_t sim_crc32(uint32_t c, const uint8_t *p, size_t n)
+{
+    c = ~c;
+    while (n--) {
+        int k;
+        c ^= *p++;
+        for (k = 0; k < 8; k++)
+            c = c & 1u ? 0xEDB88320u ^ (c >> 1) : c >> 1;
+    }
+    return ~c;
+}
+static void sim_wr32(uint8_t *p, uint32_t v) { p[0] = (uint8_t)v, p[1] = (uint8_t)(v >> 8), p[2] = (uint8_t)(v >> 16), p[3] = (uint8_t)(v >> 24); }
+static uint32_t sim_rd32(const uint8_t *p) { return p[0] | p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24; }
+static const uint8_t SIM_OBJ[6] = {OBJ_SET, OBJ_SOUND, OBJ_PAT0, OBJ_PAT1, OBJ_SONG, OBJ_MOTION};
+static uint8_t sim_img[16 + 6 * (8 + PLAT_STORE_MAX) + 4];
+static int sim_backup(const char *path)
+{
+    size_t n = 16;
+    FILE *f;
+    int i;
+    if (!seq.playing)
+        ui_flush();
+    memcpy(sim_img, "X0XB", 4);
+    sim_img[4] = 1, sim_img[5] = 0, sim_img[6] = 6, sim_img[7] = 0;
+    sim_wr32(sim_img + 8, (uint32_t)ui_dirty());
+    sim_wr32(sim_img + 12, sim_crc32(0, sim_img, 12));
+    for (i = 0; i < 6; i++) {
+        uint32_t o = SIM_OBJ[i], len = store_len[o] > 0 ? (uint32_t)store_len[o] : 0;
+        uint8_t *r = sim_img + n;
+        r[0] = (uint8_t)o, r[1] = 0, r[2] = (uint8_t)len, r[3] = (uint8_t)(len >> 8);
+        memcpy(r + 8, store[o], len);
+        sim_wr32(r + 4, sim_crc32(0, r + 8, len));
+        n += 8 + len;
+    }
+    sim_wr32(sim_img + n, sim_crc32(0, sim_img, n));
+    n += 4;
+    if (!(f = fopen(path, "wb")))
+        return -1;
+    fwrite(sim_img, 1, n, f);
+    fclose(f);
+    return 0;
+}
+static int sim_restore(const char *path)
+{
+    size_t n, pos = 16;
+    FILE *f = fopen(path, "rb");
+    int i;
+    if (!f)
+        return 1;
+    n = fread(sim_img, 1, sizeof sim_img, f);
+    fclose(f);
+    if (seq.playing || seq.req_stop)
+        return 10;                                /* STOP FIRST */
+    if (n < 16 + 6 * 8 + 4 || memcmp(sim_img, "X0XB", 4) || sim_img[4] != 1 || sim_img[5] || sim_img[6] != 6 ||
+        sim_img[7] || sim_rd32(sim_img + 12) != sim_crc32(0, sim_img, 12))
+        return 3;
+    for (i = 0; i < 6; i++) {                     /* all checked before anything changes */
+        const uint8_t *r = sim_img + pos;
+        uint32_t len = r[2] | r[3] << 8;
+        if (pos + 8 + len + 4 > n || r[0] != SIM_OBJ[i] || r[1] || len > PLAT_STORE_MAX)
+            return 4;
+        if (sim_rd32(r + 4) != sim_crc32(0, r + 8, len))
+            return 5;
+        pos += 8 + len;
+    }
+    if (pos + 4 != n || sim_rd32(sim_img + pos) != sim_crc32(0, sim_img, pos))
+        return 6;
+    pos = 16;
+    for (i = 0; i < 6; i++) {
+        const uint8_t *r = sim_img + pos;
+        uint32_t o = SIM_OBJ[i], len = r[2] | r[3] << 8;
+        memcpy(store_prev[o], store[o], PLAT_STORE_MAX);   /* (the copy before: the project as it was) */
+        store_prev_len[o] = store_len[o];
+        memcpy(store[o], r + 8, len);
+        store_len[o] = len ? (int)len : -1;       /* (an empty object: none, as storage.c's st_load) */
+        pos += 8 + len;
+    }
+    app_restored();
+    return 0;
+}
+
 static int expect(const char *what, const char *val)
 {
     int got;
     if (!strcmp(what, "playing"))
         got = seq.playing;
+    else if (!strcmp(what, "restore_rc"))          /* the last restore: 0 done, 10 playing (STOP FIRST), else refused */
+        got = restore_rc;
+    else if (!strcmp(what, "dirty"))
+        got = ui_dirty();
     else if (!strcmp(what, "pattern"))
         got = seq.ppat[PART_909] + 1;
     else if (!strcmp(what, "cue"))
@@ -1024,6 +1119,46 @@ int main(int argc, char **argv)
             store_tear = -1;                            /* the power back */
             memset(&proj, 0, sizeof proj);
             boot();
+        } else if (!strcmp(cmd, "backup") || !strcmp(cmd, "restore")) {
+            if (strchr(a, '/'))
+                snprintf(out, sizeof out, "%s", a);
+            else
+                snprintf(out, sizeof out, "%s/%s", dir, a);
+            if (cmd[0] == 'b') {
+                if (sim_backup(out)) {
+                    printf("line %d: cannot write %s\n", lineno, out);
+                    return 2;
+                }
+            } else {                                       /* (the device's message after it: main_fm1.c) */
+                restore_rc = sim_restore(out);
+                ui_say(!restore_rc ? "RESTORED FROM USB" : restore_rc == 10 ? "STOP FIRST, THEN RESTORE"
+                       : "RESTORE FAILED", 0);
+            }
+        } else if (!strcmp(cmd, "backup_damage")) {     /* a byte of a backup file changed; head: made Polly's */
+            FILE *bf;
+            snprintf(out, sizeof out, "%s/%s", dir, a);
+            if ((bf = fopen(out, "r+b"))) {
+                long n;
+                fseek(bf, 0, SEEK_END);
+                n = ftell(bf);
+                if (!strcmp(b, "head") && n <= (long)sizeof sim_img) {
+                    fseek(bf, 0, SEEK_SET);
+                    if (fread(sim_img, 1, (size_t)n, bf) == (size_t)n) {
+                        memcpy(sim_img, "PLYB", 4);
+                        sim_wr32(sim_img + 12, sim_crc32(0, sim_img, 12));
+                        sim_wr32(sim_img + n - 4, sim_crc32(0, sim_img, (size_t)n - 4));
+                        fseek(bf, 0, SEEK_SET);
+                        fwrite(sim_img, 1, (size_t)n, bf);
+                    }
+                } else {
+                    int c;
+                    fseek(bf, n / 2, SEEK_SET);
+                    c = fgetc(bf);
+                    fseek(bf, n / 2, SEEK_SET);
+                    fputc(c ^ 1, bf);
+                }
+                fclose(bf);
+            }
         } else if (!strcmp(cmd, "echo"))
             printf("%s", line + 5);
         else {
