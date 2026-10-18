@@ -71,6 +71,10 @@ MIT. BB Gen is ported from mestela's schwung-breakbeat with the author's permiss
 hi-hat, ride and crash samples come from ER-99 (Matthew Cieplak, GPL-3.0). The fonts are Barlow
 Semi Condensed and Terminus (SIL OFL 1.1).
 
+The second core follows what keremimo's [Melodee](https://github.com/keremimo/melodee) found on the
+device (how to start it, the jobs done kept in a register), with zednaked's
+[Jangada](https://github.com/zednaked/jangada) measurements and mailbox layout.
+
 Felucca's own assets that aren't under its GPL (the icon set, the panel photo and the Hügelton
 drum pack) aren't part of this fork.
 
