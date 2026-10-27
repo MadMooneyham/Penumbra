@@ -14,7 +14,8 @@
  * patterns of 32 steps in OBJ_PAT0/1, the song and 32-step lanes in OBJ_SONG/OBJ_MOTION) is
  * converted as it loads: its steps land on steps 1-32, its patterns on 1-16. */
 #include "x0x.h"
-#include "../dsp/drum909.h"            /* DR_SD (the sound's revisions) */
+enum { DR_SD = 1 };                     /* X0X's 909 SD track (the sound's revisions; a drone project
+                                         * is saved at PROJ_SND_REV, so they never run on one) */
 #include "../dsp/master.h"             /* MST_* (the sound's revisions) */
 #include "lz.c"
 
@@ -44,7 +45,7 @@ void project_defaults(void)
     proj.set.autosave_off = 0;
     proj.set.clk_out = 1;
     proj.set.notes_out = 0;
-    proj.set.bpm_x10 = 1250;
+    proj.set.bpm_x10 = 720;              /* a slow drone tempo (the delay's dotted quarters: 1.25 s) */
     proj.set.accent_q7 = 88;
     proj.set.stereo = PROJ_STEREO;
     proj.set.snd_rev = PROJ_SND_REV;

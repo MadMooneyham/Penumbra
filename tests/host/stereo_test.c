@@ -3,7 +3,8 @@
  * ones (themselves held to 9W9 and Open303 references elsewhere):
  *  - master_process_st with l == r is master_process, bit for bit, compressor, PUMP, filter, limiter;
  *  - fxbus_process_st with dry l == r and no reverb is fxbus_process on both sides, bit for bit;
- *  - with reverb, the left is 9W9's mono reverb exactly and the right is a different (decorrelated) one;
+ *  - the reverb (spacevb): its mono return is the mean of its two sides; the sides are decorrelated and
+ *    as loud; its tail is long; at full SHIMMER and DECAY it stays bounded (the shimmer loop < unity);
  *  - PING: an impulse into the delay comes back on the left one time later, on the right two. */
 #include <math.h>
 #include <stdio.h>
@@ -27,6 +28,7 @@ static float rnd(void) { rs = rs * 1664525u + 1013904223u; return (float)(int)(r
 static master_t m1, m2;
 static fxbus_t f1, f2;
 static int16_t dl1[88200], dl2[88200];
+static int16_t rv1[SV_TOTAL], rv2[SV_TOTAL], ps1[SV_PS_LEN], ps2[SV_PS_LEN];
 
 int main(void)
 {
@@ -80,11 +82,13 @@ int main(void)
     }
     check(same, "fx: centred stereo, no reverb == mono, bit for bit (dist, delay, glue comp)");
 
-    {   /* the reverb: left = 9W9's, right = its own */
-        double sl = 0, sr = 0, slr = 0;
+    {   /* the reverb: a burst of noise in, the tail out */
+        double sl = 0, sr = 0, slr = 0, late = 0;
+        float worst = 0.0f;
         fxbus_init(&f1, dl1, 88200);
         fxbus_init(&f2, dl2, 88200);
-        same = 1;
+        fxbus_reverb_buffers(&f1, rv1, ps1);
+        fxbus_reverb_buffers(&f2, rv2, ps2);
         for (b = 0; b < BLOCKS; b++) {
             for (i = 0; i < N; i++) {
                 rev[i] = b < 4 ? 0.5f * rnd() : 0.0f;
@@ -92,16 +96,45 @@ int main(void)
             }
             fxbus_process(&f1, dry, rev, dly, a, N);
             fxbus_process_st(&f2, dry, dry, rev, dly, l, r, N);
-            same &= !memcmp(a, l, sizeof a);
             for (i = 0; i < N; i++) {
+                const float d = fabsf(a[i] - 0.5f * (l[i] + r[i]));
+                worst = d > worst ? d : worst;
                 sl += (double)l[i] * l[i];
                 sr += (double)r[i] * r[i];
                 slr += (double)l[i] * r[i];
+                if (b >= BLOCKS - 40)                     /* ~2.1 s after the burst */
+                    late += (double)l[i] * l[i];
             }
         }
-        check(same, "reverb: the left is 9W9's mono reverb exactly");
-        printf("       L/R correlation %.2f, R/L level %.2f dB\n", slr / sqrt(sl * sr), 10 * log10(sr / sl));
-        check(fabs(slr / sqrt(sl * sr)) < 0.5 && fabs(10 * log10(sr / sl)) < 3.0, "reverb: the right is decorrelated, as loud");
+        check(worst < 1e-6f, "reverb: the mono return is the mean of the two sides");
+        printf("       L/R correlation %.2f, R/L level %.2f dB, tail at 2 s %.1f dB under the whole\n",
+               slr / sqrt(sl * sr), 10 * log10(sr / sl), 10 * log10(sl / (late + 1e-30)));
+        check(fabs(slr / sqrt(sl * sr)) < 0.5 && fabs(10 * log10(sr / sl)) < 3.0, "reverb: the sides are decorrelated, as loud");
+        check(late > sl * 1e-3, "reverb: a long tail (more than -30 dB of it still there at 2 s)");
+    }
+    {   /* the shimmer loop at its worst: full SHIMMER, the longest DECAY, noise in for 20 s */
+        float peak = 0.0f;
+        int finite = 1;
+        fxbus_init(&f2, dl2, 88200);
+        fxbus_reverb_buffers(&f2, rv2, ps2);
+        fxbus_set(&f2, FX_RV_DECAY, 127);
+        fxbus_set(&f2, FX_RV_LEVEL, 127);
+        fxbus_ext_set(&f2, FXX_RV_SHIMMER, 127);
+        fxbus_ext_set(&f2, FXX_RV_SIZE, 127);
+        for (b = 0; b < 3445; b++) {                      /* 20 s */
+            for (i = 0; i < N; i++) {
+                rev[i] = 0.3f * rnd();
+                dry[i] = dly[i] = 0.0f;
+            }
+            fxbus_process_st(&f2, dry, dry, rev, dly, l, r, N);
+            for (i = 0; i < N; i++) {
+                finite &= isfinite(l[i]) && isfinite(r[i]);
+                peak = fabsf(l[i]) > peak ? fabsf(l[i]) : peak;
+                peak = fabsf(r[i]) > peak ? fabsf(r[i]) : peak;
+            }
+        }
+        printf("       full shimmer and decay, 20 s of noise: peak %.2f\n", (double)peak);
+        check(finite && peak < 4.0f, "reverb: the shimmer loop stays bounded at its worst");
     }
     {   /* PING: one impulse, echoes at T (left) and 2T (right) */
         int first_l = -1, first_r = -1, t;

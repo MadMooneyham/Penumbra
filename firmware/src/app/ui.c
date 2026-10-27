@@ -13,7 +13,8 @@
 #include "x0x.h"
 #include "../dsp/fastmath.h"
 #include "../dsp/master.h"
-#include "../dsp/bass303.h"                    /* BASS303_* (the 303's pages) */
+#include "../dsp/melody.h"                     /* MEL_* (the melody parts' pages) */
+#include "../dsp/drone.h"                      /* DRONE_KIT (the drone bus's pages) */
 #include "undo.c"
 
 /* ================================================================ model === */
@@ -25,8 +26,8 @@ enum { V_HOME, V_PART, V_GEN, V_FX, V_MIX, V_GLO, V_SONG, V_PERF, V_SEQ, NVIEWS 
 static const char *const VIEW_N[NVIEWS] = {"HOME", "", "TB-3PO", "FX", "MIX", "GLOBAL", "SONG", "PERF", "SEQ"};
 static const uint16_t PART_COL[NPARTS] = {RGB(255, 150, 40), RGB(255, 72, 64), RGB(130, 240, 90), RGB(70, 205, 255),
                                           RGB(214, 120, 255)};
-static const char *const PART_N[NPARTS] = {"909", "808", "303A", "303B", "BREAK"};
-static const char *const PART_S[NPARTS] = {"909", "808", "303A", "303B", "BRK"};   /* 4 chars: lane labels */
+static const char *const PART_N[NPARTS] = {"DRONE", "808", "MEL A", "MEL B", "BREAK"};
+static const char *const PART_S[NPARTS] = {"DRN", "808", "MELA", "MELB", "BRK"};   /* 4 chars: lane labels */
 
 /* overlays drawn over the main area */
 enum { O_NONE, O_LIST, O_ASK };
@@ -499,12 +500,12 @@ static int in_pattern(pref_t r)
 /* a knob's label: mixer refs name their part */
 static const char *pref_name(pref_t r)
 {
-    static const char *const MIXN[NPARTS][MX_NPARAMS] = {{"909", "909 RV", "909 DL", "909 PAN"},
+    static const char *const MIXN[NPARTS][MX_NPARAMS] = {{"DRONE", "DRN RV", "DRN DL", "DRN PAN"},
                                                          {"808", "808 RV", "808 DL", "808 PAN"},
-                                                         {"303 A", "A REV", "A DLY", "A PAN"},
-                                                         {"303 B", "B REV", "B DLY", "B PAN"},
+                                                         {"MEL A", "A REV", "A DLY", "A PAN"},
+                                                         {"MEL B", "B REV", "B DLY", "B PAN"},
                                                          {"BREAK", "BRK RV", "BRK DL", "BRK PAN"}};
-    static const char *const PATN[6][2] = {{"909 LEN", "808 LEN"}, {"909 RATE", "808 RATE"}, {"A LEN", "B LEN"},
+    static const char *const PATN[6][2] = {{"DRN LEN", "808 LEN"}, {"DRN RATE", "808 RATE"}, {"A LEN", "B LEN"},
                                            {"A RATE", "B RATE"}, {"A DIR", "B DIR"}, {"A TRANSP", "B TRANSP"}};
     static const char *const CHN[MX_NPARAMS] = {"LEVEL", "REV", "DLY", "PAN"};
     const x0x_param_t *d = pref_desc(r);
@@ -513,10 +514,14 @@ static const char *pref_name(pref_t r)
         return ui.view == V_SEQ ? SEQN[r.kind - R_DLEN] : PATN[r.kind - R_DLEN][r.a & 1];
     if (r.kind == R_ENG && r.a == T_MIX && ui.view == V_MIX && r.c < MX_NPARAMS)
         return CHN[r.c];                               /* MIX's PARTS: the picked part's */
-    if (r.kind == R_ENG && (r.a == T_909 || r.a == T_808) && r.b == NDRUM && r.c == 1)
-        return "ACCENT";                               /* the kits' depth of accents */
+    if (r.kind == R_ENG && r.a == T_808 && r.b == NDRUM && r.c == 1)
+        return "ACCENT";                               /* the kit's depth of accents */
     if (r.kind == R_ENG && r.a == T_MIX && r.b < NPARTS && r.c < MX_NPARAMS)
         return MIXN[r.b][r.c];
+    if (r.kind == R_ENG && r.a == T_FX && r.b == 2) {   /* the reverb's further pots (FXX_*) */
+        static const char *const XN[FXX_NPARAMS] = {"SIZE", "MOTION", "SHIMMER"};
+        return r.c < FXX_NPARAMS ? XN[r.c] : "";
+    }
     if (r.kind == R_ENG && r.a == T_FX) {               /* the page says which effect: the knob, what */
         switch (r.c) {
         case FX_RV_DECAY: return "DECAY";
@@ -809,22 +814,30 @@ static void build_pages(void)
     case V_PART:                                       /* the part's sound */
         if (is_drum()) {
             int t = p == PART_909 ? T_909 : T_808;
-            add_track_pages(t, ui.sel[p]);
+            if (p != PART_909 || ui.sel[p] < DRONE_VOICES)   /* (DRONE's tracks 7..11: no voice) */
+                add_track_pages(t, ui.sel[p]);
             pg_grp = GR_KIT;
-            if (p == PART_909)                         /* (the kit's gain: the mixer's level does it) */
-                add_page("KIT", PR(R_ENG, T_909, NDRUM, 1), NONE, NONE, NONE);
-            else
+            if (p == PART_909) {                       /* the drone bus: tuning, filter, motion, wind */
+                add_page("BUS", PR(R_ENG, T_909, DRONE_KIT, DB_ROOT), PR(R_ENG, T_909, DRONE_KIT, DB_DRIFT),
+                         PR(R_ENG, T_909, DRONE_KIT, DB_WIND), PR(R_ENG, T_909, DRONE_KIT, DB_GAIN));
+                add_page("FILTER", PR(R_ENG, T_909, DRONE_KIT, DB_CUTOFF), PR(R_ENG, T_909, DRONE_KIT, DB_RESO),
+                         PR(R_ENG, T_909, DRONE_KIT, DB_DRIVE), PR(R_ENG, T_909, DRONE_KIT, DB_FMODE));
+                add_page("LFO", PR(R_ENG, T_909, DRONE_KIT, DB_LFORATE), PR(R_ENG, T_909, DRONE_KIT, DB_LFOCUT),
+                         PR(R_ENG, T_909, DRONE_KIT, DB_LFOPITCH), PR(R_ENG, T_909, DRONE_KIT, DB_LFOPAN));
+                add_page("S&H", PR(R_ENG, T_909, DRONE_KIT, DB_SHRATE), PR(R_ENG, T_909, DRONE_KIT, DB_SHCUT),
+                         NONE, NONE);
+            } else                                     /* (the kit's gain: the mixer's level does it) */
                 add_page("KIT", PR(R_ENG, T_808, NDRUM, 1), NONE, NONE, NONE);
         } else if (is_303()) {
             pg_grp = GR_SOUND;
-            add_page("TONE", PR(R_ENG, T_303, b, BASS303_CUTOFF), PR(R_ENG, T_303, b, BASS303_RESO),
-                     PR(R_ENG, T_303, b, BASS303_ENVMOD), PR(R_ENG, T_303, b, BASS303_DECAY));
-            add_page("VOICE", PR(R_ENG, T_303, b, BASS303_ACCENT), PR(R_ENG, T_303, b, BASS303_WAVE),
-                     PR(R_ENG, T_303, b, BASS303_DRIVE), PR(R_ENG, T_303, b, BASS303_SLIDE));
-            more(PR(R_ENG, T_303, b, BASS303_TUNE));
-            more(PR(R_ENG, T_303, b, BASS303_VOLUME));
-            more(PR(R_ENG, T_303, b, BASS303_DRVTYPE));
-            more(PR(R_ENG, T_303, b, BASS303_ACCDEC));
+            add_page("FILTER", PR(R_ENG, T_303, b, MEL_CUTOFF), PR(R_ENG, T_303, b, MEL_RESO),
+                     PR(R_ENG, T_303, b, MEL_ENVMOD), PR(R_ENG, T_303, b, MEL_ACCENT));
+            add_page("ENVELOPE", PR(R_ENG, T_303, b, MEL_ATTACK), PR(R_ENG, T_303, b, MEL_DECAY),
+                     PR(R_ENG, T_303, b, MEL_SUSTAIN), PR(R_ENG, T_303, b, MEL_RELEASE));
+            add_page("VOICE", PR(R_ENG, T_303, b, MEL_WAVE), PR(R_ENG, T_303, b, MEL_SUB),
+                     PR(R_ENG, T_303, b, MEL_GLIDE), PR(R_ENG, T_303, b, MEL_VIB));
+            add_page("RING", PR(R_ENG, T_303, b, MEL_RING), PR(R_ENG, T_303, b, MEL_RINGHZ),
+                     PR(R_ENG, T_303, b, MEL_TUNE), PR(R_ENG, T_303, b, MEL_VOLUME));
         } else {
             pg_grp = GR_PAT;                           /* (its groove and retrigs: SEQ) */
             add_page("LOOPS", PR(R_BRKSLOT, 0, 0, 0), PR(R_BRKSLOT, 1, 0, 0), PR(R_BRKSET, 0, 0, BRK_BCHANCE),
@@ -840,7 +853,9 @@ static void build_pages(void)
                  PR(R_GEN, b, 0, G_MUT));
         break;
     case V_FX:                                         /* (each part's sends: MIX's PARTS) */
-        add_page("REVERB", PR(R_ENG, T_FX, 0, FX_RV_DECAY), PR(R_ENG, T_FX, 0, FX_RV_TONE), NONE, NONE);
+        add_page("REVERB", PR(R_ENG, T_FX, 0, FX_RV_DECAY), PR(R_ENG, T_FX, 0, FX_RV_TONE),
+                 PR(R_ENG, T_FX, 2, FXX_RV_SIZE), PR(R_ENG, T_FX, 2, FXX_RV_SHIMMER));
+        more(PR(R_ENG, T_FX, 2, FXX_RV_MOD));
         add_page("DELAY", PR(R_ENG, T_FX, 0, FX_DL_TIME), PR(R_ENG, T_FX, 0, FX_DL_FDBK),
                  PR(R_ENG, T_FX, 0, FX_DL_TONE), PR(R_TAPE, 0, 0, 0));
         more(PR(R_ENG, T_FX, 0, FX_RV_HPF));

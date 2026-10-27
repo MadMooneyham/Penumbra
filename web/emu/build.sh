@@ -10,8 +10,8 @@ mkdir -p build/gen build/emu
 [ -f build/gen/x0x_drum_samples.h ] || python3 tools/gen_drum_samples.py build/gen/x0x_drum_samples.h >/dev/null
 python3 tools/gen_words.py firmware/words.tsv web/words build/gen/ann_words.h >/dev/null
 sh tools/gen_builtin_break.sh build/gen >/dev/null
-U="firmware/src/dsp/drum909.c firmware/src/dsp/drum808.c firmware/src/dsp/bass303.c firmware/src/dsp/breaks.c
-   firmware/src/dsp/fxbus.c firmware/src/dsp/master.c firmware/src/seq/sequencer.c firmware/src/seq/tb3po.c
+U="firmware/src/dsp/drone.c firmware/src/dsp/drum808.c firmware/src/dsp/melody.c firmware/src/dsp/breaks.c
+   firmware/src/dsp/fxbus.c firmware/src/dsp/spacevb.c firmware/src/dsp/x0x_tables.c firmware/src/dsp/master.c firmware/src/seq/sequencer.c firmware/src/seq/tb3po.c
    firmware/src/seq/pattern.c firmware/src/seq/motion.c firmware/src/app/engine.c"
 # shellcheck disable=SC2086
 emcc -O2 -ffp-contract=off -std=gnu99 -Wall -Wno-unused-function -Wno-unused-parameter -Wno-unused-variable \

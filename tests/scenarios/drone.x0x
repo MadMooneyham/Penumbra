@@ -1,0 +1,35 @@
+# The drone firmware's factory sound, as the browser prototype's "Cinematic": three drones latched on
+# over MIDI (DRONE on channel 10, GM drum notes: 36 DR1, 38 DR2, 41 DR3), a slow build, then a melody
+# on MEL A (channel 2) into the shimmer reverb and the tape delay; a drone latched off again at the end.
+# The audio is build/scenarios/drone/drone_demo.wav: listen against drone-proto/drone.html.
+wait 300
+wav drone_demo.wav
+peakreset
+midi 99 24 64
+wait 3000
+expect peak_db_min -40
+midi 99 26 64
+wait 2500
+midi 99 29 64
+wait 4000
+midi 91 39 64
+wait 900
+midi 81 39 00
+wait 600
+midi 91 3C 64
+wait 900
+midi 81 3C 00
+wait 600
+midi 91 40 64
+wait 1800
+midi 81 40 00
+wait 900
+midi 91 3E 64
+wait 900
+midi 81 3E 00
+wait 4000
+midi 99 29 64
+wait 6000
+expect peak_db_max -0.5
+shot drone.png
+wavstop

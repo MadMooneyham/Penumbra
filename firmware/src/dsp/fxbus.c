@@ -1,12 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Send reverb, synced delay and master stage: a port of 9W9's er99_verb_tick,
- * er99_dly_tick, master distortion and master_glue (GPL-3.0). See fxbus.h. */
+/* Send reverb (spacevb.c), synced delay and master stage: a port of 9W9's er99_dly_tick,
+ * master distortion and master_glue (GPL-3.0). See fxbus.h. */
 #include "fxbus.h"
-
-static const int32_t fx_cl[4] = { 1116, 1188, 1277, 1356 };
-static const int32_t fx_al[2] = { 556, 441 };
-static const int32_t fx_alr[2] = { 579, 457 };
-#define FX_RV_QUIET (1356 + 8192)          /* combs silent this long: the allpass tail is < -140 dB */
 
 /* 1/32 1/16T 1/16 1/8T 1/16. 1/8 1/4T 1/8. 1/4 1/2T 1/4. 1/2 1/2. (in beats) */
 static const float fx_beats[13] = {
@@ -36,10 +31,10 @@ static const fx_pspec_t fx_p[FX_NPARAMS] = {
     [FX_DIST]     = { { "Dist", 7, 0, fx_dist_names }, CV_SW, 0, 0.0f, 0.0f },
     [FX_DRIVE]    = { { "Drive", 127, 41, 0 }, CV_EXP, X0X_EXP_DRIVE, 0.0f, 0.0f },
     [FX_COMP]     = { { "Comp", 127, 0, 0 }, CV_LIN, 0, 0.0f, 1.0f },
-    [FX_RV_DECAY] = { { "RvDec", 127, 73, 0 }, CV_LIN, 0, 0.2f, 0.93f },
+    [FX_RV_DECAY] = { { "RvDec", 127, 91, 0 }, CV_LIN, 0, 0.0f, 1.0f },     /* 1 .. 40 s; 91 = 14 s */
     [FX_RV_TONE]  = { { "RvTone", 127, 57, 0 }, CV_LIN, 0, 0.0f, 1.0f },
     [FX_RV_HPF]   = { { "RvHPF", 127, 62, 0 }, CV_EXP, X0X_EXP_FX_HPF, 0.0f, 0.0f },
-    [FX_RV_LEVEL] = { { "RvLvl", 127, 85, 0 }, CV_LIN, 0, 0.0f, 1.2f },
+    [FX_RV_LEVEL] = { { "RvLvl", 127, 106, 0 }, CV_LIN, 0, 0.0f, 1.2f },
     [FX_DL_TIME]  = { { "DlTime", 12, 7, fx_div_names }, CV_SW, 0, 0.0f, 0.0f },
     [FX_DL_FDBK]  = { { "DlFdbk", 127, 52, 0 }, CV_LIN, 0, 0.0f, 0.85f },
     [FX_DL_TONE]  = { { "DlTone", 127, 51, 0 }, CV_LIN, 0, 0.0f, 1.0f },
@@ -49,6 +44,32 @@ static const fx_pspec_t fx_p[FX_NPARAMS] = {
     [FX_DL_WEAR]  = { { "Wear", 127, 64, 0 }, CV_LIN, 0, 0.0f, 1.0f },
     [FX_DL_PING]  = { { "Ping", 1, 0, fx_onoff_names }, CV_SW, 0, 0.0f, 0.0f },
 };
+
+static const x0x_param_t fx_ext_p[FXX_NPARAMS] = {
+    [FXX_RV_SIZE] = { "Size", 127, 89, 0 },           /* 0.5 .. 1.5; 89 = 1.2 */
+    [FXX_RV_MOD] = { "Mod", 127, 64, 0 },
+    [FXX_RV_SHIMMER] = { "Shimmr", 127, 25, 0 },
+};
+
+int fxbus_ext_nparams(void) { return FXX_NPARAMS; }
+const x0x_param_t *fxbus_ext_param(int i) { return i >= 0 && i < FXX_NPARAMS ? &fx_ext_p[i] : 0; }
+int fxbus_ext_get(const fxbus_t *f, int i) { return i >= 0 && i < FXX_NPARAMS ? f->ext_pots[i] : 0; }
+
+void fxbus_ext_set(fxbus_t *f, int i, int value)
+{
+    if (i < 0 || i >= FXX_NPARAMS)
+        return;
+    if (value < 0) value = 0;
+    if (value > 127) value = 127;
+    f->ext_pots[i] = (uint8_t)value;
+    const float x = (float)value / 127.0f;
+    switch (i) {
+    case FXX_RV_SIZE: spacevb_size(&f->rv, x); break;
+    case FXX_RV_MOD: spacevb_mod(&f->rv, x); break;
+    case FXX_RV_SHIMMER: spacevb_shimmer(&f->rv, x); break;
+    default: break;
+    }
+}
 
 int fxbus_nparams(void) { return FX_NPARAMS; }
 
@@ -91,10 +112,10 @@ static void fx_apply(fxbus_t *f, int i, float v)
     case FX_DIST: f->dist_mode = (int32_t)v; break;
     case FX_DRIVE: f->drive = v; break;
     case FX_COMP: f->comp = v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); fx_comp_prep(f); break;
-    case FX_RV_DECAY: f->rv_decay = v; break;
-    case FX_RV_TONE: f->rv_tone = v; break;
-    case FX_RV_HPF: d9_biquad_set(&f->rv_hp, D9_HP, v, 0.7071f); break;
-    case FX_RV_LEVEL: f->rv_level = v; break;
+    case FX_RV_DECAY: spacevb_decay(&f->rv, v); break;
+    case FX_RV_TONE: spacevb_tone(&f->rv, v); break;
+    case FX_RV_HPF: spacevb_lowcut(&f->rv, v); break;
+    case FX_RV_LEVEL: spacevb_level(&f->rv, v); break;
     case FX_DL_TIME: f->dl_div = (int32_t)v; fx_retime(f); break;
     case FX_DL_FDBK: f->dl_fdbk = v; break;
     case FX_DL_TONE: f->dl_tone = v; break;
@@ -145,9 +166,7 @@ void fxbus_init(fxbus_t *f, int16_t *dly_buf, int dly_len)
     f->dbuf = dly_buf;
     f->dlen = dly_len;
 
-    f->rv_decay = 0.62f; f->rv_tone = 0.45f; f->rv_level = 0.8f;
-    d9_biquad_set(&f->rv_hp, D9_HP, 150.0f, 0.7071f);
-    f->rv_quiet = FX_RV_QUIET;
+    spacevb_init(&f->rv, 0, 0);                  /* silent until fxbus_reverb_buffers */
 
     f->dl_div = 7;
     f->bpm = 120.0f;
@@ -171,83 +190,40 @@ void fxbus_init(fxbus_t *f, int16_t *dly_buf, int dly_len)
 
     for (int i = 0; i < FX_NPARAMS; ++i)
         f->pots[i] = fx_p[i].ui.def;
+    for (int i = 0; i < FX_NPARAMS; ++i)         /* the reverb's pots into spacevb (its own defaults differ) */
+        if (i >= FX_RV_DECAY && i <= FX_RV_LEVEL)
+            fxbus_set(f, i, fx_p[i].ui.def);
+    for (int i = 0; i < FXX_NPARAMS; ++i)
+        fxbus_ext_set(f, i, fx_ext_p[i].def);
+}
+
+void fxbus_reverb_buffers(fxbus_t *f, int16_t *rv, int16_t *ps)
+{
+    spacevb_t keep = f->rv;                      /* the settings; the lines start empty */
+    spacevb_init(&f->rv, rv, ps);
+    f->rv.t60 = keep.t60;
+    f->rv.size = keep.size;
+    f->rv.shimmer = keep.shimmer;
+    f->rv.damp_c = keep.damp_c;
+    f->rv.hp_c = keep.hp_c;
+    f->rv.mod = keep.mod;
+    f->rv.level = keep.level;
+    spacevb_size(&f->rv, f->rv.size - 0.5f);     /* (recomputes the lines' gains) */
 }
 
 /* ===================================================================== */
-/* Reverb (er99_verb_tick), adds its return into out                      */
+/* Reverb (spacevb.c), adds its return into out (and out_r)               */
 /* ===================================================================== */
 static void fx_reverb(fxbus_t *f, const float *in, float *out, float *out_r, int n)
 {
-    if (f->rv_quiet >= FX_RV_QUIET) {
-        int any = 0;
-        for (int i = 0; i < n; ++i)
-            any |= in[i] != 0.0f;
-        if (!any)
-            return;                         /* silent in, silent lines: 0 out */
+    if (out_r) {
+        spacevb_process(&f->rv, in, out, out_r, n);
+        return;
     }
-    const float damp = 0.75f - f->rv_tone * 0.55f;
-    const float fb = f->rv_decay;
-    const float lvl = f->rv_level;
-    int16_t *cb[4];
-    cb[0] = f->comb;
-    cb[1] = cb[0] + fx_cl[0];
-    cb[2] = cb[1] + fx_cl[1];
-    cb[3] = cb[2] + fx_cl[2];
-    float *ab0 = f->ap, *ab1 = f->ap + fx_al[0];
-    float *ar0 = f->apr, *ar1 = f->apr + fx_alr[0];
-    int32_t quiet = f->rv_quiet;
-    for (int i = 0; i < n; ++i) {
-        const float x = d9_biquad_tick(&f->rv_hp, in[i]);
-        float acc = 0.0f, acc_r = 0.0f;
-        int32_t wr = 0;
-        for (int c = 0; c < 4; ++c) {
-            int16_t *b = cb[c];
-            const int32_t p = f->cpos[c];
-            const float y = (float)b[p] * (1.0f / 2048.0f);
-            acc += y;
-            acc_r += (c & 1) ? -y : y;
-            f->cdmp[c] = y + (f->cdmp[c] - y) * damp;
-            /* the loop runs at 12 bits, truncated toward zero (no DC) */
-            int32_t k = (int32_t)((x + f->cdmp[c] * fb) * 2048.0f);
-            if (k > 32767) k = 32767;
-            if (k < -32767) k = -32767;
-            b[p] = (int16_t)k;
-            wr |= k;
-            f->cpos[c] = p + 1 >= fx_cl[c] ? 0 : p + 1;
-        }
-        float y = acc * 0.25f;
-        {
-            const int32_t p = f->apos[0];
-            const float bo = ab0[p];
-            ab0[p] = y + bo * 0.5f;
-            y = bo - y * 0.5f;
-            f->apos[0] = p + 1 >= fx_al[0] ? 0 : p + 1;
-        }
-        {
-            const int32_t p = f->apos[1];
-            const float bo = ab1[p];
-            ab1[p] = y + bo * 0.5f;
-            y = bo - y * 0.5f;
-            f->apos[1] = p + 1 >= fx_al[1] ? 0 : p + 1;
-        }
-        out[i] += y * lvl;
-        if (out_r) {                        /* the right: the combs, alternate signs, its own allpasses */
-            float yr = acc_r * 0.25f;
-            int32_t p = f->aposr[0];
-            float bo = ar0[p];
-            ar0[p] = yr + bo * 0.5f;
-            yr = bo - yr * 0.5f;
-            f->aposr[0] = p + 1 >= fx_alr[0] ? 0 : p + 1;
-            p = f->aposr[1];
-            bo = ar1[p];
-            ar1[p] = yr + bo * 0.5f;
-            yr = bo - yr * 0.5f;
-            f->aposr[1] = p + 1 >= fx_alr[1] ? 0 : p + 1;
-            out_r[i] += yr * lvl;
-        }
-        quiet = (wr == 0 && in[i] == 0.0f) ? quiet + 1 : 0;
-    }
-    f->rv_quiet = quiet;
+    float l[256] = {0}, r[256] = {0};            /* mono: both sides, averaged */
+    spacevb_process(&f->rv, in, l, r, n);
+    for (int i = 0; i < n; ++i)
+        out[i] += (l[i] + r[i]) * 0.5f;
 }
 
 /* ===================================================================== */

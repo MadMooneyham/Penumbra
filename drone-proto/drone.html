@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Drone Groove Prototype</title>
+<style>
+:root{--bg:#f3f3f6;--panel:#fff;--ink:#1b1c22;--muted:#666a78;--line:#d9dae0;--accent:#5b4bd6;--on:#2f9e6e;--cell:#e6e6ee;--head:#f0b429}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e0f14;--panel:#171922;--ink:#e6e7ee;--muted:#9a9db0;--line:#2a2d3a;--accent:#9d8cff;--on:#4cc493;--cell:#232633;--head:#f0b429}}
+:root[data-theme="dark"]{--bg:#0e0f14;--panel:#171922;--ink:#e6e7ee;--muted:#9a9db0;--line:#2a2d3a;--accent:#9d8cff;--on:#4cc493;--cell:#232633;--head:#f0b429}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:13px/1.4 system-ui,-apple-system,Segoe UI,sans-serif}
+header{position:sticky;top:0;z-index:2;background:var(--panel);border-bottom:1px solid var(--line);padding:10px 16px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+header h1{font-size:15px;margin:0 12px 0 0}
+button,select{font:inherit;color:var(--ink);background:var(--cell);border:1px solid var(--line);border-radius:6px;padding:5px 10px;cursor:pointer}
+button.on{background:var(--on);color:#fff;border-color:var(--on)}
+button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+main{padding:12px 16px;display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+section{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+section.wide{grid-column:1/-1}
+h2{font-size:13px;margin:0 0 8px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.row{display:grid;grid-template-columns:88px 1fr 56px;gap:6px;align-items:center;margin:3px 0}
+.row label{color:var(--muted)}
+.row output{text-align:right;font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.drones{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.card{border:1px solid var(--line);border-radius:8px;padding:8px}
+.card .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.grid{display:grid;grid-template-columns:repeat(16,1fr);gap:3px;max-width:720px}
+.grid button{padding:0;height:20px;border-radius:3px}
+.grid button.beat{filter:brightness(.93)}
+.grid button.play{outline:2px solid var(--head)}
+.hint{color:var(--muted);font-size:12px;margin:6px 0 0}
+#vu{width:120px;height:8px;background:var(--cell);border-radius:4px;overflow:hidden}
+#vu div{height:100%;width:0;background:var(--on)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Drone Groove</h1>
+  <button id="audio" class="primary">Start audio</button>
+  <button id="play">Play seq</button>
+  <label>BPM <input id="bpm" type="number" min="40" max="200" value="72" style="width:58px"></label>
+  <select id="preset"></select>
+  <button id="scramble" title="Randomize each drone's fine tuning, Solar-style">Scramble tuning</button>
+  <button id="rec">Record WAV</button>
+  <a id="dl" style="display:none">download</a>
+  <div id="vu"><div></div></div>
+</header>
+<main id="ui"></main>
+<script>
+"use strict";
+// ---------- parameters ----------
+const SCALES = {minor:[0,2,3,5,7,8,10], pentatonic:[0,3,5,7,10], dorian:[0,2,3,5,7,9,10], phrygian:[0,1,3,5,7,8,10], wholetone:[0,2,4,6,8,10]};
+const STACKS = [[0,0,0,0,0],[0,7,12,-12,19],[0,12,-12,24,0],[0,3,7,10,14]];
+const STACK_NAMES = ['cluster','fifths','octaves','min9'];
+const CL = [0,-1,1,-0.5,0.5]; // per-oscillator spread pattern
+
+const P = {};
+const SCHEMA = {
+  Bus:[['root','Drone root',21,45,1,v=>midiName(v)],['fade','Fade s',0.05,8,0.05],['drift','Drift ¢',0,30,0.5],['noise','Wind',0,1,0.01]],
+  'Drone filter':[['cutA','Cutoff Hz',60,12000,1,null,'log'],['resA','Resonance',0,0.98,0.01],['driveA','Drive',1,6,0.1],['modeA','Mode',0,1,1,v=>v?'BP':'LP']],
+  Modulation:[['lfoRate','LFO Hz',0.01,4,0.01,null,'log'],['lfoCut','LFO→cut oct',0,4,0.05],['lfoPitch','LFO→pitch ¢',0,40,0.5],['lfoPan','LFO→pan',0,1,0.01],
+              ['shRate','S&H Hz',0.1,16,0.1,null,'log'],['shCut','S&H→drone',0,3,0.05],['shMel','S&H→melody',0,4,0.05]],
+  Melody:[['melRoot','Root',33,69,1,v=>midiName(v)],['scale','Scale',0,4,1,v=>Object.keys(SCALES)[v]],['melWave','Saw↔square',0,1,0.01],['melSub','Sub',0,1,0.01],
+          ['melAtk','Attack s',0.002,4,0.001,null,'log'],['melDec','Decay s',0.02,6,0.01,null,'log'],['melSus','Sustain',0,1,0.01],['melRel','Release s',0.02,8,0.01,null,'log'],
+          ['glide','Glide s',0,1.5,0.01],['vib','Vibrato ¢',0,60,0.5],['melCut','Cutoff Hz',80,12000,1,null,'log'],['melRes','Resonance',0,0.95,0.01],['melEnv','Env→cut oct',0,6,0.05],
+          ['ring','Ring mod',0,1,0.01],['ringHz','Ring Hz',10,2000,1,null,'log'],['melLevel','Level',0,1,0.01],['gate','Seq gate',0.05,1,0.01]],
+  Delay:[['delSteps','Time 16ths',1,16,1],['delFb','Feedback',0,0.95,0.01],['wow','Wow',0,1,0.01],['delTone','Tone',0.05,1,0.01],['delSend','Amount',0,1,0.01]],
+  Reverb:[['revSize','Size',0.5,3,0.01],['revDecay','Decay s',1,40,0.1,null,'log'],['revDamp','Damping',0,0.95,0.01],['revMod','Modulation',0,1,0.01],['shimmer','Shimmer',0,0.9,0.01],['revSend','Amount',0,1,0.01]],
+  Master:[['master','Volume',0,1.5,0.01]]
+};
+const V = []; // drone voices
+const VSCHEMA = [['note','Note',-24,36,1,v=>(v>=0?'+':'')+v],['fine','Fine ¢',-100,100,1],['spread','Spread ¢',0,60,0.5],['stack','Stack',0,3,1,v=>STACK_NAMES[v]],
+  ['wave','Sq↔saw',0,1,0.01],['tone','Tone Hz',80,10000,1,null,'log'],['level','Level',0,1,0.01],['pan','Pan',-1,1,0.01]];
+const seq = {notes:new Int8Array(16).fill(-1), playing:false, step:-1, counter:0, gateCounter:0};
+
+const BASE = {
+  root:33, fade:2.5, drift:6, noise:0.0,
+  cutA:1800, resA:0.35, driveA:1.6, modeA:0,
+  lfoRate:0.07, lfoCut:0.8, lfoPitch:3, lfoPan:0.3, shRate:2, shCut:0, shMel:0,
+  melRoot:57, scale:0, melWave:0.2, melSub:0.2, melAtk:0.04, melDec:1.2, melSus:0.55, melRel:2.2, glide:0.12, vib:6,
+  melCut:2200, melRes:0.3, melEnv:1.5, ring:0, ringHz:220, melLevel:0.55, gate:0.6,
+  delSteps:6, delFb:0.55, wow:0.35, delTone:0.45, delSend:0.32,
+  revSize:2.4, revDecay:14, revDamp:0.45, revMod:0.5, shimmer:0.18, revSend:0.5, master:0.8
+};
+const VBASE = {on:0, note:0, fine:0, spread:9, stack:0, wave:0.35, tone:1400, level:0.7, pan:0};
+const PRESETS = {
+  'Cinematic': {p:{}, v:[{on:1,note:0},{on:1,note:7,fine:-4,pan:-0.4},{on:1,note:12,fine:3,pan:0.4},{note:15,fine:-7,pan:-0.6},{note:19,pan:0.6},{note:24,fine:5,spread:14}],
+    seq:[0,-1,-1,4,-1,-1,3,-1,2,-1,-1,-1,4,-1,6,-1]},
+  'Deep space': {p:{root:28,fade:6,drift:14,noise:0.35,cutA:700,resA:0.7,modeA:1,lfoRate:0.03,lfoCut:2,melWave:0.7,melCut:900,melEnv:2.5,revDecay:30,shimmer:0.45,revSend:0.65,delSteps:12,delFb:0.7},
+    v:[{on:1,note:0,spread:20,stack:2},{on:1,note:7,stack:1,wave:0.8,pan:-0.5},{note:10,pan:0.5},{note:13,fine:-30},{on:1,note:24,fine:12,tone:600},{note:31,spread:30}],
+    seq:[0,-1,-1,-1,-1,-1,-1,-1,4,-1,-1,-1,-1,-1,-1,-1]},
+  'Signal': {p:{scale:3,shRate:6,shMel:2.2,shCut:0.8,ring:0.45,ringHz:380,melAtk:0.003,melDec:0.25,melSus:0.1,melRel:0.6,gate:0.3,delSteps:3,delFb:0.65,glide:0.02},
+    v:[{on:1,note:0,stack:3,spread:5},{on:1,note:12,wave:0.9,tone:2500,pan:0.3},{note:1,fine:20},{note:7},{note:19},{note:24}],
+    seq:[0,2,-1,4,0,-1,5,-1,0,1,-1,4,-1,7,3,-1]}
+};
+function applyPreset(name){
+  const pr = PRESETS[name];
+  Object.assign(P, BASE, pr.p);
+  for (let i=0;i<6;i++) V[i] = Object.assign({}, VBASE, pr.v[i]||{});
+  seq.notes.set(pr.seq);
+  buildUI();
+}
+function midiName(m){ return ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'][m%12] + (Math.floor(m/12)-1); }
+const mtof = m => 440*Math.pow(2,(m-69)/12);
+
+// ---------- DSP ----------
+let ctx=null, node=null, SR=48000;
+const D = {};
+function nextPow2(n){ let p=1; while(p<n) p<<=1; return p; }
+function initDSP(){
+  D.ph = new Float64Array(30); D.inc = new Float64Array(30);
+  D.drPh = new Float64Array(60); D.drRate = new Float64Array(60);
+  for (let i=0;i<60;i++){ D.drPh[i]=Math.random()*6.283; D.drRate[i]=(0.03+Math.random()*0.25)*6.283/SR*32; }
+  D.drift = new Float64Array(30);
+  for (let i=0;i<30;i++) D.ph[i]=Math.random();
+  D.amp = new Float64Array(6); D.lp = new Float64Array(6); D.toneC = new Float64Array(6);
+  D.panL = new Float64Array(6); D.panR = new Float64Array(6);
+  D.fL={ic1:0,ic2:0}; D.fR={ic1:0,ic2:0}; D.fM={ic1:0,ic2:0};
+  D.nbL=0; D.nbR=0;
+  D.lfoPh=0; D.shPh=0; D.shVal=0; D.shSm=0;
+  D.mel={gate:false,env:0,stage:0,lf:Math.log(220),tlf:Math.log(220),ph:0,sub:0,vib:0,ring:0};
+  D.dlen = nextPow2(Math.ceil(SR*4.5)); D.dmask=D.dlen-1;
+  D.dL=new Float32Array(D.dlen); D.dR=new Float32Array(D.dlen); D.dW=0; D.dT=SR*0.5; D.wowPh=0; D.flPh=0; D.dlpL=0; D.dlpR=0;
+  D.rlen = nextPow2(Math.ceil(0.0735*3*SR)+256); D.rmask=D.rlen-1;
+  D.rb = []; for (let i=0;i<8;i++) D.rb.push(new Float32Array(D.rlen));
+  D.rW=0; D.rLen=new Float64Array(8); D.rG=new Float64Array(8); D.rLp=new Float64Array(8); D.rModPh=0;
+  D.psLen=8192; D.psMask=8191; D.ps=new Float32Array(D.psLen); D.psW=0; D.psPh=0; D.shimOut=0;
+  D.peak=0; D.rec=null;
+}
+function blep(t,dt){ if(t<dt){t/=dt;return t+t-t*t-1;} if(t>1-dt){t=(t-1)/dt;return t*t+t+t+1;} return 0; }
+function rd(buf,mask,pos){ const i=Math.floor(pos); const f=pos-i; const a=buf[i&mask], b=buf[(i+1)&mask]; return a+(b-a)*f; }
+function svfCoef(st,fc,res){ fc=Math.min(Math.max(fc,20),SR*0.45); const g=Math.tan(Math.PI*fc/SR), k=2-2*res; st.a1=1/(1+g*(g+k)); st.a2=g*st.a1; st.a3=g*st.a2; }
+function svf(st,x,bp){
+  const v3=x-st.ic2, v1=st.a1*st.ic1+st.a2*v3, v2=st.ic2+st.a2*st.ic1+st.a3*v3;
+  st.ic1=2*v1-st.ic1; st.ic2=2*v2-st.ic2;
+  st.ic1=Math.tanh(st.ic1); // soft-clipped band state: the raw, screaming resonance
+  return bp? v1 : v2;
+}
+function stepLen(){ return SR*60/(+document.getElementById('bpm').value||72)/4; }
+function scaleNote(deg){ const s=SCALES[Object.keys(SCALES)[P.scale]]; return P.melRoot + s[deg%s.length] + 12*Math.floor(deg/s.length); }
+function noteOn(m){ const M=D.mel; M.tlf=Math.log(mtof(m)); if(!M.gate && M.env<0.002) M.lf=M.tlf; M.gate=true; M.stage=0; }
+function noteOff(){ D.mel.gate=false; }
+
+let shCut=0, lfoV=0;
+function control(){
+  const sl=stepLen();
+  // modulation (32-sample tick)
+  D.lfoPh += 6.283*P.lfoRate*32/SR; if(D.lfoPh>6.283) D.lfoPh-=6.283;
+  lfoV = Math.sin(D.lfoPh);
+  D.shPh += P.shRate*32/SR; if(D.shPh>=1){ D.shPh-=1; D.shVal=Math.random()*2-1; }
+  D.shSm += (D.shVal-D.shSm)*0.5;
+  for (let i=0;i<60;i++){ D.drPh[i]+=D.drRate[i]; }
+  for (let i=0;i<30;i++) D.drift[i]=0.6*Math.sin(D.drPh[i])+0.4*Math.sin(D.drPh[i+30]);
+  for (let v=0;v<6;v++){
+    const vs=V[v]; const base=P.root+vs.note+vs.fine/100+lfoV*P.lfoPitch/100;
+    for (let k=0;k<5;k++){
+      const idx=v*5+k; const off=STACKS[vs.stack][k]+CL[k]*vs.spread/100+D.drift[idx]*P.drift/100;
+      D.inc[idx]=mtof(base+off)/SR;
+    }
+    D.toneC[v]=1-Math.exp(-6.283*vs.tone/SR);
+    const pan=Math.max(-1,Math.min(1,vs.pan+lfoV*P.lfoPan*(v%2?1:-1)));
+    D.panL[v]=Math.cos((pan+1)*Math.PI/4); D.panR[v]=Math.sin((pan+1)*Math.PI/4);
+  }
+  const cA=P.cutA*Math.pow(2,lfoV*P.lfoCut+D.shSm*P.shCut);
+  svfCoef(D.fL,cA,P.resA); Object.assign(D.fR,{a1:D.fL.a1,a2:D.fL.a2,a3:D.fL.a3});
+  const M=D.mel;
+  const gl = P.glide>0 ? 1-Math.exp(-32/(P.glide*SR)) : 1; M.lf += (M.tlf-M.lf)*gl;
+  svfCoef(D.fM, P.melCut*Math.pow(2,M.env*P.melEnv+D.shSm*P.shMel), P.melRes);
+  // reverb
+  const lens=[29.7,37.1,41.1,43.7,53.3,59.9,67.7,73.1];
+  let gSum=0;
+  for (let i=0;i<8;i++){ D.rLen[i]=lens[i]*P.revSize*SR/1000; D.rG[i]=Math.pow(10,-3*D.rLen[i]/(P.revDecay*SR)); gSum+=D.rG[i]; }
+  // The tank's sustained gain grows like 1/(1-g); scale the shimmer return so its loop gain stays below 1.
+  D.shimGain = P.shimmer*(1-gSum/8)*4;
+  D.dTarget = Math.min(P.delSteps*sl, D.dlen-SR*0.1);
+  D.fadeC = 1-Math.exp(-1/(P.fade*SR));
+  D.atkInc = 1/(P.melAtk*SR); D.decC=1-Math.exp(-1/(P.melDec*SR)); D.relC=1-Math.exp(-1/(P.melRel*SR));
+}
+
+function process(e){
+  const L=e.outputBuffer.getChannelData(0), R=e.outputBuffer.getChannelData(1), n=L.length;
+  const sl=stepLen(); const M=D.mel;
+  let peak=0;
+  for (let i=0;i<n;i++){
+    if ((i&31)===0) control();
+    // sequencer
+    if (seq.playing){
+      if (--seq.counter<=0){
+        seq.step=(seq.step+1)&15; seq.counter+=sl;
+        const d=seq.notes[seq.step];
+        if (d>=0){ noteOn(scaleNote(d)); seq.gateCounter=P.gate*sl; }
+      }
+      if (seq.gateCounter>0 && --seq.gateCounter<=0) noteOff();
+    }
+    // drones
+    let dl=0, dr=0;
+    for (let v=0;v<6;v++){
+      const tgt=V[v].on?V[v].level:0;
+      D.amp[v]+= (tgt-D.amp[v])*D.fadeC;
+      if (D.amp[v]<1e-5 && tgt===0) continue;
+      const w=V[v].wave; let s=0;
+      for (let k=0;k<5;k++){
+        const idx=v*5+k; let t=D.ph[idx]; const dt=D.inc[idx];
+        let t2=t+0.5; if(t2>=1) t2-=1;
+        const sq=(t<0.5?1:-1)+blep(t,dt)-blep(t2,dt);
+        const sw=2*t-1-blep(t,dt);
+        s+=sq+w*(sw-sq);
+        t+=dt; if(t>=1) t-=1; D.ph[idx]=t;
+      }
+      D.lp[v]+=D.toneC[v]*(s-D.lp[v]);
+      const x=D.lp[v]*D.amp[v]*0.09;
+      dl+=x*D.panL[v]; dr+=x*D.panR[v];
+    }
+    if (P.noise>0){
+      D.nbL+=0.03*((Math.random()*2-1)-D.nbL); D.nbR+=0.03*((Math.random()*2-1)-D.nbR);
+      dl+=D.nbL*P.noise*1.5; dr+=D.nbR*P.noise*1.5;
+    }
+    const drv=P.driveA, post=1/Math.sqrt(drv);
+    dl=svf(D.fL,Math.tanh(dl*drv),P.modeA)*post; dr=svf(D.fR,Math.tanh(dr*drv),P.modeA)*post;
+    // melody
+    if (M.gate){ if(M.stage===0){ M.env+=D.atkInc; if(M.env>=1){M.env=1;M.stage=1;} } else M.env+=(P.melSus-M.env)*D.decC; }
+    else M.env+=(0-M.env)*D.relC;
+    let mel=0;
+    if (M.env>1e-4){
+      M.vib+=6.283*5.2/SR; if(M.vib>6.283) M.vib-=6.283;
+      const f=Math.exp(M.lf)*Math.pow(2,Math.sin(M.vib)*P.vib/1200), dt=f/SR;
+      let t=M.ph, t2=t+0.5; if(t2>=1) t2-=1;
+      const sw=2*t-1-blep(t,dt), sq=(t<0.5?1:-1)+blep(t,dt)-blep(t2,dt);
+      let y=sw+P.melWave*(sq-sw);
+      y+=P.melSub*(M.sub<0.5?1:-1);
+      M.ph=t+dt; if(M.ph>=1) M.ph-=1; M.sub+=dt*0.5; if(M.sub>=1) M.sub-=1;
+      y=svf(D.fM,Math.tanh(y*0.8),0);
+      if (P.ring>0){ M.ring+=6.283*P.ringHz/SR; if(M.ring>6.283) M.ring-=6.283; y=y*(1-P.ring)+y*Math.sin(M.ring)*P.ring*1.4; }
+      mel=y*M.env*P.melLevel*0.35;
+    }
+    const xl=dl+mel, xr=dr+mel;
+    // tape-ish ping-pong delay
+    D.dT+=(D.dTarget-D.dT)*0.00005;
+    D.wowPh+=6.283*0.55/SR; D.flPh+=6.283*6.1/SR; if(D.wowPh>6.283)D.wowPh-=6.283; if(D.flPh>6.283)D.flPh-=6.283;
+    const mod=1+P.wow*(0.004*Math.sin(D.wowPh)+0.0007*Math.sin(D.flPh));
+    const rl=rd(D.dL,D.dmask,D.dW-D.dT*mod), rr=rd(D.dR,D.dmask,D.dW-D.dT*mod*1.003);
+    D.dlpL+=P.delTone*(rl-D.dlpL); D.dlpR+=P.delTone*(rr-D.dlpR);
+    D.dL[D.dW]=(xl+xr)*0.5*P.delSend+Math.tanh(D.dlpR*P.delFb*1.1)/1.1;
+    D.dR[D.dW]=Math.tanh(D.dlpL*P.delFb*1.1)/1.1;
+    D.dW=(D.dW+1)&D.dmask;
+    // FDN reverb with shimmer
+    const rin=((xl+xr)*0.5+(rl+rr)*0.3)*P.revSend+Math.tanh(D.shimOut*D.shimGain);
+    D.rModPh+=6.283*0.31/SR; if(D.rModPh>6.283) D.rModPh-=6.283;
+    const md=P.revMod*14*SR/44100; const y=[0,0,0,0,0,0,0,0];
+    const dc=1-P.revDamp;
+    for (let j=0;j<8;j++){
+      const m=D.rLen[j]+(j<4?md*(1+Math.sin(D.rModPh+j*1.7)):0);
+      D.rLp[j]+=dc*(rd(D.rb[j],D.rmask,D.rW-m)-D.rLp[j]); y[j]=D.rLp[j];
+    }
+    const oL=(y[0]-y[2]+y[4]-y[6])*0.35, oR=(y[1]-y[3]+y[5]-y[7])*0.35;
+    for (let j=0;j<8;j++) y[j]*=D.rG[j];
+    for (let h=1;h<8;h<<=1) for (let a=0;a<8;a+=h<<1) for (let b=a;b<a+h;b++){ const u=y[b], w2=y[b+h]; y[b]=u+w2; y[b+h]=u-w2; }
+    for (let j=0;j<8;j++) D.rb[j][D.rW]=y[j]*0.35355+rin*(j&1?-1:1);
+    D.rW=(D.rW+1)&D.rmask;
+    // octave-up shimmer fed back into the reverb
+    D.ps[D.psW]=(oL+oR)*0.5;
+    D.psPh+=1/4096; if(D.psPh>=1) D.psPh-=1;
+    let sh=0;
+    for (let k=0;k<2;k++){ let h=D.psPh+k*0.5; if(h>=1) h-=1; const wv=Math.sin(Math.PI*h); sh+=rd(D.ps,D.psMask,D.psW-((1-h)*4096+2))*wv*wv; }
+    D.shimOut=sh; D.psW=(D.psW+1)&D.psMask;
+    let ol=(xl+rl+oL)*P.master, or=(xr+rr+oR)*P.master;
+    ol=Math.tanh(ol); or=Math.tanh(or);
+    L[i]=ol; R[i]=or;
+    const a=Math.abs(ol); if(a>peak) peak=a;
+  }
+  D.peak=Math.max(peak,D.peak*0.9);
+  if (D.rec){ D.rec.push([L.slice(),R.slice()]); }
+}
+
+// ---------- UI ----------
+function toSlider(v,min,max,log){ return log? Math.log(v/min)/Math.log(max/min)*1000 : v; }
+function fromSlider(s,min,max,step,log){ if(!log) return +s; const v=min*Math.pow(max/min,s/1000); return v<10?Math.round(v*1000)/1000:Math.round(v); }
+function fmt(v,f){ return f? f(v) : (Math.abs(v)>=100? Math.round(v) : Math.round(v*100)/100); }
+function row(parent,obj,[key,label,min,max,step,f,scale]){
+  const r=document.createElement('div'); r.className='row';
+  const lab=document.createElement('label'); lab.textContent=label;
+  const inp=document.createElement('input'); inp.type='range';
+  const log=scale==='log';
+  inp.min=log?0:min; inp.max=log?1000:max; inp.step=log?1:step; inp.value=toSlider(obj[key],min,max,log);
+  const out=document.createElement('output'); out.textContent=fmt(obj[key],f);
+  inp.oninput=()=>{ obj[key]=fromSlider(inp.value,min,max,step,log); out.textContent=fmt(obj[key],f); };
+  r.append(lab,inp,out); parent.append(r);
+}
+function section(title,cls){ const s=document.createElement('section'); if(cls) s.className=cls; const h=document.createElement('h2'); h.textContent=title; s.append(h); return s; }
+let cells=[];
+function buildUI(){
+  const ui=document.getElementById('ui'); ui.innerHTML='';
+  const ds=section('Drone voices — keys 1–6 toggle','wide'); const wrap=document.createElement('div'); wrap.className='drones';
+  V.forEach((vs,i)=>{
+    const c=document.createElement('div'); c.className='card';
+    const top=document.createElement('div'); top.className='top';
+    const t=document.createElement('strong'); t.textContent='Voice '+(i+1);
+    const b=document.createElement('button'); b.id='v'+i; const sync=()=>{ b.textContent=vs.on?'ON':'off'; b.classList.toggle('on',!!vs.on); };
+    b.onclick=()=>{ vs.on=vs.on?0:1; sync(); }; sync();
+    top.append(t,b); c.append(top);
+    VSCHEMA.forEach(d=>row(c,vs,d)); wrap.append(c);
+  });
+  ds.append(wrap); ui.append(ds);
+  for (const [name,defs] of Object.entries(SCHEMA)){ const s=section(name); defs.forEach(d=>row(s,P,d)); ui.append(s); }
+  const ss=section('Melody sequencer — click cells; keys A W S E D F T G Y H U J K play live','wide');
+  const g=document.createElement('div'); g.className='grid'; cells=[];
+  for (let r=7;r>=0;r--) for (let c=0;c<16;c++){
+    const b=document.createElement('button'); if(c%4===0) b.classList.add('beat');
+    const paint=()=>b.classList.toggle('on',seq.notes[c]===r); paint();
+    b.onclick=()=>{ seq.notes[c]=seq.notes[c]===r?-1:r; cells.forEach(x=>x.paint()); };
+    b.title='step '+(c+1)+', degree '+(r+1); g.append(b); cells.push({b,c,paint});
+  }
+  const btn=document.createElement('button'); btn.textContent='Clear'; btn.style.marginTop='6px';
+  btn.onclick=()=>{ seq.notes.fill(-1); cells.forEach(x=>x.paint()); };
+  const hint=document.createElement('p'); hint.className='hint'; hint.textContent='Rows are scale degrees of the melody root (bottom = root). Delay time follows BPM.';
+  ss.append(g,btn,hint); ui.append(ss);
+}
+function startAudio(){
+  if (ctx){ if(ctx.state==='running'){ ctx.suspend(); audioBtn.textContent='Resume audio'; } else { ctx.resume(); audioBtn.textContent='Pause audio'; } return; }
+  ctx=new AudioContext(); SR=ctx.sampleRate; initDSP();
+  node=ctx.createScriptProcessor(1024,0,2); node.onaudioprocess=process; node.connect(ctx.destination);
+  audioBtn.textContent='Pause audio';
+}
+const audioBtn=document.getElementById('audio'); audioBtn.onclick=startAudio;
+document.getElementById('play').onclick=e=>{
+  if(!ctx) startAudio();
+  seq.playing=!seq.playing; seq.step=-1; seq.counter=0; if(!seq.playing) noteOff();
+  e.target.classList.toggle('on',seq.playing); e.target.textContent=seq.playing?'Stop seq':'Play seq';
+};
+const presetSel=document.getElementById('preset');
+Object.keys(PRESETS).forEach(n=>{ const o=document.createElement('option'); o.textContent=n; presetSel.append(o); });
+presetSel.onchange=()=>applyPreset(presetSel.value);
+document.getElementById('scramble').onclick=()=>{ V.forEach(v=>{ v.fine=Math.round((Math.random()*2-1)*45); }); buildUI(); };
+const KEYS='awsedftgyhujk';
+const held=new Set();
+addEventListener('keydown',e=>{
+  if (e.repeat || e.ctrlKey || e.metaKey || e.target.tagName==='INPUT' && e.target.type==='number') return;
+  const k=e.key.toLowerCase();
+  if (k>='1' && k<='6'){ const i=+k-1; V[i].on=V[i].on?0:1; const b=document.getElementById('v'+i); b.textContent=V[i].on?'ON':'off'; b.classList.toggle('on',!!V[i].on); return; }
+  const n=KEYS.indexOf(k); if(n<0) return;
+  if(!ctx) startAudio();
+  held.add(k); noteOn(P.melRoot+n);
+});
+addEventListener('keyup',e=>{ const k=e.key.toLowerCase(); if(held.delete(k) && held.size===0) noteOff(); });
+// recording
+const recBtn=document.getElementById('rec'), dl=document.getElementById('dl');
+recBtn.onclick=()=>{
+  if(!ctx) return;
+  if(!D.rec){ D.rec=[]; recBtn.classList.add('on'); recBtn.textContent='Stop rec'; dl.style.display='none'; return; }
+  const chunks=D.rec; D.rec=null; recBtn.classList.remove('on'); recBtn.textContent='Record WAV';
+  const frames=chunks.reduce((a,c)=>a+c[0].length,0);
+  const buf=new ArrayBuffer(44+frames*4), dv=new DataView(buf);
+  const ws=(o,s)=>{ for(let i=0;i<s.length;i++) dv.setUint8(o+i,s.charCodeAt(i)); };
+  ws(0,'RIFF'); dv.setUint32(4,36+frames*4,true); ws(8,'WAVEfmt '); dv.setUint32(16,16,true); dv.setUint16(20,1,true); dv.setUint16(22,2,true);
+  dv.setUint32(24,SR,true); dv.setUint32(28,SR*4,true); dv.setUint16(32,4,true); dv.setUint16(34,16,true); ws(36,'data'); dv.setUint32(40,frames*4,true);
+  let o=44; for (const [l,r] of chunks) for (let i=0;i<l.length;i++){ dv.setInt16(o,Math.max(-1,Math.min(1,l[i]))*32767,true); dv.setInt16(o+2,Math.max(-1,Math.min(1,r[i]))*32767,true); o+=4; }
+  dl.href=URL.createObjectURL(new Blob([buf],{type:'audio/wav'})); dl.download='drone-groove.wav'; dl.textContent='download '+(frames/SR).toFixed(1)+'s WAV'; dl.style.display='';
+};
+// playhead + meter
+const vu=document.querySelector('#vu div');
+(function frame(){
+  if (ctx){ vu.style.width=Math.min(100,D.peak*100)+'%'; }
+  cells.forEach(x=>x.b.classList.toggle('play',seq.playing && x.c===seq.step));
+  requestAnimationFrame(frame);
+})();
+applyPreset('Cinematic');
+</script>
+</body>
+</html>

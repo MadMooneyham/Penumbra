@@ -2,9 +2,9 @@
 /* X0X audio engine; see engine.h. */
 #include "engine.h"
 #include "plat.h"
-#include "../dsp/drum909.h"
+#include "../dsp/drone.h"
 #include "../dsp/drum808.h"
-#include "../dsp/bass303.h"
+#include "../dsp/melody.h"
 #include "../dsp/breaks.h"
 #include "../dsp/fxbus.h"
 #include "../dsp/master.h"
@@ -26,14 +26,17 @@ volatile uint8_t eng_hit[NKIT][NDRUM];
 int16_t eng_scope[SCOPE_N];
 volatile uint32_t eng_scope_w;
 
-static drum909_t d909 POOL;
+/* the parts: DRONE in the 909's place (PART_909, T_909), the 808, MELODY A and B in the 303s'
+ * (PART_303A/B, T_303); the break part is kept in the project but no longer sounds */
+static drone_t dn POOL;
 static drum808_t d808 POOL;
-static bass303_t b303[NBASS] POOL;
+static melody_t mel[NBASS] POOL;
 static breaks_t brk POOL;
 static fxbus_t fx POOL;
 static master_t mst;
-#define DLY_LEN 88200
+#define DLY_LEN 66150                  /* 1.5 s (2 s before the reverb's lines needed the room) */
 static int16_t dly_buf[DLY_LEN] POOL;
+static int16_t rv_buf[SV_TOTAL] POOL, rv_ps[SV_PS_LEN] POOL;
 static volatile uint8_t brk_hold;      /* main loop is rewriting the break loops: ISR leaves it alone */
 static motion_t mot;
 static const sound_t *mot_base_snd;    /* the knobs' own values (the project's mirror) */
@@ -44,9 +47,9 @@ void engine_motion_enable(int on) { mot_on = (uint8_t)(on != 0); }   /* the ISR 
 static volatile uint8_t mot_release_req;
 void engine_motion_reset(void) { mot_release_req = 1; }   /* lanes changed under it (undo): knobs back */
 
-/* overload guard: past the CPU (a block over 92%, or 85% on average) the two 303s drop their
- * oversampling (~12% of the CPU: a little aliasing on bright notes) and the 808's voices end at
- * -50 dB instead of -90 (~2%); after 3 s back under 65% both return. The platform reports each
+/* overload guard: past the CPU (a block over 92%, or 85% on average) the drone voices drop to three
+ * oscillators each (a thinner cluster) and the 808's voices end at -50 dB instead of -90 (~2%);
+ * after 3 s back under 65% both return. The platform reports each
  * block's load after rendering it (engine_load, same context as engine_render); the change is
  * made at the start of the next block. Off during the PERF test, which measures the full cost. */
 #define GUARD_ON_LAST 92u
@@ -79,19 +82,17 @@ void engine_load(uint32_t pct, uint32_t frames)
 }
 static void guard_apply(void)
 {
-    int k;
     if (guard_on == guard_applied)
         return;
     guard_applied = guard_on;
-    for (k = 0; k < NBASS; k++)
-        bass303_set_lite(&b303[k], guard_on);
+    drone_set_lite(&dn, guard_on);
     drum808_quiet = guard_on ? 3.2e-3f : 3.2e-5f;
 }
 
 /* mixer: per part Level, Rev send, Dly send (a drum machine's add to its voices' own sends) */
 static const x0x_param_t MIX_P[MX_NPARAMS] = {{"LEVEL", 127, 100, 0}, {"REV", 127, 0, 0}, {"DLY", 127, 0, 0},
                                                {"PAN", 127, 64, 0}};
-static const char *const PART_NAMES[NPARTS] = {"909", "808", "303 A", "303 B", "BREAK"};
+static const char *const PART_NAMES[NPARTS] = {"DRONE", "808", "MEL A", "MEL B", "BREAK"};
 static float mix_level[NPARTS], mix_rev[NPARTS], mix_dly[NPARTS];
 /* pan: a balance law. Centre is full level on both sides (a centred mix is the mono one exactly);
  * turning toward a side fades the other out along a quarter cosine, the near side stays at 1 */
@@ -119,10 +120,11 @@ static void cq_put(uint32_t type, uint32_t a, uint32_t b, uint32_t c)
 int engine_nvoices(int t)
 {
     switch (t) {
-    case T_909: return DR_NUM + 1;
+    case T_909: return DRONE_TRACKS + 1;
     case T_808: return D8_NUM + 1;
     case T_303: return NBASS;
     case T_MIX: return NPARTS;
+    case T_FX: return 3;                                 /* 0: fxbus, 1: the UI's TAPE knob (not sent), 2: the reverb's ext */
     default: return 1;
     }
 }
@@ -130,11 +132,11 @@ int engine_nvoices(int t)
 int engine_nparams(int t, int v)
 {
     switch (t) {
-    case T_909: return drum909_nparams(v);
+    case T_909: return drone_nparams(v);
     case T_808: return drum808_nparams(v);
-    case T_303: return bass303_nparams();
+    case T_303: return melody_nparams();
     case T_BRK: return 3;                                /* Level, Pitch, Filter (sends: the mixer's; the rest: the pattern's) */
-    case T_FX: return fxbus_nparams();
+    case T_FX: return v == 0 ? fxbus_nparams() : v == 2 ? fxbus_ext_nparams() : 0;
     case T_MIX: return MX_NPARAMS;                       /* every part: Level, Rev send, Dly send */
     case T_MST: return master_nparams();
     default: return 0;
@@ -144,26 +146,25 @@ int engine_nparams(int t, int v)
 const x0x_param_t *engine_param(int t, int v, int i)
 {
     switch (t) {
-    case T_909: return drum909_param(v, i);
+    case T_909: return drone_param(v, i);
     case T_808: return drum808_param(v, i);
-    case T_303: return bass303_param(i);
+    case T_303: return melody_param(i);
     case T_BRK: return breaks_param(BRK_NSET + i);
-    case T_FX: return fxbus_param(i);
+    case T_FX: return v == 0 ? fxbus_param(i) : v == 2 ? fxbus_ext_param(i) : 0;
     case T_MIX: return (i >= 0 && i < MX_NPARAMS) ? &MIX_P[i] : 0;
     case T_MST: return master_param(i);
     default: return 0;
     }
 }
 
-static const char *const N909[DR_NUM + 1] = {"BD", "SD", "LT", "MT", "HT", "RS", "CP", "CH", "OH", "CR", "RD", "KIT"};
 static const char *const N808[D8_NUM + 1] = {"BD", "SD", "LT", "MT", "HT", "RS", "CP", "CB", "CY", "OH", "CH", "KIT"};
 
 const char *engine_voice_name(int t, int v)
 {
     switch (t) {
-    case T_909: return (v >= 0 && v <= DR_NUM) ? N909[v] : "";
+    case T_909: return drone_track_name(v);
     case T_808: return (v >= 0 && v <= D8_NUM) ? N808[v] : "";
-    case T_303: return v ? "303 B" : "303 A";
+    case T_303: return v ? "MEL B" : "MEL A";
     case T_MIX: return (v >= 0 && v < NPARTS) ? PART_NAMES[v] : "";
     case T_BRK: return "BREAK";
     case T_FX: return "FX";
@@ -175,11 +176,16 @@ const char *engine_voice_name(int t, int v)
 static void apply_param(int t, int v, int i, int val)    /* ISR */
 {
     switch (t) {
-    case T_909: drum909_set(&d909, v, i, val); break;
+    case T_909: drone_set(&dn, v, i, val); break;
     case T_808: drum808_set(&d808, v, i, val); break;
-    case T_303: if (v >= 0 && v < NBASS) bass303_set(&b303[v], i, val); break;
+    case T_303: if (v >= 0 && v < NBASS) melody_set(&mel[v], i, val); break;
     case T_BRK: breaks_set(&brk, BRK_NSET + i, val); break;
-    case T_FX: fxbus_set(&fx, i, val); break;
+    case T_FX:
+        if (v == 0)
+            fxbus_set(&fx, i, val);
+        else if (v == 2)
+            fxbus_ext_set(&fx, i, val);
+        break;
     case T_MIX:
         if (v < 0 || v >= NPARTS)
             break;
@@ -247,44 +253,39 @@ void engine_sound_defaults(sound_t *s)
                 const x0x_param_t *p = engine_param(t, v, i);
                 s->v[t][v][i] = p ? p->def : 0;
             }
-    /* the factory mix: big beat (Chemical Brothers, Fatboy Slim), balanced by tools/mix_report.py
-     * against a funk break, a 909 kick under it and a 303 line. The break leads, the kick sits
-     * under it, the 303 screams through its RAT; the master squeezes and pumps. Each engine's
-     * own voicing (its pot defaults) is left as its original; only these are X0X's. */
-    s->v[T_MIX][PART_909][MX_LEVEL] = 75;            /* 9W9's kit is hot (it drives its own glue): -5 dB */
-    s->v[T_909][DR_BD][3] = 61;                      /* its kick under the break, its clap and hats over */
-    s->v[T_909][DR_BD][2] = 80;                      /* the kick: a little shorter, and driven. Its Attack */
-    s->v[T_909][DR_BD][6] = 30;                      /* stays 9W9's 13: at 50 its tick was 12 dB louder, a click on every kick */
-    s->v[T_909][DR_OH][1] = 60;
-    s->v[T_MIX][PART_808][MX_LEVEL] = 112;
-    s->v[T_808][D8_KIT][0] = 127;                    /* kit level */
-    s->v[T_BRK][0][0] = 127;                         /* the break: full level, part a little over unity */
-    s->v[T_MIX][PART_BRK][MX_LEVEL] = 120;
-    s->v[T_MIX][PART_BRK][MX_REV] = 25;
-    for (v = 0; v < NBASS; v++) {                    /* acid: low cutoff, high resonance, a long sweep, RAT */
-        s->v[T_303][v][BASS303_CUTOFF] = 48;
-        s->v[T_303][v][BASS303_RESO] = 100;
-        s->v[T_303][v][BASS303_ENVMOD] = 85;
-        s->v[T_303][v][BASS303_ACCENT] = 100;
-        s->v[T_303][v][BASS303_VOLUME] = 127;
-        s->v[T_303][v][BASS303_DRIVE] = 45;
-        s->v[T_303][v][BASS303_DRVTYPE] = 2;
-        s->v[T_MIX][PART_303A + v][MX_LEVEL] = 74;   /* the RAT makes it dense: -5 dB (square law) */
-        s->v[T_MIX][PART_303A + v][MX_DLY] = v ? 60 : 80;
-        s->v[T_MIX][PART_303A + v][MX_REV] = 12;
+    /* the factory sound: the prototype's "Cinematic" (drone-proto/drone.html). An A minor drone
+     * (root, fifth, octave on; minor third, fifth and a high octave ready on DR4-DR6), each voice
+     * a little off true like a Solar tuned by ear, spread across the field; the melodies and the
+     * drones into a long shimmering reverb and a worn ping-pong tape delay, dotted quarters. */
+    {
+        static const uint8_t NOTE[DRONE_VOICES] = {24, 31, 36, 39, 43, 48};   /* 0 +7 +12 +15 +19 +24 */
+        static const uint8_t FINE[DRONE_VOICES] = {64, 61, 66, 60, 64, 67};   /* 0 -4 +3 -7 0 +5 cents */
+        static const uint8_t PAN[DRONE_VOICES] = {64, 38, 89, 26, 102, 64};
+        for (v = 0; v < DRONE_VOICES; v++) {
+            s->v[T_909][v][DN_NOTE] = NOTE[v];
+            s->v[T_909][v][DN_FINE] = FINE[v];
+            s->v[T_909][v][DN_PAN] = PAN[v];
+        }
+        s->v[T_909][5][DN_SPREAD] = 30;              /* the high octave: a wider, shimmering cluster */
     }
-    s->v[T_909][DR_CP][5] = 50;                      /* the clap in the room (90 drowned it) */
-    s->v[T_909][DR_LT][1] = 92;                      /* the toms: shorter than 9W9's (its low tom rang */
-    s->v[T_909][DR_MT][1] = 88;                      /* on for 1.7 s, which reads as reverb) */
-    s->v[T_909][DR_HT][1] = 90;
-    s->v[T_FX][0][FX_DL_TYPE] = 1;                   /* tape delay, dotted eighths */
-    s->v[T_MST][0][MST_RATIO] = 4;                   /* 4:1 */
-    s->v[T_MST][0][MST_THRESH] = 64;                 /* -24 dB */
-    s->v[T_MST][0][MST_MAKEUP] = 85;                 /* +16 dB: into the limiter */
-    s->v[T_MST][0][MST_ATTACK] = 85;                 /* 10 ms: faster grabbed each kick hard enough to click */
-    s->v[T_MST][0][MST_RELEASE] = 58;                /* 100 ms: it breathes with the beat */
-    s->v[T_MST][0][MST_PUMP] = 21;                   /* 4 dB of 909-keyed pump */
-    s->v[T_MST][0][MST_COMP1] = 95;                  /* the one-knob COMP's nearest to the squash above */
+    s->v[T_MIX][PART_909][MX_REV] = 64;
+    s->v[T_MIX][PART_909][MX_DLY] = 41;
+    s->v[T_MIX][PART_808][MX_LEVEL] = 90;
+    s->v[T_MIX][PART_808][MX_REV] = 30;
+    s->v[T_808][D8_KIT][0] = 127;                    /* kit level */
+    for (v = 0; v < NBASS; v++) {
+        s->v[T_MIX][PART_303A + v][MX_REV] = 64;
+        s->v[T_MIX][PART_303A + v][MX_DLY] = 41;
+    }
+    s->v[T_303][1][MEL_TUNE] = 0;                    /* MEL B an octave down: a bass line under A */
+    s->v[T_MIX][PART_BRK][MX_LEVEL] = 0;             /* (silent anyway) */
+    s->v[T_FX][0][FX_VOLUME] = 127;                  /* unity: 9W9's 0.35 (-9 dB) balanced its hot kit, not drones */
+    s->v[T_FX][0][FX_DL_TYPE] = 1;                   /* tape */
+    s->v[T_FX][0][FX_DL_TIME] = 10;                  /* 1/4. */
+    s->v[T_FX][0][FX_DL_FDBK] = 82;
+    s->v[T_FX][0][FX_DL_TONE] = 57;
+    s->v[T_FX][0][FX_DL_WEAR] = 44;
+    s->v[T_FX][0][FX_DL_PING] = 1;
     s->v[T_FX][1][0] = (uint8_t)(16 + s->v[T_FX][0][FX_DL_WEAR] * 111 / 127);   /* TAPE (ui.c R_TAPE): on, its wear */
 }
 
@@ -354,12 +355,12 @@ static int s_drum_seq(void *x, int kit, int v, float vel)
 static void s_drum(void *x, int kit, int v, float vel)
 {
     (void)x;
-    if (v == 0)                          /* BD (both kits' track 1): the master's PUMP key */
+    if (v == 0 && kit == 1)              /* the 808's BD: the master's PUMP key (a drone is no kick) */
         master_key(&mst, kit, vel);
     if ((unsigned)kit < NKIT && (unsigned)v < NDRUM)   /* MIX's drum pages: the track's meter jumps */
         eng_hit[kit][v] = (uint8_t)(vel >= 1.0f ? 255 : (int)(vel * 255.0f));
     if (kit == 0)
-        drum909_trigger(&d909, v, vel);
+        drone_trigger(&dn, v, vel);      /* by the voice's MODE: latch on / off, or a swell */
     else                                 /* the 808's unaccented hit sits at D8_VEL_NORMAL, not at our 909 level */
         drum808_trigger(&d808, v, vel >= 0.999f ? 1.0f : vel * (D8_VEL_NORMAL / (88.0f / 127.0f)));
 }
@@ -367,11 +368,11 @@ static void s_bon(void *x, int p, int note, int acc, int sl)
 {
     (void)x;
     if (prob_skip(PART_303A + p, 0))                  /* skipped: a rest */
-        bass303_note_off(&b303[p]);
+        melody_note_off(&mel[p]);
     else
-        bass303_note_on(&b303[p], note, acc, sl);
+        melody_note_on(&mel[p], note, acc, sl);
 }
-static void s_boff(void *x, int p) { (void)x; bass303_note_off(&b303[p]); }
+static void s_boff(void *x, int p) { (void)x; melody_note_off(&mel[p]); }
 static uint8_t brk_applied[BRK_NSET];  /* the pattern settings the break was last given */
 static void s_brk(void *x, int s16, int bar, float spb, int en)
 {
@@ -466,13 +467,13 @@ static void midi_in(uint32_t pkt)
                 if ((k ? GM8 : GM)[v] == d1)
                     s_drum(0, k, v, (float)d2 / 127.0f);
         }
-    for (k = 0; k < NBASS; k++)                         /* the 303s: overlapping notes slide */
+    for (k = 0; k < NBASS; k++)                         /* the melodies: overlapping notes slide */
         if (seq.ch[TRK_BASS0 + k] == ch) {
             if (ty == 0x90) {
-                bass303_note_on(&b303[k], d1, d2 >= 100, bass_held[k] != 0);
+                melody_note_on(&mel[k], d1, d2 >= 100, bass_held[k] != 0);
                 bass_held[k] = d1;
             } else if (ty == 0x80 && bass_held[k] == d1) {
-                bass303_note_off(&b303[k]);
+                melody_note_off(&mel[k]);
                 bass_held[k] = 0;
             }
         }
@@ -493,9 +494,9 @@ static void drain(void)
         else if (type == C_DRUM)
             s_drum(0, (int)a, (int)b, (float)v / 4095.0f);
         else if (type == C_BON && a < NBASS)
-            bass303_note_on(&b303[a], (int)b, (int)(v & 1u), (int)((v >> 1) & 1u));
+            melody_note_on(&mel[a], (int)b, (int)(v & 1u), (int)((v >> 1) & 1u));
         else if (type == C_BOFF && a < NBASS)
-            bass303_note_off(&b303[a]);
+            melody_note_off(&mel[a]);
         else if (type == C_BRK && !brk_hold)
             breaks_live(&brk, (int)a, (int)b);
     }
@@ -569,8 +570,8 @@ volatile uint32_t eng_dbg_wait, eng_dbg_nsub;  /* 24 MHz ticks waiting for core 
 #endif
 
 /* the mix of one stretch between two events: dry left and right, the reverb and delay sends;
- * t0..tr the 808's scratch, kbuf the break's, mono the 909's kit send */
-static float dry_l[256], dry_r[256], rev[256], dly[256], t0[256], t1[256], t2[256], tr[256], kbuf[256], mono[256];
+ * t0..tr the 808's scratch, mono the drone's send */
+static float dry_l[256], dry_r[256], rev[256], dly[256], t0[256], t1[256], t2[256], tr[256], mono[256];
 
 /* a glide applied in place to a buffer that started at zero: buf * c is 0 + buf * c exactly, so this
  * is add_glide(zeros, buf) to the bit (the same steps of c) */
@@ -592,10 +593,9 @@ __attribute__((noinline)) static void scale_glide(float *buf, glide_t *g, uint32
     g->cur = c;
 }
 
-/* the second core's job (or the first's, after its own part, with one core): the 808 into t0..tr
- * and the break into kbuf; arg bit 8: not timed (the cycle counter is the first core's). Nothing
- * here is mixed: the first core does that afterwards, in one core's order */
-static int brk_silent_now = 1;
+/* the second core's job (or the first's, after its own part, with one core): the 808 into t0..tr;
+ * arg bit 8: not timed (the cycle counter is the first core's). Nothing here is mixed: the first
+ * core does that afterwards, in one core's order. (The break no longer renders.) */
 static uint8_t d808_was_active;
 static void core2_job(uint32_t arg)
 {
@@ -607,16 +607,8 @@ static void core2_job(uint32_t arg)
         drum808_render_st(&d808, t0, tr, t1, t2, (int)n);
     } else
         drum808_pan_settle(&d808);
-    if (timed) {
-        PROF_ADD(PR_808, pt);
-        pt = plat_cycles();
-    }
-    if (!brk_hold) {
-        brk_silent_now = breaks_silent(&brk);             /* the render writes zeros: nothing to mix */
-        breaks_render(&brk, kbuf, (int)n);
-    }
     if (timed)
-        PROF_ADD(PR_BRK, pt);
+        PROF_ADD(PR_808, pt);
 }
 
 /* a drum machine's mix, from its render (L, R, voice sends; mono, its kit send) */
@@ -627,9 +619,9 @@ __attribute__((noinline)) static void kit_sends(int b, const float *m, uint32_t 
     meter(b, m, mix_level[b], n);
 }
 
-/* one stretch: the 909 (into the mix, in place) and the 303s here while the second core renders the
- * 808 and the break; then those are mixed in, in the order one core always used (909, 808, 303 A,
- * 303 B, break): the same sums either way */
+/* one stretch: the drone (into the mix, in place) and the melodies here while the second core renders
+ * the 808; then those are mixed in, in the order one core always used (drone, 808, MEL A, MEL B):
+ * the same sums either way */
 static void render_sub(float *out_l, float *out_r, uint32_t n)
 {
     float *bb[NBASS] = {out_l, out_r};
@@ -638,28 +630,23 @@ static void render_sub(float *out_l, float *out_r, uint32_t n)
     int on2 = plat_cpu2_run(core2_job, arg | 0x100u);
     for (i = 0; i < n; i++)
         dry_l[i] = dry_r[i] = rev[i] = dly[i] = 0.0f;
-    {   /* the 909, straight into the mix: L, R and its voices' sends, then scaled in place */
+    {   /* the drone, straight into the mix (L, R), then its sends from both sides and its level and pan */
         PROF_T(p9);
-        if (!drum909_active(&d909)) {
-            drum909_render(&d909, mono, mono, mono, (int)n);   /* writes nothing; advances the noise */
-            drum909_pan_settle(&d909);                    /* silent: pans move at once, no glide */
-        } else {
-            drum909_render_st(&d909, dry_l, dry_r, rev, dly, (int)n);
+        if (drone_active(&dn)) {
+            drone_render(&dn, dry_l, dry_r, (int)n);
             mix_targets(PART_909, mix_level[PART_909]);
-            for (i = 0; i < n; i++)                       /* the kit send: the whole machine, both sides */
-                mono[i] = (dry_l[i] + dry_r[i]) * 0.5f;   /* (centred: L exactly) */
-            scale_glide(dry_l, &mix_glide[PART_909][GL_L], n);   /* then the part's PAN over the kit */
+            for (i = 0; i < n; i++)
+                mono[i] = (dry_l[i] + dry_r[i]) * 0.5f;
+            scale_glide(dry_l, &mix_glide[PART_909][GL_L], n);
             scale_glide(dry_r, &mix_glide[PART_909][GL_R], n);
-            scale_glide(rev, &mix_glide[PART_909][GL_VREV], n);
-            scale_glide(dly, &mix_glide[PART_909][GL_VDLY], n);
             kit_sends(PART_909, mono, n);
         }
         PROF_ADD(PR_909, p9);
     }
     for (b = 0; b < NBASS; b++) {
         PROF_T(pb);
-        idle[b] = b303[b].idle;                           /* idle: the render writes zeros */
-        bass303_render(&b303[b], bb[b], (int)n);
+        idle[b] = mel[b].idle;                            /* idle: the render writes zeros */
+        melody_render(&mel[b], bb[b], (int)n);
         PROF_ADD(2 + b, pb);
     }
     pt = plat_cycles();
@@ -699,15 +686,6 @@ static void render_sub(float *out_l, float *out_r, uint32_t n)
         add_glide(rev, bb[b], &mix_glide[p][GL_REV], n);
         add_glide(dly, bb[b], &mix_glide[p][GL_DLY], n);
         meter(p, bb[b], mix_level[p], n);
-    }
-    if (!brk_hold && !brk_silent_now) {
-        float g = mix_level[PART_BRK];
-        mix_targets(PART_BRK, g);
-        add_glide(dry_l, kbuf, &mix_glide[PART_BRK][GL_L], n);
-        add_glide(dry_r, kbuf, &mix_glide[PART_BRK][GL_R], n);
-        add_glide(rev, kbuf, &mix_glide[PART_BRK][GL_REV], n);
-        add_glide(dly, kbuf, &mix_glide[PART_BRK][GL_DLY], n);
-        meter(PART_BRK, kbuf, g, n);
     }
     {
         PROF_T(pf);
@@ -940,12 +918,13 @@ void engine_init(pattern_t *patterns, song_t *song, lane_t *lanes, const sound_t
     int p;
     for (p = 0; p < NPARTS * NDRUM; p++)
         prob[p / NDRUM][p % NDRUM] = 100;             /* every step plays, until a lane says */
-    drum909_init(&d909);
+    drone_init(&dn);
     drum808_init(&d808);
-    bass303_init(&b303[0]);
-    bass303_init(&b303[1]);
+    melody_init(&mel[0]);
+    melody_init(&mel[1]);
     breaks_init(&brk);
     fxbus_init(&fx, dly_buf, DLY_LEN);
+    fxbus_reverb_buffers(&fx, rv_buf, rv_ps);
     master_init(&mst);
     seq_init(&seq, patterns);
     seq.song = song;
