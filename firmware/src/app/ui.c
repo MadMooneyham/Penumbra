@@ -214,7 +214,7 @@ static const x0x_param_t SEQ_P[NSQ] = {
 };
 static const x0x_param_t ACT_P[] = {
     {"", 0, 0, 0}, {"SAVE PROJECT", 0, 0, 0}, {"CLEAR THIS PART", 0, 0, 0}, {"CLEAR PATTERN", 0, 0, 0},
-    {"COPY PATTERN", 0, 0, 0}, {"FACTORY RESET", 0, 0, 0}, {"ABOUT X0X", 0, 0, 0}, {"INSERT BAR", 0, 0, 0},
+    {"COPY PATTERN", 0, 0, 0}, {"FACTORY RESET", 0, 0, 0}, {"ABOUT " FW_NAME, 0, 0, 0}, {"INSERT BAR", 0, 0, 0},
     {"DELETE BAR", 0, 0, 0}, {"CLEAR SONG", 0, 0, 0}, {"PERFORMANCE", 0, 0, 0}, {"RUN PERF TEST", 0, 0, 0},
 };
 static const x0x_param_t STALLS_P = {"STALLS", 1, 0, ONOFF_N};
@@ -1651,7 +1651,7 @@ static void run_action(int act, int arg)
         say("PERF TEST: 15 SECONDS", 0);
         break;
     case ACT_ABOUT:
-        q = put_s(t, "X0X " X0X_VERSION "  MEM ");
+        q = put_s(t, FW_NAME " " X0X_VERSION "  MEM ");
         q = put_s(put_i(q, project_mem_pct()), "%  CPU ");
         put_s(put_i(q, (int)plat_cpu_pct()), "%");
         say(t, 0);

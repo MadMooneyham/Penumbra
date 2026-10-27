@@ -1,3 +1,12 @@
+# Penumbra for the M-VAVE FM-1
+
+Penumbra is a sci-fi drone groovebox for the FM-1: six latching drone voices through a stereo
+filter, LFO and sample & hold, two melody voices, an 808, and a shimmer reverb and tape delay.
+It is built on X0X (described below, as it was before the drone port), which is in turn a fork
+of Felucca. The drone sound is sketched in `drone-proto/drone.html`, playable in a browser.
+
+---
+
 # X0X for the M-VAVE FM-1
 
 X0X turns the M-VAVE FM-1 into a groovebox: a **909**, an **808**, two **303s** with an acid line

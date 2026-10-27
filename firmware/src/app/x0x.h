@@ -15,7 +15,8 @@
 #ifndef X0X_VERSION                     /* a release build passes its own (tools/build.py --release) */
 #define X0X_VERSION "DEV"
 #endif
-#define PROJ_MAGIC 0x304E5244u           /* "DRN0": the drone firmware's sound (X0X's "0X0P" loads as defaults) */
+#define FW_NAME "PENUMBRA"               /* the name on the screen and in the HELLO answer (the code keeps X0X's) */
+#define PROJ_MAGIC 0x304E4550u           /* "PEN0": Penumbra's sound (X0X's "0X0P" loads as defaults) */
 #define PROJ_FORMAT 1u
 #define PROJ_STEREO 2u
 #define PROJ_SND_REV 5u                  /* 1: the 909 SD has a DECAY pot (index 3; LEVEL.. moved up one);

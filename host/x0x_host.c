@@ -277,7 +277,7 @@ void plat_stalls_enable(int on) { (void)on; }
 
 /* -------------------------------------------------------------- app --- */
 #include "../firmware/src/app/x0x.h"
-#define ANN_NAME "X0X " X0X_VERSION
+#define ANN_NAME FW_NAME " " X0X_VERSION
 #include "ann_words.h"                                  /* the words file's link (tools/gen_words.py) */
 #include "../firmware/src/announce.c"
 /* what the reader is told: the last SAY (expect said), every one to stdout with "said:" (listen) */
