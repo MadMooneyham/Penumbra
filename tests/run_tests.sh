@@ -29,6 +29,8 @@ run trs sh -c "$CC -O2 -w -Ifirmware/src -Ifirmware/hal -o $OUT/trs_test tests/h
 run clock sh -c "$CC $W -o $OUT/clock_test tests/host/clock_test.c firmware/src/seq/clock.c && $OUT/clock_test"
 run drone sh -c "$CC $W -Wno-double-promotion -o $OUT/drone_test tests/host/drone_test.c firmware/src/dsp/drone.c -lm && $OUT/drone_test"
 run balance sh -c "$CC $W -o $OUT/balance_test tests/host/balance_test.c && $OUT/balance_test"
+run pulse sh -c "$CC $W -Wno-double-promotion -o $OUT/pulse_test tests/host/pulse_test.c firmware/src/dsp/pulse.c -lm && \
+    $OUT/pulse_test $OUT/pulse_test.wav && python3 tests/click_check.py $OUT/pulse_test.wav"
 run vox sh -c "$CC $W -Wno-double-promotion -D_DEFAULT_SOURCE -o $OUT/vox_test tests/host/vox_test.c firmware/src/dsp/vox.c -lm && \
     $OUT/vox_test $OUT/vox_test.wav && python3 tests/click_check.py $OUT/vox_test.wav"
 python3 tools/gen_dsp_tables.py build/gen/dsp_tables.h >/dev/null
@@ -58,6 +60,7 @@ done
 [ -f build/scenarios/guard/guard.wav ] && run guard-clicks python3 tests/click_check.py build/scenarios/guard/guard.wav
 [ -f build/scenarios/drones/drones.wav ] && run drone-clicks python3 tests/click_check.py build/scenarios/drones/drones.wav
 [ -f build/scenarios/vox/vox.wav ] && run vox-clicks python3 tests/click_check.py build/scenarios/vox/vox.wav
+[ -f build/scenarios/pulse/pulse.wav ] && run pulse-clicks python3 tests/click_check.py build/scenarios/pulse/pulse.wav
 for w in split core1 core2; do   # each way the drone's voices are shared: smooth (no seam where the shares meet)
     [ -f build/scenarios/drone_cores/$w.wav ] && run "drone-$w-clicks" python3 tests/click_check.py build/scenarios/drone_cores/$w.wav
 done

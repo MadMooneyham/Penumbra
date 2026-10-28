@@ -1,0 +1,24 @@
+# PULSE: black key 6 hits the kick, 7 the tick; while the clock runs (90 BPM) the kick plays beats 1
+# and 3 and the tick the off-beats; over latched drones, no clicks, no clips. STOP: the pattern stops
+wait 300
+wav pulse.wav
+tapkey b5
+wait 600
+expect kicks 1
+tapkey b6
+wait 600
+expect kicks 1
+expect peak_db_min -30
+tapkey b0
+tapkey b2
+wait 1500
+tap PLAY
+wait 5300
+expect kicks >4
+expect kicks <8
+shot pulse.png
+tap PLAY
+wait 2000
+expect kicks <8
+wavstop
+expect clips 0

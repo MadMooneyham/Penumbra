@@ -5,6 +5,7 @@
 #include "../dsp/drone.h"
 #include "../dsp/melody.h"
 #include "../dsp/vox.h"
+#include "../dsp/pulse.h"
 #include "../dsp/fxbus.h"
 #include "../dsp/master.h"
 #include "../dsp/fastmath.h"
@@ -21,6 +22,8 @@ uint32_t eng_out_clips;
 static drone_t dn POOL;
 static melody_t line POOL;                       /* LINE, for now the kept melody voice (the load test plays it) */
 static vox_t vox POOL;
+static pulse_t pulse POOL;
+volatile uint32_t eng_kicks;
 static fxbus_t fx POOL;
 static master_t mst;
 #define DLY_LEN 66150                            /* 1.5 s */
@@ -33,7 +36,7 @@ _Static_assert(ENG_DRONES == DRONE_VOICES, "engine.h names the drone voices");
 _Static_assert(PLAT_TICKS_PER_BLOCK(256) == 139319u, "the block's budget in 24 MHz ticks");
 
 /* the voices' places in the mix */
-enum { P_DRONE, P_VOX, P_LINE, NPARTS };
+enum { P_DRONE, P_VOX, P_LINE, P_PULSE, NPARTS };
 
 /* ------------------------------------------------------------ benchmark --- */
 /* each stage's 24 MHz ticks this block; summed over a second (acc), then published (pub) for the
@@ -46,8 +49,8 @@ static struct {
 } acc;
 static bench_t pub;
 static volatile uint32_t pub_serial;
-static const char *const ST_NAME[ST_N] = {"CTRL", "DRONE 1", "DRONE 2", "DRN BUS", "VOX", "LINE", "FX WET",
-                                          "WAIT", "MIX", "MASTER", "CORE 1", "CORE 2"};
+static const char *const ST_NAME[ST_N] = {"CTRL", "DRONE 1", "DRONE 2", "DRN BUS", "VOX", "LINE", "PULSE",
+                                          "FX WET", "WAIT", "OUTPUT", "CORE 1", "CORE 2"};
 const char *engine_stage_name(int st) { return st >= 0 && st < ST_N ? ST_NAME[st] : ""; }
 
 uint32_t engine_bench(bench_t *out)
@@ -133,7 +136,7 @@ static void guard_apply(void)
 
 /* ------------------------------------------------------- command queue --- */
 /* uint32 commands, single producer (main loop) / single consumer (audio ISR): type:4 | a:8 | b:8 | c:12 */
-enum { C_DRONE_KEY, C_VOX_ON, C_VOX_OFF, C_TEST, C_MIDI_CH };
+enum { C_DRONE_KEY, C_VOX_ON, C_VOX_OFF, C_TEST, C_MIDI_CH, C_PULSE };
 #define CQ 256u
 static uint32_t cq[CQ];
 static volatile uint32_t cq_w, cq_r;
@@ -155,6 +158,13 @@ static volatile uint8_t testing;
 void engine_load_test(int on) { cq_put(C_TEST, (uint32_t)(on != 0), 0, 0); }
 int engine_load_testing(void) { return testing; }
 void engine_midi_ch(int ch) { cq_put(C_MIDI_CH, (uint32_t)ch, 0, 0); }
+void engine_pulse(int which, int vel) { cq_put(C_PULSE, (uint32_t)which, 0, (uint32_t)vel); }
+static void hit(int which, float vel)            /* (ISR) a PULSE hit; the kicks are counted for the screen */
+{
+    pulse_hit(&pulse, which, vel);
+    if (which == PULSE_KICK)
+        eng_kicks++;
+}
 int engine_drone_on(int voice) { return voice >= 0 && voice < DRONE_VOICES && dn.v[voice].on; }
 float engine_drone_level(int voice)
 {
@@ -167,7 +177,7 @@ float engine_drone_level(int voice)
  * voice), each voice a little off true like a Solar tuned by ear, spread across the field; VOX a soft
  * pad of two saws; all of it into a long shimmering reverb and a worn ping-pong tape delay, dotted
  * quarters */
-static float mix_level[NPARTS] = {1.0f, 0.57f, 1.0f}, mix_rev[NPARTS], mix_dly[NPARTS];   /* VOX 3 dB under 0.10's */
+static float mix_level[NPARTS] = {1.0f, 0.57f, 1.0f, 0.9f}, mix_rev[NPARTS], mix_dly[NPARTS];   /* VOX 3 dB under 0.10's */
 static void scene_default(void)
 {
     static const uint8_t NOTE[DRONE_VOICES] = {24, 31, 36, 39, 48};       /* 0 +7 +12 +15 +24 */
@@ -188,6 +198,9 @@ static void scene_default(void)
         melody_set(&line, i, melody_param(i)->def);
     for (i = 0; i < VX_NPARAMS; i++)
         vox_set(&vox, i, vox_param(i)->def);
+    for (i = 0; i < PL_NPARAMS; i++)
+        pulse_set(&pulse, i, pulse_param(i)->def);
+    pulse_root(&pulse, 33);                      /* the kick on the drone's root, A1 */
     for (i = 0; i < fxbus_nparams(); i++)
         fxbus_set(&fx, i, fxbus_param(i)->def);
     for (i = 0; i < fxbus_ext_nparams(); i++)
@@ -204,6 +217,8 @@ static void scene_default(void)
         mix_dly[v] = 41.0f / 127.0f;
     }
     mix_rev[P_VOX] = 80.0f / 127.0f;             /* VOX further back, in the shimmer */
+    mix_rev[P_PULSE] = 12.0f / 127.0f;           /* the kick dry and close, a breath of room; no echo */
+    mix_dly[P_PULSE] = 0.0f;
 }
 
 /* the load test: the heaviest the voices get. Every drone voice latched on its thickest stack
@@ -256,6 +271,9 @@ static void test_tick(uint32_t n)                /* LINE's eighths, up and down 
         return;
     }
     melody_note_on(&line, ARP[test_i & 7u], (test_i & 3u) == 0u, 0);   /* (an accent each half bar) */
+    hit(PULSE_TICK, 0.7f);                       /* PULSE: the tick each eighth, the kick each quarter */
+    if (!(test_i & 1u))
+        hit(PULSE_KICK, 1.0f);
     if ((test_i & 7u) == 0u) {
         vox_all_off(&vox);
         for (k = 0; k < 4; k++)
@@ -272,10 +290,18 @@ static void clk_midi(void *x, uint8_t st)
     (void)x;
     plat_midi_out(0x0Fu | ((uint32_t)st << 8));
 }
+/* PULSE while the clock runs, until the generator plays it (design phase 3): the kick on beats 1 and
+ * 3, the tick on the off-beats, quietly */
 static void clk_step(void *x, uint32_t n)
 {
     (void)x;
     eng_steps = n + 1u;
+    if (testing)
+        return;                                  /* (the load test plays its own) */
+    if ((n & 7u) == 0u)
+        hit(PULSE_KICK, (n & 15u) ? 0.85f : 1.0f);
+    else if ((n & 3u) == 2u)
+        hit(PULSE_TICK, 0.6f);
 }
 static void clk_stopped(void *x)
 {
@@ -321,6 +347,8 @@ static void drain(void)
             vox_note_off(&vox, (int)b);
         else if (type == C_TEST)
             test_set((int)a);
+        else if (type == C_PULSE)
+            hit((int)a, (float)(c & 127u) * (1.0f / 127.0f));
         else if (type == C_MIDI_CH)
             midi_ch = (uint8_t)(a <= 16u ? a : 0u);
     }
@@ -398,7 +426,7 @@ __attribute__((noinline)) static void add_glide(float *dst, const float *src, gl
 }
 enum { GL_L, GL_R, GL_REV, GL_DLY, GL_N };
 static glide_t mix_glide[NPARTS][GL_N] = {{{-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}}, {{-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}},
-                                          {{-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}}};
+                                          {{-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}}, {{-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}}};
 static void mix_targets(int p)
 {
     glide_set(&mix_glide[p][GL_L], mix_level[p]);
@@ -422,7 +450,8 @@ static float dbus[2][2][256] POOL;              /* [block parity][L, R][sample] 
 static float dn2_l[256] POOL, dn2_r[256] POOL;
 static float line_buf[256] POOL, mono[256] POOL, vox_l[256] POOL, vox_r[256] POOL;
 static float out_l[256] POOL, out_r[256] POOL, rev[256] POOL, dly[256] POOL;
-static uint8_t line_was_idle, vox_was_active, bus_par;
+static uint8_t line_was_idle, vox_was_active, pulse_was_active, bus_par;
+static float pulse_l[256] POOL, pulse_r[256] POOL;
 static uint8_t bus_due, bus_plan;               /* the last block planned voices: its bus runs now, on its plan */
 static uint32_t bus_n;
 
@@ -466,7 +495,7 @@ static void balance_learn(void)                 /* after a block, from its stage
 {
     float osc = (float)(bal_osc1 + bal_osc2);
     bal_fix1 += ((float)(st_t[ST_CTRL] + st_t[ST_FXWET]) - bal_fix1) * BAL_A;
-    bal_fix2 += ((float)(st_t[ST_DRNBUS] + st_t[ST_VOX] + st_t[ST_LINE]) - bal_fix2) * BAL_A;
+    bal_fix2 += ((float)(st_t[ST_DRNBUS] + st_t[ST_VOX] + st_t[ST_LINE] + st_t[ST_PULSE]) - bal_fix2) * BAL_A;
     if (osc > 0.0f) {
         float per = (float)(st_t[ST_DRN1] + st_t[ST_DRN2]) / osc;
         bal_osc = bal_osc > 0.0f ? bal_osc + (per - bal_osc) * BAL_A : per;
@@ -484,7 +513,7 @@ static uint32_t mask_osc(uint32_t m)
 
 /* the second core's job (or the first's, with one core): with arg bit 15 the drone's bus on the last
  * block's voices (DRN BUS), its drone voices (arg bits 9..13, the voices' mask) into dn2, VOX and
- * LINE. It times itself on the 24 MHz timer, which both cores read, and touches only the bus, its own
+ * LINE and PULSE. It times itself on the 24 MHz timer, which both cores read, and touches only the bus, its own
  * voices and buffers: nothing here is mixed */
 #define C2_BUS 0x8000u
 static void core2_job(uint32_t arg)
@@ -518,6 +547,14 @@ static void core2_job(uint32_t arg)
     line_was_idle = (uint8_t)line.idle;
     melody_render(&line, line_buf, (int)n);
     st_t[ST_LINE] = plat_ticks24() - t;
+    t = plat_ticks24();
+    pulse_was_active = (uint8_t)pulse_active(&pulse);
+    if (pulse_was_active) {
+        for (i = 0; i < n; i++)
+            pulse_l[i] = pulse_r[i] = 0.0f;
+        pulse_render(&pulse, pulse_l, pulse_r, (int)n);
+        st_t[ST_PULSE] = plat_ticks24() - t;
+    }
     st_t[ST_CORE2] = plat_ticks24() - t0;
 }
 
@@ -582,6 +619,7 @@ void engine_render(int32_t *out_lr, uint32_t n)
     mix_targets(P_DRONE);
     mix_targets(P_VOX);
     mix_targets(P_LINE);
+    mix_targets(P_PULSE);
     if (bus_due) {                               /* the drone: the last block's voices, through the bus */
         const float *bl = dbus[bus_par ^ 1u][0], *br = dbus[bus_par ^ 1u][1];
         uint32_t m = bus_n < n ? bus_n : n;      /* (the device's blocks are all 256: equal) */
@@ -599,6 +637,13 @@ void engine_render(int32_t *out_lr, uint32_t n)
         add_glide(out_r, vox_r, &mix_glide[P_VOX][GL_R], n);
         add_glide(rev, mono, &mix_glide[P_VOX][GL_REV], n);
         add_glide(dly, mono, &mix_glide[P_VOX][GL_DLY], n);
+    }
+    if (pulse_was_active) {
+        for (i = 0; i < n; i++)
+            mono[i] = (pulse_l[i] + pulse_r[i]) * 0.5f;
+        add_glide(out_l, pulse_l, &mix_glide[P_PULSE][GL_L], n);
+        add_glide(out_r, pulse_r, &mix_glide[P_PULSE][GL_R], n);
+        add_glide(rev, mono, &mix_glide[P_PULSE][GL_REV], n);
     }
     if (!line_was_idle) {
         add_glide(out_l, line_buf, &mix_glide[P_LINE][GL_L], n);
@@ -623,9 +668,7 @@ void engine_render(int32_t *out_lr, uint32_t n)
     bus_n = n;
     bus_par ^= 1u;
     fxbus_post_st(&fx, out_l, out_r, (int)n);
-    st_t[ST_MIX] = plat_ticks24() - t;
-    t = plat_ticks24();
-    /* MASTER, then the codec's scale */
+    /* the master stage, then the codec's scale (OUTPUT: all of it, from the mix on) */
     master_process_st(&mst, out_l, out_r, (int)n, vol);
     for (i = 0; i < n; i++) {
         float l = out_l[i], r = out_r[i];
@@ -642,7 +685,7 @@ void engine_render(int32_t *out_lr, uint32_t n)
         if (q > eng_level)
             eng_level = (uint16_t)q;
     }
-    st_t[ST_MASTER] = plat_ticks24() - t;
+    st_t[ST_OUT] = plat_ticks24() - t;
     st_t[ST_CORE1] = plat_ticks24() - t0;
     if (on2)
         balance_learn();                         /* (one core: there is nothing to balance) */
@@ -657,6 +700,7 @@ void engine_init(void)
     drone_swarm_buffer(&dn, swarm_l, swarm_r);
     melody_init(&line);
     vox_init(&vox);
+    pulse_init(&pulse);
     fxbus_init(&fx, dly_buf, DLY_LEN);
     fxbus_reverb_buffers(&fx, rv_buf, rv_ps);
     fxbus_set_lead(&fx, FX_LEAD);

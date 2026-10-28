@@ -4,7 +4,8 @@
  * ever touched by one context (and the second core's job, while the first waits for it).
  *
  * Phase 2 (docs: "Penumbra: rewrite design"), on a fixed test scene: DRONE (five voices, SWARM) on
- * the black keys, VOX (four voices) on the white keys and MIDI notes, the kept melody voice as LINE
+ * black keys 1-5, PULSE (a deep kick and a tick) on black keys 6 and 7 and the clock, VOX (four voices)
+ * on the white keys and MIDI notes, the kept melody voice as LINE
  * (the load test plays it until the generator does), the shimmer reverb, the tape delay and the
  * master stage. Its real job is the
  * benchmark: every stage of every block timed on the 24 MHz timer, per core, published once a
@@ -13,10 +14,10 @@
  * The render, per block:
  *   core 1: CTRL (commands, MIDI in, the clock, the drone's control steps for the block)
  *   core 2: DRN BUS (the drone's bus: wind, drive and filter, then SWARM, on the last block's
- *           voices), DRONE 2 (its share of this block's drone voices), VOX, LINE
+ *           voices), DRONE 2 (its share of this block's drone voices), VOX, LINE, PULSE
  *   core 1: DRONE 1 (the rest of the drone voices), FX WET (the reverb and delay returns of the last
- *           block's sends), then WAIT for core 2, MIX (the voices' gains and sends, the distortion and
- *           glue compressor), MASTER (compressor, filter, limiter, the output's scale)
+ *           block's sends), then WAIT for core 2, OUTPUT (the voices' gains and sends, the distortion
+ *           and glue compressor, the master's compressor, filter and limiter, the output's scale)
  * The effects and the drone's bus run a block behind (5.8 ms), so each core works while the other
  * does. DRONE CORE says whose the drone voices are: all the first's, all the second's, or SPLIT (the
  * default): each block, the share of the sounding voices that has the two cores finish closest
@@ -30,7 +31,7 @@ extern tclock_t eng_clock;
 
 /* the benchmark: what each stage cost, in % of the block's real-time budget x 10 (so 1000 = the
  * whole block), averaged over a second and its worst block in that second */
-enum { ST_CTRL, ST_DRN1, ST_DRN2, ST_DRNBUS, ST_VOX, ST_LINE, ST_FXWET, ST_WAIT, ST_MIX, ST_MASTER,
+enum { ST_CTRL, ST_DRN1, ST_DRN2, ST_DRNBUS, ST_VOX, ST_LINE, ST_PULSE, ST_FXWET, ST_WAIT, ST_OUT,
        ST_CORE1, ST_CORE2, ST_N };
 enum { DRONE_CORE1, DRONE_CORE2, DRONE_SPLIT };
 typedef struct {
@@ -48,6 +49,7 @@ int engine_guard_active(void);
 extern volatile uint32_t eng_guard_count;                   /* times it engaged */
 extern volatile uint16_t eng_level;                         /* the output's peak, Q15, held for the UI to fall */
 extern volatile uint32_t eng_steps;                         /* 16ths since PLAY (the clock's), for the screen */
+extern volatile uint32_t eng_kicks;                         /* PULSE's kicks so far (the corona flares on each) */
 extern uint32_t eng_out_clips;                              /* output samples past full scale, since power-on */
 
 void engine_init(void);
@@ -60,6 +62,7 @@ int engine_drone_on(int voice);                    /* (main loop) the voice is o
 float engine_drone_level(int voice);               /* (main loop) how loud it is now, 0..1 of its LEVEL (it rises, falls) */
 void engine_vox_on(int note, int vel);             /* VOX: a note (a white key, MIDI), vel 0..127 */
 void engine_vox_off(int note);
+void engine_pulse(int which, int vel);             /* PULSE_KICK (0) or PULSE_TICK (1), vel 0..127 */
 int engine_vox_sounding(void);                     /* (main loop) a VOX voice sounds */
 void engine_load_test(int on);                     /* every drone latched thick, LINE running: the worst case */
 int engine_load_testing(void);

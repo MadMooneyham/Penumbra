@@ -10,6 +10,8 @@ FX WET	effect returns
 OCTAVE #	octave #
 VOX MIDI CH	vox MIDI channel
 VOX	vox
+PULSE	pulse
+OUTPUT	output
 DRN BUS	drone bus
 LOAD/PEAK	load and peak
 XRUNS	dropouts

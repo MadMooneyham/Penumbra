@@ -22,6 +22,7 @@ base:
 | Control | What it does |
 | --- | --- |
 | Black keys 1-5 | latch the five drone voices (an A minor drone) |
+| Black keys 6, 7 | PULSE: a deep kick tuned to the key, a soft tick (while the clock runs, a placeholder pattern plays them) |
 | White keys | play VOX in A minor, four voices; OCT- / OCT+ move them |
 | PLAY | start and stop the clock (MIDI clock out, if on) |
 | KNOB 1 on HOME | the tempo |

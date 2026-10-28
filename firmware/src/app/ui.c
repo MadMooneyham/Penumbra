@@ -9,7 +9,8 @@
  *           second, in % of the block's real-time budget. SEL runs the load test.
  *
  * Panel: HOME goes home, GLO opens SYSTEM and then BENCH, PLAY starts and stops the clock, SAVE
- * saves the settings now. Black keys 1-5 latch the five drone voices; the white keys play VOX in
+ * saves the settings now. Black keys 1-5 latch the five drone voices, 6 and 7 hit PULSE's kick and
+ * tick; the white keys play VOX in
  * A minor, OCT- and OCT+ move them.
  *
  * The screen is three bands (header, main, knob strip), each drawn into Felucca's canvas and
@@ -216,6 +217,8 @@ static void input(void)
                     ui.stars++;
             } else if (bk >= 0 && bk < ENG_DRONES) {
                 engine_drone_key(bk);
+            } else if (bk == ENG_DRONES || bk == ENG_DRONES + 1) {   /* the next two: PULSE's kick and tick */
+                engine_pulse(bk - ENG_DRONES, 110);
             }
         }
         if ((ku >> i & 1u) && w >= 0)
@@ -516,7 +519,7 @@ static void draw_header(void)
 static struct { int16_t x, y; uint8_t life; } ec_star[EC_NSTAR];
 static uint8_t ec_star_w;
 static float ec_lvl, ec_flare;
-static uint32_t ec_rng = 0x2545F491u, ec_last_step;
+static uint32_t ec_rng = 0x2545F491u, ec_last_step, ec_last_kick;
 static uint32_t ec_rand(void)
 {
     ec_rng ^= ec_rng << 13;
@@ -544,10 +547,13 @@ static void draw_corona(void)
     int x, y, k;
     eng_level = (uint16_t)(eng_level - (eng_level >> 3));   /* the meter falls (~300 ms) */
     ec_lvl += (lvl - ec_lvl) * (lvl > ec_lvl ? 0.5f : 0.12f);   /* up fast, down slowly: a pulse */
-    if (eng_steps != ec_last_step) {              /* the clock's beats flare it, the bar's first most */
+    if (eng_kicks != ec_last_kick) {              /* each kick flares it */
+        ec_last_kick = eng_kicks;
+        ec_flare = 1.0f;
+    } else if (eng_steps != ec_last_step) {       /* else the clock's beats, softly */
         ec_last_step = eng_steps;
         if (eng_steps && ((eng_steps - 1u) & 3u) == 0u)
-            ec_flare = ((eng_steps - 1u) & 15u) == 0u ? 1.0f : 0.5f;
+            ec_flare = fm_maxf(ec_flare, 0.35f);
     }
     ec_flare *= 0.9f;
     breath = 0.5f + 0.5f * fm_sin_turns((float)(ui.frame & 255u) * (1.0f / 256.0f));   /* (quiet: it breathes) */
@@ -627,7 +633,7 @@ static void draw_home(void)
                 dot(sx, 124, 1, (s & 3) == 0 ? C_GRAY : C_DIM);
         }
     } else {
-        text_c(120, 118, &FONT_XS, "BLACK KEYS: DRONES   WHITE KEYS: VOX", C_DIM);
+        text_c(120, 118, &FONT_XS, "DRONES 1-5   PULSE 6-7   VOX: WHITE KEYS", C_DIM);
     }
 }
 
@@ -757,6 +763,7 @@ static void leds(void)
         btn |= 1u << B_GLO;
     if (eng_clock.playing)
         btn |= 1u << B_PLAY;
+    kdim |= (1u << BLACK_KEY[ENG_DRONES]) | (1u << BLACK_KEY[ENG_DRONES + 1]);   /* PULSE's keys, dim */
     for (i = 0; i < ENG_DRONES; i++) {          /* the drone keys: lit while the voice sounds, dim else */
         if (engine_drone_on(i))
             keys |= 1u << BLACK_KEY[i];
