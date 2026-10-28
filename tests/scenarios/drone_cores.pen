@@ -1,0 +1,24 @@
+# DRONE CORE: the drone sounds the same whoever renders its voices. Each way records the same latch and
+# the same length; tests/host/drone_test.c checks the split sums to the sample
+wait 300
+tap GLO
+turn SELECT 4
+expect row 4
+tapkey b0
+tapkey b3
+tapkey b5
+wait 2000
+wav split.wav
+wait 3000
+wavstop
+turn K1 1
+expect bench 1
+wav core1.wav
+wait 3000
+wavstop
+turn K1 1
+wav core2.wav
+wait 3000
+wavstop
+expect clips 0
+expect guardcount 0

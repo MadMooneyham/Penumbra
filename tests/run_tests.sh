@@ -27,6 +27,7 @@ run encoder sh -c "$CC -O2 -w -Ifirmware/hal -o $OUT/encoder_test tests/host/enc
 run uac sh -c "$CC -O2 -w -Ifirmware/src -Ifirmware/hal -o $OUT/uac_test tests/host/uac_test.c -lm && $OUT/uac_test"
 run trs sh -c "$CC -O2 -w -Ifirmware/src -Ifirmware/hal -o $OUT/trs_test tests/host/trs_test.c && $OUT/trs_test"
 run clock sh -c "$CC $W -o $OUT/clock_test tests/host/clock_test.c firmware/src/seq/clock.c && $OUT/clock_test"
+run drone sh -c "$CC $W -Wno-double-promotion -o $OUT/drone_test tests/host/drone_test.c firmware/src/dsp/drone.c -lm && $OUT/drone_test"
 python3 tools/gen_dsp_tables.py build/gen/dsp_tables.h >/dev/null
 run stereo sh -c "$CC -O2 -ffp-contract=off -w -Ifirmware/src/dsp -Ifirmware/src -Ibuild/gen -o $OUT/stereo_test tests/host/stereo_test.c firmware/src/dsp/master.c firmware/src/dsp/fxbus.c firmware/src/dsp/spacevb.c firmware/src/dsp/dsp_tables.c -lm && $OUT/stereo_test"
 run master sh -c "$CC $W -Wno-double-promotion -o $OUT/master_test tests/host/master_test.c firmware/src/dsp/master.c -lm && $OUT/master_test"
@@ -53,5 +54,8 @@ for s in tests/scenarios/*.pen; do
 done
 [ -f build/scenarios/guard/guard.wav ] && run guard-clicks python3 tests/click_check.py build/scenarios/guard/guard.wav
 [ -f build/scenarios/drones/drones.wav ] && run drone-clicks python3 tests/click_check.py build/scenarios/drones/drones.wav
+for w in split core1 core2; do   # each way the drone's voices are shared: smooth (no seam where the shares meet)
+    [ -f build/scenarios/drone_cores/$w.wav ] && run "drone-$w-clicks" python3 tests/click_check.py build/scenarios/drone_cores/$w.wav
+done
 [ $FAIL -eq 0 ] && echo "all tests passed" || echo "TESTS FAILED"
 exit $FAIL

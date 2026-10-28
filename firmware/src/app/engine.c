@@ -43,8 +43,8 @@ static struct {
 } acc;
 static bench_t pub;
 static volatile uint32_t pub_serial;
-static const char *const ST_NAME[ST_N] = {"CTRL", "DRONE", "LINE", "FX WET", "WAIT", "MIX", "MASTER",
-                                          "CORE 1", "CORE 2"};
+static const char *const ST_NAME[ST_N] = {"CTRL", "DRONE 1", "DRONE 2", "DRN BUS", "LINE", "FX WET", "WAIT",
+                                          "MIX", "MASTER", "CORE 1", "CORE 2"};
 const char *engine_stage_name(int st) { return st >= 0 && st < ST_N ? ST_NAME[st] : ""; }
 
 uint32_t engine_bench(bench_t *out)
@@ -59,7 +59,7 @@ uint32_t engine_bench(bench_t *out)
     return s;
 }
 
-static volatile uint8_t drone_on2;               /* the drone renders on the second core */
+static volatile uint8_t drone_core = DRONE_SPLIT; /* whose the drone voices are */
 static void bench_block(uint32_t n)
 {
     float budget = (float)PLAT_TICKS_PER_BLOCK(n);
@@ -82,7 +82,7 @@ static void bench_block(uint32_t n)
         }
         pub.blocks = acc.blocks;
         pub.two_cores = (uint8_t)plat_cpu2_on();
-        pub.drone_on2 = drone_on2;
+        pub.drone_core = drone_core;
         acc.budget = 0.0f;
         acc.blocks = acc.frames = 0;
         __asm__ volatile("" ::: "memory");
@@ -358,7 +358,7 @@ void engine_out_loud(int on)
 static volatile int usb_full;
 static float vol_after = -1.0f;
 void engine_usb_full(int on) { usb_full = on; }
-void engine_drone_core2(int on) { drone_on2 = (uint8_t)(on != 0); }
+void engine_drone_core(int mode) { drone_core = (uint8_t)(mode >= DRONE_CORE1 && mode <= DRONE_SPLIT ? mode : DRONE_SPLIT); }
 static volatile uint32_t eng_quiet_frames;
 uint32_t engine_quiet_ms(void) { return eng_quiet_frames / 44u; }
 
@@ -429,29 +429,43 @@ static void mix_targets(int p)
 static float fx_send[2][2][256] POOL;           /* [block parity][rev, dly][sample] */
 static float wet_l[256] POOL, wet_r[256] POOL;
 static uint8_t fx_par;
-static float dn_l[256] POOL, dn_r[256] POOL, line_buf[256] POOL, mono[256] POOL;
+static float dn_l[256] POOL, dn_r[256] POOL, dn2_l[256] POOL, dn2_r[256] POOL;
+static float line_buf[256] POOL, mono[256] POOL;
 static float out_l[256] POOL, out_r[256] POOL, rev[256] POOL, dly[256] POOL;
 static uint8_t dn_was_active, line_was_idle;
 
-static void drone_job(uint32_t n)
+/* whose each drone voice is this block: bit v set, the second core's. SPLIT gives the second core
+ * voices until it holds two thirds of the sounding oscillators (the first keeps the effects returns) */
+static uint32_t drone_mask2(void)
 {
-    uint32_t i;
-    dn_was_active = (uint8_t)drone_active(&dn);
-    if (dn_was_active) {
-        for (i = 0; i < n; i++)
-            dn_l[i] = dn_r[i] = 0.0f;
-        drone_render(&dn, dn_l, dn_r, (int)n);
-    }
+    uint32_t m = 0;
+    int v, total = 0, two = 0;
+    if (drone_core == DRONE_CORE1)
+        return 0;
+    if (drone_core == DRONE_CORE2)
+        return (1u << DRONE_VOICES) - 1u;
+    for (v = 0; v < DRONE_VOICES; v++)
+        total += drone_cost(&dn, v);
+    for (v = 0; v < DRONE_VOICES && 3 * two < 2 * total; v++)
+        if (drone_cost(&dn, v)) {
+            two += drone_cost(&dn, v);
+            m |= 1u << v;
+        }
+    return m;
 }
-/* the second core's job (or the first's, with one core): LINE, and with arg bit 9 the drone. It
- * times itself on the 24 MHz timer, which both cores read. Nothing here is mixed */
+
+/* the second core's job (or the first's, with one core): its drone voices (arg bits 9..14, the
+ * voices' mask) into dn2, and LINE. It times itself on the 24 MHz timer, which both cores read, and
+ * touches only its own voices and buffers: nothing here is mixed */
 static void core2_job(uint32_t arg)
 {
-    uint32_t n = arg & 0xFFu ? arg & 0xFFu : 256u, t0 = plat_ticks24(), t;
-    if (arg & 0x200u) {
-        drone_job(n);
+    uint32_t n = arg & 0xFFu ? arg & 0xFFu : 256u, mask = (arg >> 9) & 0x3Fu, t0 = plat_ticks24(), t, i;
+    if (mask) {
+        for (i = 0; i < n; i++)
+            dn2_l[i] = dn2_r[i] = 0.0f;
+        drone_voices(&dn, mask, dn2_l, dn2_r);
         t = plat_ticks24();
-        st_t[ST_DRONE] = t - t0;
+        st_t[ST_DRN2] = t - t0;
     } else
         t = t0;
     line_was_idle = (uint8_t)line.idle;
@@ -462,7 +476,7 @@ static void core2_job(uint32_t arg)
 
 void engine_render(int32_t *out_lr, uint32_t n)
 {
-    uint32_t t0 = plat_ticks24(), t, i, k, done, arg;
+    uint32_t t0 = plat_ticks24(), t, i, k, done, arg, mask2;
     float vol = usb_full ? 1.0f : (float)plat_master() / 4096.0f, pk = 0.0f;
     int on2;
     if (n > 256u)
@@ -479,14 +493,23 @@ void engine_render(int32_t *out_lr, uint32_t n)
         tclock_advance(&eng_clock, k, &CLK_SINK);
     }
     fxbus_set_bpm(&fx, tclock_tempo(&eng_clock));
+    dn_was_active = (uint8_t)drone_active(&dn);
+    if (dn_was_active) {                         /* the drone's control steps, before either core's voices */
+        drone_plan(&dn, (int)n);
+        mask2 = drone_mask2();
+    } else
+        mask2 = 0;
     t = plat_ticks24();
     st_t[ST_CTRL] = t - t0;
     /* core 2 starts; core 1 renders what is its own meanwhile */
-    arg = (n & 0xFFu) | (drone_on2 ? 0x200u : 0u);
+    arg = (n & 0xFFu) | (mask2 << 9);
     on2 = plat_cpu2_run(core2_job, arg);
-    if (!(arg & 0x200u)) {
-        drone_job(n);
-        st_t[ST_DRONE] = plat_ticks24() - t;
+    t = plat_ticks24();                          /* (the simulator runs core 2's job inside the hand-off) */
+    if (dn_was_active) {
+        for (i = 0; i < n; i++)
+            dn_l[i] = dn_r[i] = 0.0f;
+        drone_voices(&dn, ~mask2 & ((1u << DRONE_VOICES) - 1u), dn_l, dn_r);
+        st_t[ST_DRN1] = plat_ticks24() - t;
         t = plat_ticks24();
     }
     fxbus_wet_st(&fx, fx_send[fx_par ^ 1u][0], fx_send[fx_par ^ 1u][1], wet_l, wet_r, (int)n);
@@ -497,6 +520,16 @@ void engine_render(int32_t *out_lr, uint32_t n)
     else
         st_t[ST_WAIT] = plat_ticks24() - t;
     t = plat_ticks24();
+    if (dn_was_active) {                         /* DRN BUS: both shares, then the drone's bus */
+        if (mask2)
+            for (i = 0; i < n; i++) {
+                dn_l[i] += dn2_l[i];
+                dn_r[i] += dn2_r[i];
+            }
+        drone_bus(&dn, dn_l, dn_r);
+        st_t[ST_DRNBUS] = plat_ticks24() - t;
+        t = plat_ticks24();
+    }
     /* MIX: the voices by their gains into dry and the sends; out = dry + the returns, then the
      * distortion and the glue compressor */
     for (i = 0; i < n; i++)

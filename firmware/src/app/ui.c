@@ -94,13 +94,13 @@ enum { R_CLKOUT, R_CLKIN, R_MIDICH, R_CORES, R_DRNCORE, R_OUTLOUD, R_USBFULL, R_
 static const char *const ROW_N[NROWS] = {"MIDI CLOCK OUT", "FOLLOW CLOCK IN", "LINE MIDI CH", "2ND CORE",
                                          "DRONE CORE", "OUTPUT LEVEL", "USB AUDIO", "ABOUT"};
 static const char *const ONOFF_N[] = {"OFF", "ON"};
-static const char *const CORE_N[] = {"1ST", "2ND"};
+static const char *const CORE_N[] = {"1ST", "2ND", "SPLIT"};
 static const char *const LOUD_N[] = {"NORMAL", "LOUD"};
 static const char *const USB_N[] = {"MASTER", "FULL"};
 
 static int row_n(int r)                           /* choices; 0: not a setting */
 {
-    return r == R_MIDICH ? 17 : r == R_ABOUT ? 0 : 2;
+    return r == R_MIDICH ? 17 : r == R_DRNCORE ? 3 : r == R_ABOUT ? 0 : 2;
 }
 static int row_get(int r)
 {
@@ -109,7 +109,7 @@ static int row_get(int r)
     case R_CLKIN: return cfg.clk_in;
     case R_MIDICH: return cfg.midi_ch;
     case R_CORES: return !cfg.one_core;
-    case R_DRNCORE: return cfg.drone_core2;
+    case R_DRNCORE: return cfg.drone_core;
     case R_OUTLOUD: return cfg.out_loud;
     case R_USBFULL: return cfg.usb_full;
     default: return 0;
@@ -146,7 +146,7 @@ static void row_set(int r, int v)
     case R_CLKIN: cfg.clk_in = (uint8_t)v; break;
     case R_MIDICH: cfg.midi_ch = (uint8_t)v; break;
     case R_CORES: cfg.one_core = (uint8_t)!v; break;
-    case R_DRNCORE: cfg.drone_core2 = (uint8_t)v; break;
+    case R_DRNCORE: cfg.drone_core = (uint8_t)v; break;
     case R_OUTLOUD: cfg.out_loud = (uint8_t)v; break;
     case R_USBFULL: cfg.usb_full = (uint8_t)v; break;
     default: break;
@@ -655,22 +655,19 @@ static bench_t bench;
 static uint32_t bench_serial;
 static void draw_bench(void)
 {
-    char b[32], *q;
+    char b[32];
     int k;
-    uint32_t mhz = plat_cpu_mhz10();
-    q = put_s(b, "CPU ");
-    q = mhz ? put_s(put_d1(q, mhz), " MHZ") : put_s(q, "? MHZ");
-    q = put_s(q, bench.two_cores ? "   2 CORES" : "   1 CORE");
-    cv_text(6, 2, &FONT_XS, b, C_GRAY);
-    if (engine_load_testing())
-        text_r(234, 2, &FONT_XS, "LOAD TEST", C_AMB);
+    if (engine_load_testing())                    /* how the second ran: the load test, the cores, the drone's */
+        cv_text(6, 1, &FONT_XS, "LOAD TEST", C_AMB);
     else
-        text_r(234, 2, &FONT_XS, bench.drone_on2 ? "DRONE ON 2ND" : "DRONE ON 1ST", C_GRAY);
-    text_r(146, 13, &FONT_XS, "AVG %", C_DIM);
-    text_r(210, 13, &FONT_XS, "PEAK %", C_DIM);
-    cv_rect(6, 26 + ST_CORE1 * 12 + 1, 228, 1, C_LINE);   /* the stages above, each core's whole below */
+        put_s(put_s(b, bench.two_cores ? "2 CORES, " : "1 CORE, "), bench.drone_core == DRONE_SPLIT ? "DRONE SPLIT" :
+              bench.drone_core == DRONE_CORE2 ? "DRONE 2ND" : "DRONE 1ST"),
+        cv_text(6, 1, &FONT_XS, b, C_GRAY);
+    text_r(146, 1, &FONT_XS, "AVG %", C_DIM);
+    text_r(210, 1, &FONT_XS, "PEAK %", C_DIM);
+    cv_rect(6, 13 + ST_CORE1 * 11, 228, 1, C_LINE);  /* the stages above, each core's whole below */
     for (k = 0; k < ST_N; k++) {
-        int total = k >= ST_CORE1, y = 26 + k * 12 + (total ? 4 : 0);
+        int total = k >= ST_CORE1, y = 13 + k * 11 + (total ? 3 : 0);
         uint16_t c = total ? C_HI : C_GRAY;
         cv_text(10, y, &FONT_XS, engine_stage_name(k), c);
         if (!bench_serial || (k == ST_CORE2 && !bench.two_cores)) {
@@ -735,7 +732,16 @@ static void draw_knobs(void)
         cell(2, "GUARD", c, engine_guard_active() ? C_AMB : C_HI);
         put_i(d, (int)eng_out_clips);
         cell(3, "CLIPS", d, eng_out_clips ? RGB(255, 90, 80) : C_HI);
-        text_c(120, 64, &FONT_XS, engine_load_testing() ? "SEL: STOP THE LOAD TEST" : "SEL: RUN THE LOAD TEST", C_DIM);
+        {
+            uint32_t mhz = plat_cpu_mhz10();
+            char *q = put_s(a, "CPU ");
+            if (mhz)
+                put_s(put_i(q, (int)(mhz / 10u)), " MHZ");
+            else
+                put_s(q, "? MHZ");
+            cv_text(6, 64, &FONT_XS, a, C_DIM);
+        }
+        text_r(234, 64, &FONT_XS, engine_load_testing() ? "SEL: STOP LOAD TEST" : "SEL: LOAD TEST", C_DIM);
     }
     cv_commit(2, 0, KNOB_Y);
 }
@@ -781,7 +787,7 @@ static void speak_where(void)
         row_text(ui.row, v);
         q = put_s(put_s(put_s(q, ROW_N[ui.row]), " "), v);
     } else {
-        for (k = ST_DRONE; k < ST_N && q < t + ANN_MAX - 32; k++)
+        for (k = ST_DRN1; k < ST_N && q < t + ANN_MAX - 32; k++)
             q = put_s(put_d1(put_s(put_s(put_s(q, engine_stage_name(k)), " PEAK "), ""), bench.peak[k]), ". ");
     }
     ann_say(t, 0, ANN_NOW);

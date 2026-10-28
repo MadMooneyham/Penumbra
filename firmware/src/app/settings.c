@@ -17,6 +17,7 @@ void settings_defaults(void)
     cfg.clk_out = 1;
     cfg.clk_in = 1;
     cfg.midi_ch = 1;
+    cfg.drone_core = DRONE_SPLIT;
 }
 
 int settings_load(void)
@@ -30,6 +31,8 @@ int settings_load(void)
         s.bpm_x10 = 900;
     if (s.midi_ch > 16)
         s.midi_ch = 1;
+    if (s.drone_core > DRONE_SPLIT)
+        s.drone_core = DRONE_SPLIT;
     cfg = s;
     return 0;
 }
@@ -44,5 +47,5 @@ void settings_apply(void)
     engine_midi_ch(cfg.midi_ch);
     engine_out_loud(cfg.out_loud);
     engine_usb_full(cfg.usb_full);
-    engine_drone_core2(cfg.drone_core2);
+    engine_drone_core(cfg.drone_core);
 }

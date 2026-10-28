@@ -251,8 +251,9 @@ void drone_swarm_buffer(drone_t *d, float *l, float *r)
             d->sw.dl[s][i] = (SW_BASE_MS + 3.0f * (float)i) * (SR / 1000.0f);
 }
 
-/* each tap's delay at the next control step: an ensemble's sines, or a random walk, by MOTION */
-static void swarm_control(drone_t *d)
+/* each tap's delay at the next control step: an ensemble's sines, or a random walk, by MOTION. Only
+ * the targets: the bus pass takes each tap's per-sample step from where it really is (swarm_steps) */
+static void swarm_targets(drone_t *d, float tgt_out[2][SWARM_TAPS])
 {
     drone_swarm_t *w = &d->sw;
     const float m = w->motion, depth = SW_DEPTH_MS * (SR / 1000.0f);
@@ -273,9 +274,16 @@ static void swarm_control(drone_t *d)
             w->walk2[s][i] += (w->walk[s][i] - w->walk2[s][i]) * 0.0025f;
             tgt = (SW_BASE_MS + 3.0f * (float)i) * (SR / 1000.0f) +
                   depth * (ens + m * (w->walk2[s][i] * 2.5f - ens));
-            tgt = fm_clampf(tgt, 1.0f * (SR / 1000.0f), (float)(SWARM_LEN - 4));
-            w->step[s][i] = (tgt - w->dl[s][i]) * (1.0f / (float)DRONE_CTRL);
+            tgt_out[s][i] = fm_clampf(tgt, 1.0f * (SR / 1000.0f), (float)(SWARM_LEN - 4));
         }
+}
+static void swarm_steps(drone_t *d, const float tgt[2][SWARM_TAPS])
+{
+    drone_swarm_t *w = &d->sw;
+    int s, i;
+    for (s = 0; s < 2; s++)
+        for (i = 0; i < SWARM_TAPS; i++)
+            w->step[s][i] = (tgt[s][i] - w->dl[s][i]) * (1.0f / (float)DRONE_CTRL);
 }
 
 static void swarm_chunk(drone_t *d, float *l, float *r, int n)
@@ -360,7 +368,6 @@ static void control(drone_t *d)
     d->a1 = 1.0f / (1.0f + g * (g + kk));
     d->a2 = g * d->a1;
     d->a3 = g * d->a2;
-    swarm_control(d);
 }
 
 /* ---------------------------------------------------------------- render --- */
@@ -388,17 +395,19 @@ static inline float svf(drone_svf_t *s, const drone_t *d, float x)
 
 /* square -> saw from two band-limited saws half a turn apart: square = saw(t + 1/2) - saw(t), so
  * (1 - w) square + w saw = (1 - w) saw(t + 1/2) + (2w - 1) saw(t) (two BLEPs, not three) */
-static void voice_chunk(drone_voice_t *v, int nosc, float xg, float scale, float *l, float *r, int n)
+static void voice_chunk(drone_voice_t *v, const drone_seg_t *g, int vi, float *l, float *r)
 {
     int i, k;
+    const int nosc = g->nosc[vi], n = g->len;
+    const float *inc = g->inc[vi], xg = g->xg;
     const float ga = 1.0f - v->wave, gb = 2.0f * v->wave - 1.0f, tc = v->tone_c;
-    const float pl = v->pan_l * scale, pr = v->pan_r * scale;
+    const float pl = g->pan_l[vi] * g->scale[vi], pr = g->pan_r[vi] * g->scale[vi];
     const float up = v->atk_c, down = v->rel_c, tgt = v->amp_tgt;
     float amp = v->amp, lp = v->lp;
     for (i = 0; i < n; i++) {
         float s = 0.0f, sx = 0.0f;                    /* sx: the oscillators past the second, x xg */
         for (k = 0; k < nosc; k++) {
-            float t = v->ph[k], dt = v->inc[k], t2 = t + 0.5f, o;
+            float t = v->ph[k], dt = inc[k], t2 = t + 0.5f, o;
             if (t2 >= 1.0f) t2 -= 1.0f;
             o = ga * (2.0f * t2 - 1.0f - blep(t2, dt)) + gb * (2.0f * t - 1.0f - blep(t, dt));
             if (k < 2)
@@ -420,55 +429,116 @@ static void voice_chunk(drone_voice_t *v, int nosc, float xg, float scale, float
     v->lp = fm_flush(lp);
 }
 
-static void chunk(drone_t *d, float *l, float *r, int n)
+/* the block's control steps, before any voice renders: each stretch between two of them gets what
+ * the step set (pitches, pans, the filter, SWARM's targets) and the guard's fade, as one render made
+ * them stretch by stretch. Whether a voice sounds is decided at the block's start (a voice falling
+ * silent inside a block renders to its end, far under hearing) */
+void drone_plan(drone_t *d, int n)
 {
     /* a voice's loudness, by its oscillators: 0.09 x sqrt(5 / n), as five made it */
     static const float SCALE[DRONE_OSC + 1] = {0.0f, 0.2012f, 0.1423f, 0.1162f, 0.1006f, 0.09f};
-    const float drv = d->drive, post = d->drive_post * d->gain;
-    float xg;
-    int i;
-    /* the overload guard thins the voices to two oscillators by fading the others out (and back),
-     * the loudness following: a sudden change of the stack is a click in a held drone */
-    d->lite_g = d->lite ? fm_maxf(d->lite_g - 0.012f, 0.0f) : fm_minf(d->lite_g + 0.012f, 1.0f);
-    xg = d->lite_g;
-    for (i = 0; i < DRONE_VOICES; i++)
-        if (voice_live(&d->v[i])) {
-            int nosc = NOSC[d->v[i].pot[DN_STACK]];
+    int done = 0, sg = 0, i, k;
+    if (n > DRONE_MAX_BLOCK)
+        n = DRONE_MAX_BLOCK;
+    while (done < n && sg < DRONE_SEGS) {
+        drone_seg_t *g = &d->seg[sg++];
+        int m;
+        g->ctrl = d->ctrl_left <= 0;
+        if (g->ctrl) {
+            control(d);
+            swarm_targets(d, g->sw_tgt);
+            d->ctrl_left = DRONE_CTRL;
+        }
+        m = n - done < d->ctrl_left ? n - done : d->ctrl_left;
+        /* the overload guard thins the voices to two oscillators by fading the others out (and back),
+         * the loudness following: a sudden change of the stack is a click in a held drone */
+        d->lite_g = d->lite ? fm_maxf(d->lite_g - 0.012f, 0.0f) : fm_minf(d->lite_g + 0.012f, 1.0f);
+        g->xg = d->lite_g;
+        g->a1 = d->a1;
+        g->a2 = d->a2;
+        g->a3 = d->a3;
+        for (i = 0; i < DRONE_VOICES; i++) {
+            const drone_voice_t *v = &d->v[i];
+            int nosc = NOSC[v->pot[DN_STACK]];
             float sc = SCALE[nosc];
+            if (!voice_live(v)) {
+                g->nosc[i] = 0;
+                continue;
+            }
             if (nosc > 2) {
-                sc = SCALE[2] + (SCALE[nosc] - SCALE[2]) * xg;
-                if (xg <= 0.0f)
+                sc = SCALE[2] + (SCALE[nosc] - SCALE[2]) * g->xg;
+                if (g->xg <= 0.0f)
                     nosc = 2;
             }
-            voice_chunk(&d->v[i], nosc, xg, sc, l, r, n);
+            g->nosc[i] = (uint8_t)nosc;
+            g->scale[i] = sc;
+            for (k = 0; k < nosc; k++)
+                g->inc[i][k] = v->inc[k];
+            g->pan_l[i] = v->pan_l;
+            g->pan_r[i] = v->pan_r;
         }
-    if (d->wind > 0.0f)
-        for (i = 0; i < n; i++) {
-            d->nb_l += 0.03f * ((rng_unit(&d->rng) * 2.0f - 1.0f) - d->nb_l);
-            d->nb_r += 0.03f * ((rng_unit(&d->rng) * 2.0f - 1.0f) - d->nb_r);
-            l[i] += d->nb_l * d->wind;
-            r[i] += d->nb_r * d->wind;
-        }
-    for (i = 0; i < n; i++) {
-        l[i] = svf(&d->fl, d, fm_tanhf(l[i] * drv)) * post;
-        r[i] = svf(&d->fr, d, fm_tanhf(r[i] * drv)) * post;
+        g->len = (int16_t)m;
+        d->ctrl_left -= m;
+        done += m;
     }
-    if (d->sw.amt > 0.0f)
-        swarm_chunk(d, l, r, n);
+    d->nseg = sg;
+    d->plan_n = done;
+}
+
+int drone_cost(const drone_t *d, int voice)
+{
+    return voice >= 0 && voice < DRONE_VOICES && d->nseg ? d->seg[0].nosc[voice] : 0;
+}
+
+void drone_voices(drone_t *d, uint32_t mask, float *l, float *r)
+{
+    int sg, i, off = 0;
+    for (sg = 0; sg < d->nseg; sg++) {
+        const drone_seg_t *g = &d->seg[sg];
+        for (i = 0; i < DRONE_VOICES; i++)
+            if ((mask >> i & 1u) && g->nosc[i])
+                voice_chunk(&d->v[i], g, i, l + off, r + off);
+        off += g->len;
+    }
+}
+
+void drone_bus(drone_t *d, float *l, float *r)
+{
+    const float drv = d->drive, post = d->drive_post * d->gain;
+    int sg, i, off = 0;
+    for (sg = 0; sg < d->nseg; sg++) {
+        const drone_seg_t *g = &d->seg[sg];
+        float *gl = l + off, *gr = r + off;
+        const int n = g->len;
+        if (g->ctrl)
+            swarm_steps(d, g->sw_tgt);
+        d->a1 = g->a1;
+        d->a2 = g->a2;
+        d->a3 = g->a3;
+        if (d->wind > 0.0f)
+            for (i = 0; i < n; i++) {
+                d->nb_l += 0.03f * ((rng_unit(&d->rng) * 2.0f - 1.0f) - d->nb_l);
+                d->nb_r += 0.03f * ((rng_unit(&d->rng) * 2.0f - 1.0f) - d->nb_r);
+                gl[i] += d->nb_l * d->wind;
+                gr[i] += d->nb_r * d->wind;
+            }
+        for (i = 0; i < n; i++) {
+            gl[i] = svf(&d->fl, d, fm_tanhf(gl[i] * drv)) * post;
+            gr[i] = svf(&d->fr, d, fm_tanhf(gr[i] * drv)) * post;
+        }
+        if (d->sw.amt > 0.0f)
+            swarm_chunk(d, gl, gr, n);
+        off += n;
+    }
 }
 
 void drone_render(drone_t *d, float *l, float *r, int n)
 {
     int done = 0;
-    while (done < n) {
-        int m;
-        if (d->ctrl_left <= 0) {
-            control(d);
-            d->ctrl_left = DRONE_CTRL;
-        }
-        m = n - done < d->ctrl_left ? n - done : d->ctrl_left;
-        chunk(d, l + done, r + done, m);
-        d->ctrl_left -= m;
-        done += m;
+    while (done < n) {                            /* (blocks longer than a plan holds: in plans) */
+        drone_plan(d, n - done);
+        drone_voices(d, (1u << DRONE_VOICES) - 1u, l + done, r + done);
+        drone_bus(d, l + done, r + done);
+        done += d->plan_n;
     }
 }

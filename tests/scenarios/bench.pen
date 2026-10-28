@@ -7,13 +7,17 @@ tap GLO
 expect view 2
 wait 1500
 expect bench 1
-expect bench_avg7 >0
+expect bench_avg9 >0
 tap SEL
 wait 100
 expect testing 1
 wait 2500
 expect drone6 1
 expect guardcount 0
+# SPLIT (the default): both cores render drone voices, the bus runs once on their sum
+expect bench_avg1 >0
+expect bench_avg2 >0
+expect bench_avg3 >0
 shot bench.png
 tap SEL
 wait 100

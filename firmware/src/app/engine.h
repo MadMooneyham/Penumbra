@@ -10,11 +10,15 @@
  * second for the BENCH page.
  *
  * The render, per block:
- *   core 2: LINE (and DRONE, when it is the second core's)
- *   core 1: CTRL (commands, MIDI in, the clock), DRONE (when it is the first's), FX WET (the
- *           reverb and delay returns of the last block's sends), then WAIT for core 2, MIX (the
- *           voices' gains and sends, the distortion and glue compressor), MASTER (compressor,
- *           filter, limiter, the output's scale) */
+ *   core 1: CTRL (commands, MIDI in, the clock, the drone's control steps for the block)
+ *   core 2: DRONE 2 (its share of the drone voices), LINE
+ *   core 1: DRONE 1 (the rest of the drone voices), FX WET (the reverb and delay returns of the last
+ *           block's sends), then WAIT for core 2, DRN BUS (the drone's wind, drive, filter and SWARM on
+ *           both shares' sum), MIX (the voices' gains and sends, the distortion and glue compressor),
+ *           MASTER (compressor, filter, limiter, the output's scale)
+ * DRONE CORE says whose the drone voices are: all the first's, all the second's, or SPLIT (the
+ * default): the second core takes two thirds of the sounding oscillators, about what balances the
+ * first's effects returns. */
 #pragma once
 #include <stdint.h>
 #include "../seq/clock.h"
@@ -24,11 +28,13 @@ extern tclock_t eng_clock;
 
 /* the benchmark: what each stage cost, in % of the block's real-time budget x 10 (so 1000 = the
  * whole block), averaged over a second and its worst block in that second */
-enum { ST_CTRL, ST_DRONE, ST_LINE, ST_FXWET, ST_WAIT, ST_MIX, ST_MASTER, ST_CORE1, ST_CORE2, ST_N };
+enum { ST_CTRL, ST_DRN1, ST_DRN2, ST_DRNBUS, ST_LINE, ST_FXWET, ST_WAIT, ST_MIX, ST_MASTER, ST_CORE1,
+       ST_CORE2, ST_N };
+enum { DRONE_CORE1, DRONE_CORE2, DRONE_SPLIT };
 typedef struct {
     uint16_t avg[ST_N], peak[ST_N];
     uint32_t blocks;                   /* blocks in the window */
-    uint8_t two_cores, drone_on2;      /* how the window ran */
+    uint8_t two_cores, drone_core;     /* how the window ran */
 } bench_t;
 uint32_t engine_bench(bench_t *out);   /* main loop: the last second's numbers; returns their serial (0: none yet) */
 const char *engine_stage_name(int st);
@@ -56,6 +62,6 @@ void engine_load_test(int on);                     /* every drone latched thick,
 int engine_load_testing(void);
 void engine_out_loud(int on);                      /* 1: the output at the codec's full scale */
 void engine_usb_full(int on);                      /* 1: USB audio at full level, MASTER after it */
-void engine_drone_core2(int on);                   /* 1: the drone on the second core, beside LINE */
+void engine_drone_core(int mode);                  /* DRONE_CORE1, DRONE_CORE2, DRONE_SPLIT */
 void engine_midi_ch(int ch);                       /* LINE's channel in: 1..16, 0 = off */
 uint32_t engine_quiet_ms(void);                    /* how long the output has been silent */
