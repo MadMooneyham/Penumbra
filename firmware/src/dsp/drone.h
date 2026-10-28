@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* DRONE part: six drone voices in the spirit of the Solar 42's drone blocks, ported from the
- * browser prototype (drone-proto/drone.html).
+/* DRONE part: five drone voices in the spirit of the Solar 42's drone blocks, ported from the
+ * browser prototype (drone-proto/drone.html). (Six before 0.9: SWARM makes the crowd a sixth added.)
  *
  * Each voice is a few polyBLEP oscillators tuned around its note (its stack's intervals, two to
  * four, plus a detune spread and a slow per-oscillator drift), morphing square -> saw, through a
@@ -25,7 +25,7 @@
 #include <stdint.h>
 #include "param.h"
 
-#define DRONE_VOICES 6
+#define DRONE_VOICES 5
 #define DRONE_OSC 5
 #define DRONE_KIT DRONE_VOICES            /* the bus's parameters */
 #define DRONE_CTRL 32                     /* control rate: every 32 samples */
@@ -96,13 +96,14 @@ struct drone {
     float a1, a2, a3;                     /* SVF coefficients, both sides */
     drone_svf_t fl, fr;
     float nb_l, nb_r;                     /* wind: brown noise */
-    uint32_t rng;
+    uint32_t rng;                         /* the control steps' (drone_plan) */
+    uint32_t bus_rng;                     /* the wind's (drone_bus): the two may run on different cores */
     int32_t lite;                         /* overload guard: two oscillators a voice */
     float lite_g;                         /* the oscillators past the second: 1 sounding, 0 gone (glides, ~80 ms) */
     int32_t ctrl_left;                    /* samples to the next control step */
     drone_swarm_t sw;
-    drone_seg_t seg[DRONE_SEGS];          /* the planned block (drone_plan) */
-    int32_t nseg, plan_n;
+    drone_seg_t seg[2][DRONE_SEGS];       /* two planned blocks: the bus may run on the last while the next is planned */
+    int32_t nseg[2], plan_n, cur;         /* cur: the newest plan */
 };
 typedef struct drone drone_t;
 
@@ -113,16 +114,19 @@ void drone_end_swells(drone_t *d);                       /* STOP: swells fall no
 void drone_all_off(drone_t *d);
 /* adds the part's stereo output into l and r (the caller clears them): drone_plan, every voice, the bus */
 void drone_render(drone_t *d, float *l, float *r, int n);
-/* the same in three steps, so the voices can render on two cores at once:
- *   drone_plan     the block's control steps (once, before the voices)
- *   drone_voices   adds the voices in mask (bit v) into l, r; two calls with disjoint masks may run at the
- *                  same time (each touches only its own voices and buffers)
- *   drone_bus      on the voices' sum, in place: wind, drive, the filter, SWARM
- * drone_cost: a voice's oscillators in this plan (0: silent), for splitting the work */
-void drone_plan(drone_t *d, int n);
+/* the same in steps, so the work can run on two cores at once:
+ *   drone_plan        the block's control steps (once, before its voices); returns the plan's number
+ *   drone_voices      adds the voices in mask (bit v) of the newest plan into l, r; two calls with disjoint
+ *                     masks may run at the same time (each touches only its own voices and buffers)
+ *   drone_bus_filter  on the voices' sum of plan p, in place: wind, drive, the filter
+ *   drone_bus_swarm   then SWARM on it; the bus (both) may run on plan p while plan p ^ 1, the next block,
+ *                     is planned and its voices render (it touches only the bus's state)
+ * drone_cost: a voice's oscillators in the newest plan (0: silent), for splitting the work */
+int drone_plan(drone_t *d, int n);
 int drone_cost(const drone_t *d, int voice);
 void drone_voices(drone_t *d, uint32_t mask, float *l, float *r);
-void drone_bus(drone_t *d, float *l, float *r);
+void drone_bus_filter(drone_t *d, int p, float *l, float *r);
+void drone_bus_swarm(drone_t *d, int p, float *l, float *r);
 int drone_active(const drone_t *d);
 void drone_set_lite(drone_t *d, int on);
 int drone_nparams(int track);

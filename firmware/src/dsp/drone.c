@@ -60,7 +60,7 @@ const param_t *drone_param(int track, int i)
 
 const char *drone_track_name(int track)
 {
-    static const char *const N[DRONE_VOICES + 1] = {"DR1", "DR2", "DR3", "DR4", "DR5", "DR6", "BUS"};
+    static const char *const N[DRONE_VOICES + 1] = {"DR1", "DR2", "DR3", "DR4", "DR5", "BUS"};
     return track >= 0 && track <= DRONE_KIT ? N[track] : "";
 }
 
@@ -164,6 +164,7 @@ void drone_init(drone_t *d)
     for (i = 0; i < (int)sizeof *d; i++)
         z[i] = 0;
     d->rng = 0x9E3779B9u;
+    d->bus_rng = 0x2545F491u;
     d->lite_g = 1.0f;
     for (i = 0; i < DRONE_VOICES; i++) {
         drone_voice_t *v = &d->v[i];
@@ -384,13 +385,14 @@ static inline float blep(float t, float dt)
     return 0.0f;
 }
 
-/* TPT state-variable filter; the band state soft-clipped (the raw, singing resonance) */
-static inline float svf(drone_svf_t *s, const drone_t *d, float x)
+/* TPT state-variable filter (its stretch's coefficients); the band state soft-clipped (the raw,
+ * singing resonance) */
+static inline float svf(drone_svf_t *s, const drone_seg_t *g, int bp, float x)
 {
-    float v3 = x - s->ic2, v1 = d->a1 * s->ic1 + d->a2 * v3, v2 = s->ic2 + d->a2 * s->ic1 + d->a3 * v3;
+    float v3 = x - s->ic2, v1 = g->a1 * s->ic1 + g->a2 * v3, v2 = s->ic2 + g->a2 * s->ic1 + g->a3 * v3;
     s->ic1 = fm_tanhf(2.0f * v1 - s->ic1);
     s->ic2 = 2.0f * v2 - s->ic2;
-    return d->bp ? v1 : v2;
+    return bp ? v1 : v2;
 }
 
 /* square -> saw from two band-limited saws half a turn apart: square = saw(t + 1/2) - saw(t), so
@@ -433,15 +435,15 @@ static void voice_chunk(drone_voice_t *v, const drone_seg_t *g, int vi, float *l
  * the step set (pitches, pans, the filter, SWARM's targets) and the guard's fade, as one render made
  * them stretch by stretch. Whether a voice sounds is decided at the block's start (a voice falling
  * silent inside a block renders to its end, far under hearing) */
-void drone_plan(drone_t *d, int n)
+int drone_plan(drone_t *d, int n)
 {
     /* a voice's loudness, by its oscillators: 0.09 x sqrt(5 / n), as five made it */
     static const float SCALE[DRONE_OSC + 1] = {0.0f, 0.2012f, 0.1423f, 0.1162f, 0.1006f, 0.09f};
-    int done = 0, sg = 0, i, k;
+    int done = 0, sg = 0, i, k, p = d->cur ^= 1;
     if (n > DRONE_MAX_BLOCK)
         n = DRONE_MAX_BLOCK;
     while (done < n && sg < DRONE_SEGS) {
-        drone_seg_t *g = &d->seg[sg++];
+        drone_seg_t *g = &d->seg[p][sg++];
         int m;
         g->ctrl = d->ctrl_left <= 0;
         if (g->ctrl) {
@@ -481,20 +483,21 @@ void drone_plan(drone_t *d, int n)
         d->ctrl_left -= m;
         done += m;
     }
-    d->nseg = sg;
+    d->nseg[p] = sg;
     d->plan_n = done;
+    return p;
 }
 
 int drone_cost(const drone_t *d, int voice)
 {
-    return voice >= 0 && voice < DRONE_VOICES && d->nseg ? d->seg[0].nosc[voice] : 0;
+    return voice >= 0 && voice < DRONE_VOICES && d->nseg[d->cur] ? d->seg[d->cur][0].nosc[voice] : 0;
 }
 
 void drone_voices(drone_t *d, uint32_t mask, float *l, float *r)
 {
     int sg, i, off = 0;
-    for (sg = 0; sg < d->nseg; sg++) {
-        const drone_seg_t *g = &d->seg[sg];
+    for (sg = 0; sg < d->nseg[d->cur]; sg++) {
+        const drone_seg_t *g = &d->seg[d->cur][sg];
         for (i = 0; i < DRONE_VOICES; i++)
             if ((mask >> i & 1u) && g->nosc[i])
                 voice_chunk(&d->v[i], g, i, l + off, r + off);
@@ -502,33 +505,40 @@ void drone_voices(drone_t *d, uint32_t mask, float *l, float *r)
     }
 }
 
-void drone_bus(drone_t *d, float *l, float *r)
+void drone_bus_filter(drone_t *d, int p, float *l, float *r)
 {
     const float drv = d->drive, post = d->drive_post * d->gain;
+    const int bp = d->bp;
     int sg, i, off = 0;
-    for (sg = 0; sg < d->nseg; sg++) {
-        const drone_seg_t *g = &d->seg[sg];
+    for (sg = 0; sg < d->nseg[p & 1]; sg++) {
+        const drone_seg_t *g = &d->seg[p & 1][sg];
         float *gl = l + off, *gr = r + off;
         const int n = g->len;
-        if (g->ctrl)
-            swarm_steps(d, g->sw_tgt);
-        d->a1 = g->a1;
-        d->a2 = g->a2;
-        d->a3 = g->a3;
         if (d->wind > 0.0f)
             for (i = 0; i < n; i++) {
-                d->nb_l += 0.03f * ((rng_unit(&d->rng) * 2.0f - 1.0f) - d->nb_l);
-                d->nb_r += 0.03f * ((rng_unit(&d->rng) * 2.0f - 1.0f) - d->nb_r);
+                d->nb_l += 0.03f * ((rng_unit(&d->bus_rng) * 2.0f - 1.0f) - d->nb_l);
+                d->nb_r += 0.03f * ((rng_unit(&d->bus_rng) * 2.0f - 1.0f) - d->nb_r);
                 gl[i] += d->nb_l * d->wind;
                 gr[i] += d->nb_r * d->wind;
             }
         for (i = 0; i < n; i++) {
-            gl[i] = svf(&d->fl, d, fm_tanhf(gl[i] * drv)) * post;
-            gr[i] = svf(&d->fr, d, fm_tanhf(gr[i] * drv)) * post;
+            gl[i] = svf(&d->fl, g, bp, fm_tanhf(gl[i] * drv)) * post;
+            gr[i] = svf(&d->fr, g, bp, fm_tanhf(gr[i] * drv)) * post;
         }
-        if (d->sw.amt > 0.0f)
-            swarm_chunk(d, gl, gr, n);
         off += n;
+    }
+}
+
+void drone_bus_swarm(drone_t *d, int p, float *l, float *r)
+{
+    int sg, off = 0;
+    for (sg = 0; sg < d->nseg[p & 1]; sg++) {
+        const drone_seg_t *g = &d->seg[p & 1][sg];
+        if (g->ctrl)
+            swarm_steps(d, g->sw_tgt);
+        if (d->sw.amt > 0.0f)
+            swarm_chunk(d, l + off, r + off, g->len);
+        off += g->len;
     }
 }
 
@@ -536,9 +546,10 @@ void drone_render(drone_t *d, float *l, float *r, int n)
 {
     int done = 0;
     while (done < n) {                            /* (blocks longer than a plan holds: in plans) */
-        drone_plan(d, n - done);
+        int p = drone_plan(d, n - done);
         drone_voices(d, (1u << DRONE_VOICES) - 1u, l + done, r + done);
-        drone_bus(d, l + done, r + done);
+        drone_bus_filter(d, p, l + done, r + done);
+        drone_bus_swarm(d, p, l + done, r + done);
         done += d->plan_n;
     }
 }

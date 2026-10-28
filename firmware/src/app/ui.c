@@ -9,7 +9,7 @@
  *           second, in % of the block's real-time budget. SEL runs the load test.
  *
  * Panel: HOME goes home, GLO opens SYSTEM and then BENCH, PLAY starts and stops the clock, SAVE
- * saves the settings now. Black keys 1-6 latch the six drone voices; the white keys play LINE in
+ * saves the settings now. Black keys 1-5 latch the five drone voices; the white keys play LINE in
  * A minor, OCT- and OCT+ move them.
  *
  * The screen is three bands (header, main, knob strip), each drawn into Felucca's canvas and
@@ -599,7 +599,7 @@ static void draw_corona(void)
                     px_blend(ox + x, oy + y, MOON, a + (a == 15u));
             }
     }
-    for (k = 0; k < ENG_DRONES; k++) {          /* the drones: six beads on the rim, from the top, clockwise */
+    for (k = 0; k < ENG_DRONES; k++) {          /* the drones: a bead each on the rim, from the top, clockwise */
         float a = ((float)k / (float)ENG_DRONES - 0.25f) * FM_TWO_PI;
         float bx = (float)EC_CX + fm_cosf(a) * ((float)EC_RS + 1.0f), by = (float)EC_CY + fm_sinf(a) * ((float)EC_RS + 1.0f);
         float lv = engine_drone_level(k);         /* lit as loud as it is: it rises in and falls away */
@@ -665,9 +665,9 @@ static void draw_bench(void)
         cv_text(6, 1, &FONT_XS, b, C_GRAY);
     text_r(146, 1, &FONT_XS, "AVG %", C_DIM);
     text_r(210, 1, &FONT_XS, "PEAK %", C_DIM);
-    cv_rect(6, 13 + ST_CORE1 * 11, 228, 1, C_LINE);  /* the stages above, each core's whole below */
+    cv_rect(6, 13 + ST_CORE1 * 10, 228, 1, C_LINE);  /* the stages above, each core's whole below */
     for (k = 0; k < ST_N; k++) {
-        int total = k >= ST_CORE1, y = 13 + k * 11 + (total ? 3 : 0);
+        int total = k >= ST_CORE1, y = 12 + k * 10 + (total ? 3 : 0);
         uint16_t c = total ? C_HI : C_GRAY;
         cv_text(10, y, &FONT_XS, engine_stage_name(k), c);
         if (!bench_serial || (k == ST_CORE2 && !bench.two_cores)) {

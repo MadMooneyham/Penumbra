@@ -421,7 +421,7 @@ static int expect(const char *what, const char *val)
         got = ui.view;
     else if (!strcmp(what, "row"))
         got = ui.row;
-    else if (!strncmp(what, "drone", 5))            /* droneN: voice N (1-6) is on (latched, or in its swell) */
+    else if (!strncmp(what, "drone", 5))            /* droneN: voice N (1-5) is on (latched, or in its swell) */
         got = engine_drone_on(atoi(what + 5) - 1);
     else if (!strcmp(what, "guard"))
         got = engine_guard_active();

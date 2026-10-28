@@ -11,7 +11,7 @@ base:
 - the platform carried over from X0X and Felucca: boot and crash guards, flash storage, the update path and web
   installer, USB MIDI and audio, MIDI on the TRS jack, the second core, panel calibration, the screen and fonts,
   the screen reader;
-- the sound code that works: six drone voices with SWARM, the melody voice (LINE until phase 2), the shimmer
+- the sound code that works: five drone voices with SWARM, the melody voice (LINE until phase 2), the shimmer
   reverb, the tape delay, the master stage;
 - MIDI clock in and out (24 ppqn, START / STOP), followed or sent as SYSTEM sets it;
 - the benchmark: BENCH shows each stage of the render, average and worst block of the last second, as a share
@@ -21,7 +21,7 @@ base:
 
 | Control | What it does |
 | --- | --- |
-| Black keys 1-6 | latch the six drone voices (an A minor drone) |
+| Black keys 1-5 | latch the five drone voices (an A minor drone) |
 | White keys | play LINE in A minor; OCT- / OCT+ move them |
 | PLAY | start and stop the clock (MIDI clock out, if on) |
 | KNOB 1 on HOME | the tempo |

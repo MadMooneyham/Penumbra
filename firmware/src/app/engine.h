@@ -4,32 +4,33 @@
  * ever touched by one context (and the second core's job, while the first waits for it).
  *
  * Phase 1 (docs: "Penumbra: rewrite design"): the kept sound code on a fixed test scene. DRONE
- * (six voices, SWARM) on the black keys, the melody voice standing in for LINE on the white keys
+ * (five voices, SWARM) on the black keys, the melody voice standing in for LINE on the white keys
  * and MIDI notes, the shimmer reverb, the tape delay and the master stage. Its real job is the
  * benchmark: every stage of every block timed on the 24 MHz timer, per core, published once a
  * second for the BENCH page.
  *
  * The render, per block:
  *   core 1: CTRL (commands, MIDI in, the clock, the drone's control steps for the block)
- *   core 2: DRONE 2 (its share of the drone voices), LINE
+ *   core 2: DRN FILT and SWARM (the drone's bus: wind, drive and filter, then SWARM, on the last
+ *           block's voices), DRONE 2 (its share of this block's drone voices), LINE
  *   core 1: DRONE 1 (the rest of the drone voices), FX WET (the reverb and delay returns of the last
- *           block's sends), then WAIT for core 2, DRN BUS (the drone's wind, drive, filter and SWARM on
- *           both shares' sum), MIX (the voices' gains and sends, the distortion and glue compressor),
- *           MASTER (compressor, filter, limiter, the output's scale)
- * DRONE CORE says whose the drone voices are: all the first's, all the second's, or SPLIT (the
- * default): the second core takes two thirds of the sounding oscillators, about what balances the
- * first's effects returns. */
+ *           block's sends), then WAIT for core 2, MIX (the voices' gains and sends, the distortion and
+ *           glue compressor), MASTER (compressor, filter, limiter, the output's scale)
+ * The effects and the drone's bus run a block behind (5.8 ms), so each core works while the other
+ * does. DRONE CORE says whose the drone voices are: all the first's, all the second's, or SPLIT (the
+ * default): the second core takes half the sounding oscillators, which with the bus and LINE beside
+ * them balances the first's effects returns. */
 #pragma once
 #include <stdint.h>
 #include "../seq/clock.h"
 
 extern tclock_t eng_clock;
-#define ENG_DRONES 6                           /* the drone voices (dsp/drone.h): black keys 1-6 */
+#define ENG_DRONES 5                           /* the drone voices (dsp/drone.h): black keys 1-5 */
 
 /* the benchmark: what each stage cost, in % of the block's real-time budget x 10 (so 1000 = the
  * whole block), averaged over a second and its worst block in that second */
-enum { ST_CTRL, ST_DRN1, ST_DRN2, ST_DRNBUS, ST_LINE, ST_FXWET, ST_WAIT, ST_MIX, ST_MASTER, ST_CORE1,
-       ST_CORE2, ST_N };
+enum { ST_CTRL, ST_DRN1, ST_DRN2, ST_DRNFILT, ST_SWARM, ST_LINE, ST_FXWET, ST_WAIT, ST_MIX, ST_MASTER,
+       ST_CORE1, ST_CORE2, ST_N };
 enum { DRONE_CORE1, DRONE_CORE2, DRONE_SPLIT };
 typedef struct {
     uint16_t avg[ST_N], peak[ST_N];

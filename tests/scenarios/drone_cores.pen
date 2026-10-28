@@ -6,7 +6,7 @@ turn SELECT 4
 expect row 4
 tapkey b0
 tapkey b3
-tapkey b5
+tapkey b4
 wait 2000
 wav split.wav
 wait 3000
