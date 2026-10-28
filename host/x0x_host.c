@@ -448,7 +448,8 @@ static double render_ns_total, render_budget_ns_total;
 static uint64_t ins_total, ins_frames, ins_block_max;
 /* the engine's stage timing (eng_prof, in plat_cycles() units: here nanoseconds), summed per block
  * while playing; printed with X0X_PROFILE=1 in the environment */
-static uint64_t prof_tot[ENG_PROF_N];
+static uint64_t prof_tot[ENG_PROF_N], prof_worst_sum, prof_blocks;
+static uint32_t prof_worst[ENG_PROF_N], prof_worst_ms;
 static uint64_t instr_now(void)
 {
 #ifdef __APPLE__
@@ -477,7 +478,7 @@ static void boot(void)
     seq.accent_q7 = proj.set.accent_q7;
     project_apply_io();                             /* clock and notes out, the MIDI channels, the output */
     engine_brk_loops();
-    lcd_fill(0, 0, 240, 240, C_BLACK);
+    lcd_fill(0, 0, 240, 240, C_BG);
     ui_init();
 }
 
@@ -503,8 +504,18 @@ static void run_ms(uint32_t ms)
             di = instr_now() - i0;
             dt = now_ns() - t0;
             if (seq.playing) {                           /* the cost that matters: while it plays */
-                for (k = 0; k < ENG_PROF_N; k++)
+                uint64_t bsum = 0;
+                for (k = 0; k < ENG_PROF_N; k++) {
                     prof_tot[k] += (uint32_t)(eng_prof[k] - pr0[k]);
+                    bsum += (uint32_t)(eng_prof[k] - pr0[k]);
+                }
+                prof_blocks++;
+                if (bsum > prof_worst_sum) {             /* the worst block, by stage (X0X_PROFILE) */
+                    prof_worst_sum = bsum;
+                    prof_worst_ms = now_ms;
+                    for (k = 0; k < ENG_PROF_N; k++)
+                        prof_worst[k] = (uint32_t)(eng_prof[k] - pr0[k]);
+                }
                 ins_total += di;
                 ins_frames += 256;
                 if (di > ins_block_max)
@@ -1287,10 +1298,21 @@ int main(int argc, char **argv)
             printf(" %s %.1f%% (%.1f)", N[k], tot ? 100.0 * (double)prof_tot[k] / (double)tot : 0.0,
                    ins_frames ? (double)prof_tot[k] / (double)ins_frames : 0.0);
         printf("\n");
+        if (prof_blocks) {                               /* the worst block against the mean, ns per sample */
+            printf("profile: worst block at %u ms, %.1fx the mean:", prof_worst_ms,
+                   (double)prof_worst_sum * (double)prof_blocks / (double)(tot ? tot : 1));
+            for (k = 0; k < ENG_PROF_N; k++)
+                printf(" %s %.1f", N[k], (double)prof_worst[k] / 256.0);
+            printf("\n");
+        }
     }
     if (ins_frames && ins_total)
         printf("host: playing, %.0f instructions / sample (mean), %.0f in the worst block\n",
                (double)ins_total / (double)ins_frames, (double)ins_block_max / 256.0);
+    {
+        extern uint32_t spacevb_clips, eng_out_clips;
+        printf("host: clipped samples: reverb lines %u, output %u\n", spacevb_clips, eng_out_clips);
+    }
     return fails ? 1 : 0;
 }
 #endif /* X0X_WEB */

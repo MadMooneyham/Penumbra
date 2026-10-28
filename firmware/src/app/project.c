@@ -39,7 +39,7 @@ void project_defaults(void)
     int i;
     proj.set.magic = PROJ_MAGIC;
     proj.set.format = PROJ_FORMAT;
-    proj.set.palette = 1;                /* amber */
+    proj.set.palette = 0;                /* Penumbra's ECLIPSE */
     proj.set.keyled = 1;
     proj.set.keysound = 0;
     proj.set.autosave_off = 0;
@@ -520,6 +520,7 @@ void project_apply_io(void)
     }
     engine_out_loud(proj.set.out_loud);
     engine_usb_full(proj.set.usb_full);
+    engine_drone_core2(proj.set.drone_core2);
 }
 
 /* 0 = saved and verified; -7 = the patterns, song and motion do not fit (nothing was written) */

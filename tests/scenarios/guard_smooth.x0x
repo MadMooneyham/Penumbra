@@ -1,0 +1,24 @@
+# The overload guard is not heard: it thins the drones by fading their extra oscillators out and back
+# (a sudden change of a held drone's stack was a click). HUMORUM's latched drones, the guard forced on
+# and off; the recording must have no clicks (tests: guard_smooth.wav, checked by the click count).
+wait 300
+preset 6
+tap PLAY
+wait 2000
+tapkey b2
+tapkey b3
+wait 4000
+wav guard_smooth.wav
+load 95
+wait 100
+expect guard 1
+load 40
+wait 4000
+expect guard 0
+load 95
+wait 3000
+load 40
+wait 4000
+expect guard 0
+wavstop
+tap PLAY

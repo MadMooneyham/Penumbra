@@ -27,31 +27,38 @@ static int32_t cv_y0, cv_y1;     /* X0X: the rows drawing may touch (cv_band) */
 typedef struct {
     const char *name;
     uint16_t c[5];
+    uint16_t bg;                     /* the screen behind everything */
 } palette_t;
 /* X0X: the first three steps are neutral greys in every theme (structure: rules, empty cells,
  * labels); only the two brightest carry the theme's hue (values, highlights). Colour on the
- * screen then means something: a part, a value, an alarm. */
+ * screen then means something: a part, a value, an alarm.
+ * Penumbra: ECLIPSE, the default, is the night sky: blue-grey structure, the corona's orange for
+ * what is secondary, moonlight for values, on a blue-black. */
 #define NEUTRALS RGB(34, 34, 40), RGB(74, 74, 82), RGB(150, 150, 158)
 static const palette_t PALETTES[] = {
-    {"GREEN", {NEUTRALS, RGB(80, 220, 120), RGB(150, 255, 175)}},
-    {"AMBER", {NEUTRALS, RGB(232, 136, 30), RGB(255, 184, 70)}},
-    {"CYAN", {NEUTRALS, RGB(60, 180, 235), RGB(150, 225, 255)}},
-    {"RED", {NEUTRALS, RGB(232, 76, 60), RGB(255, 132, 112)}},
-    {"MONO", {NEUTRALS, RGB(196, 196, 202), RGB(236, 236, 240)}},
+    {"ECLIPSE", {RGB(30, 33, 52), RGB(66, 71, 102), RGB(138, 143, 174), RGB(255, 150, 70), RGB(236, 234, 246)},
+     RGB(7, 8, 16)},
+    {"GREEN", {NEUTRALS, RGB(80, 220, 120), RGB(150, 255, 175)}, 0},
+    {"AMBER", {NEUTRALS, RGB(232, 136, 30), RGB(255, 184, 70)}, 0},
+    {"CYAN", {NEUTRALS, RGB(60, 180, 235), RGB(150, 225, 255)}, 0},
+    {"RED", {NEUTRALS, RGB(232, 76, 60), RGB(255, 132, 112)}, 0},
+    {"MONO", {NEUTRALS, RGB(196, 196, 202), RGB(236, 236, 240)}, 0},
 };
 #define NPALETTES (sizeof(PALETTES) / sizeof(PALETTES[0]))
-static uint16_t pal[5];
+static uint16_t pal[5], pal_bg;
 #define C_LINE pal[0]                /* 1 rules, separators */
 #define C_DIM pal[1]                 /* 2 inactive, empty steps, units */
 #define C_GRAY pal[2]                /* 3 labels */
 #define C_AMB pal[3]                 /* 4 secondary text */
 #define C_HI pal[4]                  /* 5 values, curves */
+#define C_BG pal_bg                  /* the background */
 
 static void palette_set(uint32_t i)
 {
     uint32_t k;
     for (k = 0; k < 5u; k++)
         pal[k] = PALETTES[i % NPALETTES].c[k];
+    pal_bg = PALETTES[i % NPALETTES].bg;
 }
 
 static inline uint16_t swap16(uint32_t c) { return (uint16_t)(((c >> 8) & 0xFFu) | ((c & 0xFFu) << 8)); }
@@ -205,7 +212,7 @@ static void draw_text_box(uint32_t x, uint32_t y, uint32_t w, const felucca_font
  * eclipse's corona: a ring that glows out from its edge into the dark, and a few stars. */
 #include "logo.h"
 #include "dsp/fastmath.h"
-#define C_NIGHT RGB(7, 7, 15)
+#define C_NIGHT RGB(7, 8, 16)                /* (ECLIPSE's background) */
 static uint16_t mix565(uint16_t a, uint16_t b, uint32_t t)   /* a to b, t 0..255 */
 {
     uint32_t r = ((a >> 11) * (255u - t) + (b >> 11) * t) / 255u;

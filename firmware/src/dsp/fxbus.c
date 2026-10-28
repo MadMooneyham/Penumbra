@@ -253,7 +253,9 @@ static inline float dl_tap(const int16_t *buf, int32_t len, float flen, int32_t 
  * line holds both, so PING needs twice the time to fit (a 2 s line: 1 s); past that it plays centred. */
 static void fx_delay(fxbus_t *f, const float *in, float *out, float *out_r, int n)
 {
-    const float target = f->dl_time_ms * 0.001f * D9_SR;
+    /* Penumbra: the caller may hear the returns dl_lead samples late (engine.c runs them a block
+     * behind): the echo is read that much sooner, so it still lands on time */
+    const float target = fm_maxf(f->dl_time_ms * 0.001f * D9_SR - f->dl_lead, 1.0f);
     const int32_t len = f->dlen;
     const int tape = f->dl_type == 1;
     if (f->dl_quiet >= len) {
@@ -284,7 +286,7 @@ static void fx_delay(fxbus_t *f, const float *in, float *out, float *out_r, int 
     }
     int16_t *buf = f->dbuf;
     const float flen = (float)len;
-    const int ping = out_r && f->dl_ping && 2.0f * fm_maxf(f->dcur, target) + 4.0f < flen;
+    const int ping = out_r && f->dl_ping && 2.0f * fm_maxf(f->dcur, target) + f->dl_lead + 4.0f < flen;
     const float lvl = f->dl_level;
     int32_t quiet = f->dl_quiet;
     int32_t w = f->w;
@@ -304,7 +306,7 @@ static void fx_delay(fxbus_t *f, const float *in, float *out, float *out_r, int 
             const int32_t i1 = i0 + 1 >= len ? 0 : i0 + 1;
             const float b0 = (float)buf[i0] * (1.0f / 2048.0f), b1 = (float)buf[i1] * (1.0f / 2048.0f);
             const float y = b0 + (b1 - b0) * fr;
-            const float y2 = ping ? dl_tap(buf, len, flen, w, 2.0f * dcur) : y;
+            const float y2 = ping ? dl_tap(buf, len, flen, w, 2.0f * dcur + f->dl_lead) : y;
             lp += (y2 * fdbk - lp) * tc;
             if (fm_fabsf(lp) < 1e-20f) lp = 0.0f;
             int32_t k = (int32_t)((x + lp) * 2048.0f);       /* 12-bit, toward zero */
@@ -343,7 +345,7 @@ static void fx_delay(fxbus_t *f, const float *in, float *out, float *out_r, int 
             const int32_t i1 = i0 + 1 >= len ? 0 : i0 + 1;
             const float b0 = (float)buf[i0] * (1.0f / 2048.0f), b1 = (float)buf[i1] * (1.0f / 2048.0f);
             const float y = b0 + (b1 - b0) * fr;
-            const float y2 = ping ? dl_tap(buf, len, flen, w, 2.0f * dmod) : y;
+            const float y2 = ping ? dl_tap(buf, len, flen, w, 2.0f * dmod + f->dl_lead) : y;
             lp += (y2 * fdbk - lp) * tc;
             if (fm_fabsf(lp) < 1e-20f) lp = 0.0f;
             float s = d9_tanh(lp * g) * inv_g;                   /* tape saturation holds the loop */
@@ -427,6 +429,26 @@ void fxbus_process_st(fxbus_t *f, const float *dry_l, const float *dry_r, const 
     }
     fx_reverb(f, rev, out_l, out_r, n);
     fx_delay(f, dly, out_l, out_r, n);
+    fxbus_post_st(f, out_l, out_r, n);
+}
+
+/* Penumbra: the chain in two halves, so the engine can run the returns apart from the rest */
+void fxbus_wet_st(fxbus_t *f, const float *rev, const float *dly, float *wet_l, float *wet_r, int n)
+{
+    if (n > 256)
+        n = 256;
+    for (int i = 0; i < n; ++i)
+        wet_l[i] = wet_r[i] = 0.0f;
+    fx_reverb(f, rev, wet_l, wet_r, n);
+    fx_delay(f, dly, wet_l, wet_r, n);
+}
+
+void fxbus_set_lead(fxbus_t *f, int samples) { f->dl_lead = (float)samples; }
+
+void fxbus_post_st(fxbus_t *f, float *out_l, float *out_r, int n)
+{
+    if (n > 256)
+        n = 256;
     if (f->dist_mode >= 1) {
         const float k = f->drive;
         for (int i = 0; i < n; ++i) {

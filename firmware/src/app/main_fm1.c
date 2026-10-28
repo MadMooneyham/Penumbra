@@ -401,7 +401,7 @@ static void fm1_main(void)
         }
     }
     lcd_init();
-    palette_set(1);
+    palette_set(0);
     draw_splash(FW_NAME, "LUNAR ECLIPSE FORGE");
     if (x0x_dbg.magic != DBG_MAGIC) {
         memset(&x0x_dbg, 0, sizeof x0x_dbg);
@@ -463,9 +463,10 @@ static void fm1_main(void)
     if ((fm1_in.buttons & 3u) == 3u)
         panel_setup();                              /* OCT- + OCT+ held at power-on */
     fm1_delay_ms(300);
-    lcd_fill(0, 0, 240, 240, C_BLACK);
+    lcd_fill(0, 0, 240, 240, C_BG);
     ui_init();
-
+    set_view(V_HOME);                               /* Penumbra starts on the eclipse (the simulator's */
+                                                    /* scenarios, as X0X's, start on the part) */
     for (;;) {
         fm1_wdt_feed();
         usb_retry(fm1_ms);

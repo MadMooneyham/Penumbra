@@ -24,8 +24,10 @@ static uint8_t WHITE_KEY[16], BLACK_KEY[11];
 
 enum { V_HOME, V_PART, V_GEN, V_FX, V_MIX, V_GLO, V_SONG, V_PERF, V_SEQ, NVIEWS };
 static const char *const VIEW_N[NVIEWS] = {"HOME", "", "TB-3PO", "FX", "MIX", "GLOBAL", "SONG", "PERF", "SEQ"};
-static const uint16_t PART_COL[NPARTS] = {RGB(255, 150, 40), RGB(255, 72, 64), RGB(130, 240, 90), RGB(70, 205, 255),
-                                          RGB(214, 120, 255)};
+/* Penumbra: the eclipse's colours. The drone the corona's orange, the 808 an ember, the melodies
+ * moonlight blue and lavender (the cool half of the sky); the unused break a grey */
+static const uint16_t PART_COL[NPARTS] = {RGB(255, 150, 70), RGB(242, 96, 118), RGB(130, 176, 255), RGB(186, 150, 255),
+                                          RGB(120, 124, 150)};
 static const char *const PART_N[NPARTS] = {"DRONE", "808", "MEL A", "MEL B", "BREAK"};
 static const char *const PART_S[NPARTS] = {"DRN", "808", "MELA", "MELB", "BRK"};   /* 4 chars: lane labels */
 
@@ -185,7 +187,7 @@ static void warn(const char *a, const char *b) { say_as(a, b, ANN_NOW | ANN_KEEP
 /* =============================================================== param refs === */
 enum { R_NONE, R_ENG, R_SWING, R_DLEN, R_DRATE, R_BLEN, R_BRATE, R_BDIR, R_BTRANS, R_GEN, R_BRKSET,
        R_BRKSLOT, R_TEMPO, R_ACCENT, R_CLKOUT, R_NOTEOUT, R_PALETTE, R_KEYLED, R_KEYSOUND, R_AUTOSAVE, R_ACT, R_SBAR, R_SPAT,
-       R_SLEN, R_STALLS, R_HDR, R_TAPE, R_MIDICH, R_OUTLOUD, R_SREP, R_BATT, R_USBFULL, R_FREEPLAY, R_CORES };   /* R_TAPE: FX's one-knob TAPE (DIGI .. worn tape) */          /* R_HDR: a list's section header (a = its group), never selected */
+       R_SLEN, R_STALLS, R_HDR, R_TAPE, R_MIDICH, R_OUTLOUD, R_SREP, R_BATT, R_USBFULL, R_FREEPLAY, R_CORES, R_DRNCORE };   /* R_TAPE: FX's one-knob TAPE (DIGI .. worn tape) */          /* R_HDR: a list's section header (a = its group), never selected */
 typedef struct { uint8_t kind, a, b, c; } pref_t;
 #define PR(k, a, b, c) ((pref_t){(k), (a), (b), (c)})
 #define NONE PR(R_NONE, 0, 0, 0)
@@ -194,7 +196,7 @@ static const char *const RATE_N[] = {"1/16", "1/16T", "1/32", "1/8T"};
 static const char *const DIR_N[] = {"FWD", "REV", "PING", "RND"};
 static const char *const ONOFF_N[] = {"OFF", "ON"};
 static const char *const ROOT_N[] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
-static const char *const THEME_N[] = {"GREEN", "AMBER", "CYAN", "RED", "MONO"};
+static const char *const THEME_N[] = {"ECLIPSE", "GREEN", "AMBER", "CYAN", "RED", "MONO"};
 enum { G_DENS, G_ACC, G_SLIDE, G_OCTS, G_ROOT, G_SCALE, G_BASE, G_MUT, NGEN };
 static const x0x_param_t GEN_P[NGEN] = {
     {"DENS", 100, 70, 0}, {"ACCENT", 100, 40, 0}, {"SLIDE", 100, 25, 0}, {"OCTS", 2, 1, 0},
@@ -208,7 +210,7 @@ static const char *const LIGHTS_N[] = {"OFF", "ON", "KEYS"};   /* ON: the keys, 
 static const x0x_param_t SEQ_P[NSQ] = {
     {"SWING", 100, 0, 0}, {"LENGTH", NSTEPS - 1, 15, 0}, {"RATE", 3, 0, RATE_N}, {"LENGTH", NSTEPS - 1, 15, 0},
     {"RATE", 3, 0, RATE_N}, {"DIR", 3, 0, DIR_N}, {"TRANSP", 48, 24, 0}, {"TEMPO", 255, 105, 0},
-    {"ACCENT", 127, 88, 0}, {"CLOCK OUT", 1, 1, ONOFF_N}, {"NOTES OUT", 1, 0, ONOFF_N}, {"THEME", 4, 1, THEME_N},
+    {"ACCENT", 127, 88, 0}, {"CLOCK OUT", 1, 1, ONOFF_N}, {"NOTES OUT", 1, 0, ONOFF_N}, {"THEME", 5, 0, THEME_N},
     {"LIGHTS", 2, 1, LIGHTS_N}, {"KEY SOUND", 1, 0, KEYSOUND_N},
     {"AUTOSAVE", 1, 1, ONOFF_N},
 };
@@ -230,6 +232,8 @@ static const char *const USBA_N[] = {"FOLLOWS KNOB", "FULL"};
 static const x0x_param_t USBA_P = {"USB AUDIO", 1, 0, USBA_N};
 static const char *const CORES_N[] = {"ON", "OFF"};
 static const x0x_param_t CORES_P = {"2ND CORE", 1, 0, CORES_N};   /* proj.set.one_core: at the next power-on */
+static const char *const DRNCORE_N[] = {"1ST", "2ND"};
+static const x0x_param_t DRNCORE_P = {"DRONE CORE", 1, 0, DRNCORE_N};   /* proj.set.drone_core2: at once */
 static const x0x_param_t FREEPLAY_P = {"FREE PLAY", 1, 0, ONOFF_N};
 static const x0x_param_t SREP_P = {"REPEAT", 7, 0, 0};    /* the bar plays 1-8 times */
 static const char *const BATT_N[] = {"EMPTY", "1/3", "2/3", "FULL", "USB POWER", "..."};
@@ -302,6 +306,7 @@ static const x0x_param_t *pref_desc(pref_t r)
     case R_OUTLOUD: return &OUT_P;
     case R_USBFULL: return &USBA_P;
     case R_CORES: return &CORES_P;
+    case R_DRNCORE: return &DRNCORE_P;
     case R_FREEPLAY: return &FREEPLAY_P;
     case R_SREP: return &SREP_P;
     case R_BATT: return &BATT_P;
@@ -360,6 +365,7 @@ static int pref_get(pref_t r)
     case R_OUTLOUD: return proj.set.out_loud;
     case R_USBFULL: return proj.set.usb_full;
     case R_CORES: return proj.set.one_core;
+    case R_DRNCORE: return proj.set.drone_core2;
     case R_FREEPLAY: return ui.freeplay[r.a];
     case R_SREP: return ui.song_sel < song()->len ? song()->bar[ui.song_sel].mute >> 5 : 0;
     case R_BATT: return plat_battery() < 0 ? 5 : plat_battery();
@@ -439,6 +445,10 @@ static void pref_set(pref_t r, int v)
     case R_CORES:
         proj.set.one_core = (uint8_t)v;
         say("AT THE NEXT POWER-ON", 0);
+        break;
+    case R_DRNCORE:
+        proj.set.drone_core2 = (uint8_t)v;
+        engine_drone_core2(v);
         break;
     case R_FREEPLAY:
         ui.freeplay[r.a] = (uint8_t)v;
@@ -833,8 +843,8 @@ static void build_pages(void)
                          PR(R_ENG, T_909, DRONE_KIT, DB_DRIVE), PR(R_ENG, T_909, DRONE_KIT, DB_FMODE));
                 add_page("LFO", PR(R_ENG, T_909, DRONE_KIT, DB_LFORATE), PR(R_ENG, T_909, DRONE_KIT, DB_LFOCUT),
                          PR(R_ENG, T_909, DRONE_KIT, DB_LFOPITCH), PR(R_ENG, T_909, DRONE_KIT, DB_LFOPAN));
-                add_page("S&H", PR(R_ENG, T_909, DRONE_KIT, DB_SHRATE), PR(R_ENG, T_909, DRONE_KIT, DB_SHCUT),
-                         NONE, NONE);
+                add_page("SWARM", PR(R_ENG, T_909, DRONE_KIT, DB_SWARM), PR(R_ENG, T_909, DRONE_KIT, DB_SWMOTION),
+                         PR(R_ENG, T_909, DRONE_KIT, DB_SHRATE), PR(R_ENG, T_909, DRONE_KIT, DB_SHCUT));
             } else                                     /* (the kit's gain: the mixer's level does it) */
                 add_page("KIT", PR(R_ENG, T_808, NDRUM, 1), NONE, NONE, NONE);
         } else if (is_303()) {
@@ -1031,6 +1041,7 @@ static void open_global(void)
     list_rows[ui.list_n++] = PR(R_HDR, GR_SYSTEM, 0, 0);
     list_add(PR(R_ACT, ACT_PERF, 0, 0));
     list_add(PR(R_CORES, 0, 0, 0));
+    list_add(PR(R_DRNCORE, 0, 0, 0));
     list_add(PR(R_ACT, ACT_ABOUT, 0, 0));
     list_add(PR(R_BATT, 0, 0, 0));
     put_s(list_title, "GLOBAL");
@@ -2715,7 +2726,7 @@ static uint16_t blend(uint16_t a, uint16_t b, int t)  /* a..b, t of 16 */
     return (uint16_t)((r << 11) | (g << 5) | bl);
 }
 static uint16_t part_col(void) { return PART_COL[ui.part]; }
-static uint16_t dim(uint16_t c, int t) { return blend(C_BLACK, c, t); }
+static uint16_t dim(uint16_t c, int t) { return blend(C_BG, c, t); }   /* (toward the night, not black) */
 
 static int32_t tw(const felucca_font_t *f, const char *s) { return text_w(f, s); }
 
@@ -2949,7 +2960,7 @@ static void arc(int32_t cx, int32_t cy, int32_t r, float v, uint16_t track, uint
         disc(fx + fm_cosf(e1) * rm - 0.5f, fy + fm_sinf(e1) * rm - 0.5f, th * 0.5f, hi >= 1.0f ? fill : track);
         if (hi > lo)
             disc(fx + fm_cosf(el) * rm - 0.5f, fy + fm_sinf(el) * rm - 0.5f, th * 0.5f, fill);
-        disc(fx + fm_cosf(ev) * rm - 0.5f, fy + fm_sinf(ev) * rm - 0.5f, th * 0.5f + 1.3f, C_BLACK);
+        disc(fx + fm_cosf(ev) * rm - 0.5f, fy + fm_sinf(ev) * rm - 0.5f, th * 0.5f + 1.3f, C_BG);
         disc(fx + fm_cosf(ev) * rm - 0.5f, fy + fm_sinf(ev) * rm - 0.5f, th * 0.5f + 0.6f, C_WHITE);
     }
 }
@@ -2981,20 +2992,19 @@ static void draw_header(void)
 {
     char b[24];
     int32_t x;
-    cv_begin(240, HDR_H, C_BLACK);
+    cv_begin(240, HDR_H, C_BG);
     cv_rect(0, HDR_H - 1, 240, 1, C_LINE);
     if (ui.msg_until && (int32_t)(ui.msg_until - plat_ms()) > 0) {   /* what a button just did */
-        box(0, 0, 240, HDR_H - 1, part_col());
-        text_c(120, vc(&FONT_B, 0, HDR_H - 1), &FONT_B, ui.msg, C_BLACK);
+        box(0, 0, 240, HDR_H - 1, dim(part_col(), 4));
+        cv_rect(0, HDR_H - 1, 240, 1, part_col());
+        text_c(120, vc(&FONT_B, 0, HDR_H - 1), &FONT_B, ui.msg, C_WHITE);
         cv_commit(0, 0, 0);
         return;
     }
     ui.msg_until = 0;
-    if (part_view()) {                                /* the part chip, then where we are */
-        int32_t w = tw(&FONT_B, PART_N[ui.part]) + 12;
-        box(0, 1, w, 17, part_col());
-        cv_text(6, vc(&FONT_B, 1, 17), &FONT_B, PART_N[ui.part], C_BLACK);
-        x = w + 6;
+    if (part_view()) {                                /* the part's mark and name in its colour, then where we are */
+        dot(6, 9, 3, part_col());
+        x = cv_text(14, vc(&FONT_B, 1, 17), &FONT_B, PART_N[ui.part], part_col()) + 7;
         if (ui.view == V_GEN)
             x = cv_text(x, vc(&FONT_S, 1, 17), &FONT_S, "TB-3PO", C_HI) + 6;
         else if (ui.view == V_SEQ)
@@ -3003,7 +3013,8 @@ static void draw_header(void)
         else if (kbd_on())                            /* REC: KEYS (written); FREE PLAY: said so */
             x = cv_text(x, vc(&FONT_S, 1, 17), &FONT_S, ui.rec ? "KEYS" : "FREE PLAY", C_AMB) + 6;
     } else {
-        x = cv_text(4, vc(&FONT_B, 1, 17), &FONT_B, VIEW_N[ui.view], C_HI) + 6;
+        dot(6, 9, 3, C_AMB);
+        x = cv_text(14, vc(&FONT_B, 1, 17), &FONT_B, VIEW_N[ui.view], C_HI) + 6;
         if (drum_mix_page() >= 0)                     /* MIX: 909 / MIX: 808 (whose tracks these are) */
             x = cv_text(x - 6, vc(&FONT_B, 1, 17), &FONT_B, drum_mix_page() ? ": 808" : ": 909",
                         PART_COL[drum_mix_page()]) + 6;
@@ -3260,6 +3271,193 @@ static void lane(int y, int p, uint32_t bits, int ph, int len, int base)
         box(col_x(c), y + 2, 12, 9, fc);
         if (seq.playing && (ph & 15) == c)
             rbox(col_x(c) + 2, y + 12, 8, 2, 1, C_WHITE);
+    }
+}
+
+/* -------------------------------------------------------- HOME: the corona --- */
+/* Penumbra's home, the whole main area at once: the Lunar Eclipse Forge mark on the eclipsed moon's
+ * dark face, in a corona that pulses with the music (the whole mix's level; a flare at each drone
+ * hit), the 808's hits flashing on the rim as beads of light, the melodies' notes coming out as
+ * stars. Over it the 16 patterns as small moons (the white keys pick them), under it the four
+ * parts' steps. */
+#define EC_CX 120
+#define EC_CY 60
+#define EC_RS 38                                   /* the moon's rim */
+#define EC_CW 15                                   /* the corona's reach past it */
+#define EC_NSTAR 14
+#define EC_NBEAD 6
+static struct { int16_t x, y; uint8_t life, part; } ec_star[EC_NSTAR];
+static struct { float ang; uint8_t life; } ec_bead[EC_NBEAD];
+static uint8_t ec_star_w, ec_bead_w;
+static int16_t ec_last[NPARTS] = {-1, -1, -1, -1, -1};
+static float ec_lvl, ec_flare;
+static uint32_t ec_rng = 0x2545F491u;
+static uint32_t ec_rand(void)
+{
+    ec_rng ^= ec_rng << 13;
+    ec_rng ^= ec_rng >> 17;
+    ec_rng ^= ec_rng << 5;
+    return ec_rng;
+}
+
+/* the 16 steps of a part around the playhead, as bits; its playhead (-1 stopped) and length */
+static uint32_t part_bits(int p, int *ph, int *len)
+{
+    uint32_t bits = 0;
+    int s, base;
+    if (p < NKIT) {
+        const dpart_t *d = &pat_of(p)->drum[p];
+        int v;
+        *ph = seq.playing ? eng_step[TRK_DRUM + p] : -1;
+        *len = d->len;
+        base = *ph >= 0 ? (*ph & ~15) : 0;
+        for (v = 0; v < NDRUM; v++)
+            bits |= d->hit[v][base >> 5] >> (base & 31);
+        return bits & 0xFFFFu;
+    }
+    {
+        const bpart_t *bp = &pat_of(p)->bass[p - NKIT];
+        *ph = seq.playing ? eng_step[TRK_BASS0 + p - NKIT] : -1;
+        *len = bp->len;
+        base = *ph >= 0 ? (*ph & ~15) : 0;
+        for (s = 0; s < 16 && base + s < bp->len; s++)
+            if (bstep_gate(&bp->step[base + s]) != G_REST)
+                bits |= 1u << s;
+        return bits;
+    }
+}
+
+/* the parts' new steps: the drone flares, the 808 a bead, a melody a star */
+static void ec_events(void)
+{
+    int p;
+    for (p = 0; p < PART_BRK; p++) {
+        int ph, len;
+        uint32_t bits = part_bits(p, &ph, &len);
+        if (ph == ec_last[p])
+            continue;
+        ec_last[p] = (int16_t)ph;
+        if (ph < 0 || part_muted(p) || !(bits >> (ph & 15) & 1u))
+            continue;
+        if (p == PART_909) {
+            ec_flare = 1.0f;
+        } else if (p == PART_808) {
+            ec_bead[ec_bead_w].ang = (float)(ec_rand() & 1023u) * (1.0f / 1024.0f);
+            ec_bead[ec_bead_w].life = 255;
+            ec_bead_w = (uint8_t)((ec_bead_w + 1) % EC_NBEAD);
+        } else {
+            float a = (float)(ec_rand() & 1023u) * (FM_TWO_PI / 1024.0f);
+            float r = (float)(EC_RS + EC_CW + 4) + (float)(ec_rand() % 40u);
+            int x = EC_CX + (int)(fm_cosf(a) * r * 1.6f), y = EC_CY + (int)(fm_sinf(a) * r * 0.62f);
+            ec_star[ec_star_w].x = (int16_t)(x < 6 ? 6 : x > 234 ? 234 : x);
+            ec_star[ec_star_w].y = (int16_t)(y < 16 ? 16 : y > 104 ? 104 : y);
+            ec_star[ec_star_w].life = 255;
+            ec_star[ec_star_w].part = (uint8_t)p;
+            ec_star_w = (uint8_t)((ec_star_w + 1) % EC_NSTAR);
+        }
+    }
+}
+
+static void draw_corona_home(void)
+{
+    const uint16_t SUN = RGB(255, 244, 222), PALE = RGB(255, 222, 170), CORONA = RGB(255, 150, 70);
+    const uint16_t FACE = RGB(12, 13, 24), MOON = RGB(226, 224, 236), bg = C_BG;
+    const int R2 = EC_RS + EC_CW;
+    float lvl = 0.0f, amp, rot, breath;
+    int x, y, k, c, c0 = ui.pbank * 16;
+    ec_events();
+    for (k = 0; k < PART_BRK; k++)                     /* the music's level: the loudest part, smoothed */
+        if (!part_muted(k))
+            lvl = fm_maxf(lvl, (float)eng_peak[k] * (2.5f / 32768.0f));
+    lvl = fm_minf(lvl, 1.0f);
+    ec_lvl += (lvl - ec_lvl) * (lvl > ec_lvl ? 0.5f : 0.12f);   /* up fast, down slowly: a pulse */
+    ec_flare *= 0.9f;
+    breath = 0.5f + 0.5f * fm_sin_turns((float)(ui.frame & 255u) * (1.0f / 256.0f));   /* (quiet: it breathes) */
+    amp = 0.22f + 0.08f * breath + 0.7f * ec_lvl + 0.35f * ec_flare;
+    rot = (float)(ui.frame & 4095u) * (1.0f / 4096.0f);
+    for (k = 0; k < 40; k++) {                         /* the sky: fixed stars, each twinkling its own way */
+        uint32_t h = (uint32_t)k * 2654435761u;
+        int sx = (int)(h % 236u) + 2, sy = (int)((h >> 12) % 102u) + 12;
+        int tw8 = (int)(((h >> 20) + ui.frame / 6u) & 15u);
+        cv_pset(sx, sy, blend(bg, C_GRAY, tw8 < 3 ? 12 : 5));
+    }
+    for (k = 0; k < EC_NSTAR; k++)                     /* the melodies' stars, fading */
+        if (ec_star[k].life) {
+            uint16_t col = blend(bg, PART_COL[ec_star[k].part], ec_star[k].life >> 4);
+            dot(ec_star[k].x, ec_star[k].y, ec_star[k].life > 160 ? 2 : 1, col);
+            ec_star[k].life = (uint8_t)(ec_star[k].life > 5 ? ec_star[k].life - 5 : 0);
+        }
+    /* the corona: a bright rim, glowing out into the dark in slowly turning rays; inside, the face */
+    for (y = EC_CY - R2; y <= EC_CY + R2; y++)
+        for (x = EC_CX - R2; x <= EC_CX + R2; x++) {
+            float dx = (float)x + 0.5f - (float)EC_CX, dy = (float)y + 0.5f - (float)EC_CY, d2 = dx * dx + dy * dy, d, a;
+            uint16_t col;
+            if (d2 < (float)((EC_RS - 3) * (EC_RS - 3))) {
+                cv_pset(x, y, FACE);
+                continue;
+            }
+            if (d2 >= (float)(R2 * R2))
+                continue;
+            d = fm_sqrtf(d2);
+            if (d < (float)EC_RS) {                    /* the rim's inner edge, sharp, into the face */
+                a = fm_clampf(1.0f - ((float)EC_RS - d) * 0.45f, 0.0f, 1.0f) * fm_minf(1.0f, 0.55f + amp);
+                col = blend(FACE, blend(PALE, SUN, (int)(a * 16.0f)), (int)(a * 16.0f + 0.5f));
+            } else {
+                float w = 1.0f - (d - (float)EC_RS) / (float)EC_CW;
+                float ray = 0.72f + 0.28f * fm_sin_turns(turns(dy, dx) * 7.0f + rot) * (0.4f + ec_lvl);
+                a = fm_clampf(w * w * amp * ray * 1.3f, 0.0f, 1.0f);
+                if (a < 0.03f)
+                    continue;
+                col = blend(bg, blend(CORONA, PALE, (int)(w * w * w * 16.0f)), (int)(a * 16.0f + 0.5f));
+            }
+            cv_pset(x, y, col);
+        }
+    {   /* the mark, in moonlight */
+        const int ox = EC_CX - LOGO_S_W / 2, oy = EC_CY - LOGO_S_H / 2 + 1;
+        for (y = 0; y < LOGO_S_H; y++)
+            for (x = 0; x < LOGO_S_W; x++) {
+                uint32_t a = LOGO_S_PX[y * ((LOGO_S_W + 1) / 2) + x / 2];
+                a = (x & 1) ? (a & 15u) : (a >> 4);
+                if (a)
+                    px_blend(ox + x, oy + y, MOON, a + (a == 15u));
+            }
+    }
+    for (k = 0; k < EC_NBEAD; k++)                     /* the 808: beads of light on the rim */
+        if (ec_bead[k].life) {
+            float a = ec_bead[k].ang * FM_TWO_PI;
+            float bx = (float)EC_CX + fm_cosf(a) * ((float)EC_RS + 1.0f), by = (float)EC_CY + fm_sinf(a) * ((float)EC_RS + 1.0f);
+            disc(bx, by, 4.0f, blend(bg, PART_COL[PART_808], ec_bead[k].life >> 6));
+            disc(bx, by, 1.8f, blend(bg, SUN, ec_bead[k].life >> 4));
+            ec_bead[k].life = (uint8_t)(ec_bead[k].life > 24 ? ec_bead[k].life - 24 : 0);
+        }
+    for (c = c0; c < c0 + 16; c++) {                   /* the patterns: small moons, the playing one lit */
+        int px = 120 + (c - c0) * 13 - 98 + ((c - c0) >= 8 ? 4 : 0), cue = seq_cue_of(&seq, PART_909);
+        int lo = seq.chain_a < seq.chain_b ? seq.chain_a : seq.chain_b, hi = seq.chain_a < seq.chain_b ? seq.chain_b : seq.chain_a;
+        if (c == seq.ppat[PART_909])
+            dot(px, 5, 3, C_AMB);
+        else
+            dot(px, 5, 2, pattern_used(&proj.pat[c]) ? C_GRAY : C_LINE);
+        if (c == cue && c != seq.ppat[PART_909] && (ui.frame & 16u))
+            rframe(px - 5, 0, 11, 11, 5, C_WHITE);
+        if (seq.chain_a != seq.chain_b && c >= lo && c <= hi)
+            cv_rect(px - 3, 11, 7, 1, C_AMB);
+    }
+    if (ui.pbank)
+        cv_text(4, 14, &FONT_XS, "P17-32", C_AMB);
+    for (k = 0; k < 4; k++) {                          /* the parts' steps, two to a row */
+        int ph, len, s, x0 = (k & 1) ? 124 : 4, yy = 116 + (k >> 1) * 13, mu = part_muted(k);
+        uint32_t bits = part_bits(k, &ph, &len);
+        uint16_t pc = mu ? C_DIM : PART_COL[k];
+        cv_text(x0, yy - 6, &FONT_XS, PART_S[k], pc);
+        for (s = 0; s < 16; s++) {
+            int sx = x0 + 30 + s * 5 + (s >> 2), on = (bits >> s & 1u) != 0;
+            if (s >= len)
+                break;
+            if (ph >= 0 && (ph & 15) == s)
+                dot(sx, yy, 2, on ? C_WHITE : C_GRAY);
+            else
+                dot(sx, yy, on ? 2 : 1, on ? pc : C_LINE);
+        }
     }
 }
 
@@ -3873,7 +4071,7 @@ static void draw_main(void)
     int band, readout = ui.touched >= 0 && (int32_t)(ui.touch_until - plat_ms()) > 0 && ui.overlay == O_NONE;
     if (!readout)
         ui.touched = -1;
-    cv_begin(240, 2 * BAND_H, C_BLACK);           /* both bands, then one transfer: no tear between them */
+    cv_begin(240, 2 * BAND_H, C_BG);           /* both bands, then one transfer: no tear between them */
     for (band = 0; band < 2; band++) {
         cv_band(band * BAND_H, BAND_H);
         if (ui.help)
@@ -3882,8 +4080,13 @@ static void draw_main(void)
             draw_ask(band);
         else if (ui.overlay == O_LIST)
             draw_list(band);
-        else if (ui.view == V_HOME)
-            draw_home(band);
+        else if (ui.view == V_HOME) {                 /* Penumbra: one picture over both bands */
+            if (band == 0) {
+                cv_band(0, 2 * BAND_H);
+                draw_corona_home();
+                cv_band(0, BAND_H);
+            }
+        }
         else if (ui.view == V_FX)
             draw_fx(band);
         else if (ui.view == V_MIX)
@@ -4004,19 +4207,22 @@ static void draw_knobs(void)
     if (sig == last_sig && blit_hash[3])
         return;
     last_sig = sig;
-    cv_begin(240, KNOB_H, C_BLACK);
-    {   /* the rule; at its right end, where you are: the tag, then the page dots */
+    cv_begin(240, KNOB_H, C_BG);
+    {   /* Penumbra: where you are, centred on the rule: the tag in the corona's colour, the page dots */
         char t[28];
         int dots = pg.n > 1 && ui.view != V_GLO;
-        int32_t xd = 237 - (dots ? pg.n * 5 : 0), xt;
+        int32_t wt, wd, x0;
         knob_tag(t);
-        xt = xd - (dots ? 5 : 0) - tw(&FONT_XS, t);
-        cv_rect(0, 5, xt - 5, 1, C_LINE);
-        cv_text(xt, vc(&FONT_XS, 0, 11), &FONT_XS, t, C_HI);
+        wt = tw(&FONT_XS, t);
+        wd = dots ? pg.n * 6 + 4 : 0;
+        x0 = 120 - (wt + wd) / 2;
+        cv_rect(4, 5, x0 - 10, 1, C_LINE);
+        cv_rect(x0 + wt + wd + 6, 5, 236 - (x0 + wt + wd + 6), 1, C_LINE);
+        cv_text(x0, vc(&FONT_XS, 0, 11), &FONT_XS, t, C_AMB);
         if (dots) {
             int k;
             for (k = 0; k < pg.n; k++)
-                cv_rect(xd + k * 5, 4, 3, 3, k == cur_page() ? C_HI : C_LINE);
+                dot(x0 + wt + 6 + k * 6, 5, k == cur_page() ? 2 : 1, k == cur_page() ? C_AMB : C_DIM);
         }
     }
     draw_footer();
@@ -4029,7 +4235,7 @@ static void draw_knobs(void)
             char v[12];
             int cx = i * 60 + 30;
             if (i)
-                cv_rect(i * 60, 14, 1, 50, C_LINE);
+                cv_rect(i * 60, 24, 1, 28, C_LINE);
             if (i == 0)
                 put_note(v, held_note_of(bp, ui.held_step) + bp->transpose - 24);
             else if (i == 1)
@@ -4049,7 +4255,7 @@ static void draw_knobs(void)
         int cx = i * 60 + 30, val, touched = ui.touched == i;
         uint16_t col = drum_mix_page() >= 0 ? PART_COL[drum_mix_page()] : part_col();   /* MIX: 909 in the 909's */
         if (i)
-            cv_rect(i * 60, 14, 1, 50, C_LINE);
+            cv_rect(i * 60, 24, 1, 28, C_LINE);
         if (!d)
             continue;
         if (touched)
@@ -4634,7 +4840,10 @@ void ui_init(void)
 
 /* AUTOSAVE: changes are saved by themselves while the pattern is stopped and nothing has been touched
  * for AUTOSAVE_QUIET ms, at most every AUTOSAVE_GAP ms. Stopped only: a flash erase silences the
- * audio. Only the objects that changed are written (project.c), usually one or two sectors. */
+ * audio. Only the objects that changed are written (project.c), usually one or two sectors.
+ * Penumbra: and silent, a second at least (a latched drone, a long reverb play on while stopped;
+ * an erase under them is a crackle). */
+#define AUTOSAVE_SILENT 1000u
 #define AUTOSAVE_QUIET 4000u
 #define AUTOSAVE_GAP 20000u
 static void autosave(void)
@@ -4647,7 +4856,8 @@ static void autosave(void)
         return;
     }
     if (!ui.dirty || (proj.set.autosave_off && !ui.last_autosave) || seq.playing || seq.req_stop || ui.rec || perf_testing() ||
-        ui.overlay == O_ASK || now - ui.act_t < AUTOSAVE_QUIET || (ui.saved_t && now - ui.saved_t < AUTOSAVE_GAP))
+        ui.overlay == O_ASK || now - ui.act_t < AUTOSAVE_QUIET || (ui.saved_t && now - ui.saved_t < AUTOSAVE_GAP) ||
+        engine_quiet_ms() < AUTOSAVE_SILENT)
         return;
     ui.saved_t = now;
     ui.last_autosave = 0;
@@ -4707,7 +4917,7 @@ void ui_hold_saves(int on) { save_hold = (uint8_t)(on != 0); }
 void ui_redraw(void)
 {
     int i;
-    lcd_fill(0, 0, 240, 240, C_BLACK);
+    lcd_fill(0, 0, 240, 240, C_BG);
     for (i = 0; i < 4; i++)
         blit_hash[i] = 0;
 }

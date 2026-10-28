@@ -64,6 +64,8 @@ const char *engine_voice_name(int target, int voice);
 void engine_set(int target, int voice, int i, int value);   /* queued; the sound_t mirror is the caller's */
 void engine_out_loud(int on);          /* 1: the output at the codec's full scale (6 dB hotter than Felucca's) */
 void engine_usb_full(int on);          /* 1: engine_render at full level, engine_volume the MASTER knob after */
+void engine_drone_core2(int on);       /* 1: the drone on the second core (beside the 808); 0: the first */
+uint32_t engine_quiet_ms(void);        /* how long the output has been silent (AUTOSAVE waits for it) */
 void engine_volume(int32_t *out_lr, uint32_t n);   /* ISR, after engine_render (and the USB tap) */
 void engine_apply_sound(const sound_t *s);                  /* queue every value (load, init) */
 void engine_sound_defaults(sound_t *s);                     /* each engine's power-on values */

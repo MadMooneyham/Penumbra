@@ -39,6 +39,7 @@ struct fxbus {
     uint8_t ext_pots[FXX_NPARAMS];
     /* delay */
     float dl_time_ms, dl_fdbk, dl_tone, dl_level, bpm, wear;
+    float dl_lead;                       /* Penumbra: samples the caller hears the returns late (fxbus_set_lead) */
     int32_t dl_div, dl_type;
     d9_biquad_t dl_hp;
     int16_t *dbuf;
@@ -69,6 +70,11 @@ void fxbus_process(fxbus_t *f, const float *dry, const float *rev, const float *
  * are fxbus_process's out exactly */
 void fxbus_process_st(fxbus_t *f, const float *dry_l, const float *dry_r, const float *rev, const float *dly,
                       float *out_l, float *out_r, int n);
+/* Penumbra: fxbus_process_st in two halves. The returns of the sends alone into wet_l / wet_r; then,
+ * on dry + wet, the distortion, the glue compressor and the volume, in place. */
+void fxbus_wet_st(fxbus_t *f, const float *rev, const float *dly, float *wet_l, float *wet_r, int n);
+void fxbus_post_st(fxbus_t *f, float *out_l, float *out_r, int n);
+void fxbus_set_lead(fxbus_t *f, int samples);   /* the returns heard this late: the delay reads sooner */
 int fxbus_nparams(void);
 const x0x_param_t *fxbus_param(int i);
 void fxbus_set(fxbus_t *f, int i, int value);

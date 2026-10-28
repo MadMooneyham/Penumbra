@@ -37,6 +37,7 @@ static master_t mst;
 #define DLY_LEN 66150                  /* 1.5 s (2 s before the reverb's lines needed the room) */
 static int16_t dly_buf[DLY_LEN] POOL;
 static int16_t rv_buf[SV_TOTAL] POOL, rv_ps[SV_PS_LEN] POOL;
+static float swarm_l[SWARM_LEN] POOL, swarm_r[SWARM_LEN] POOL;
 static volatile uint8_t brk_hold;      /* main loop is rewriting the break loops: ISR leaves it alone */
 static motion_t mot;
 static const sound_t *mot_base_snd;    /* the knobs' own values (the project's mirror) */
@@ -47,8 +48,8 @@ void engine_motion_enable(int on) { mot_on = (uint8_t)(on != 0); }   /* the ISR 
 static volatile uint8_t mot_release_req;
 void engine_motion_reset(void) { mot_release_req = 1; }   /* lanes changed under it (undo): knobs back */
 
-/* overload guard: past the CPU (a block over 92%, or 85% on average) the drone voices drop to three
- * oscillators each (a thinner cluster) and the 808's voices end at -50 dB instead of -90 (~2%);
+/* overload guard: past the CPU (a block over 92%, or 85% on average) the drone voices fade down to two
+ * oscillators each (a thinner cluster) and the 808's voices end at -70 dB instead of -90;
  * after 3 s back under 65% both return. The platform reports each
  * block's load after rendering it (engine_load, same context as engine_render); the change is
  * made at the start of the next block. Off during the PERF test, which measures the full cost. */
@@ -86,7 +87,7 @@ static void guard_apply(void)
         return;
     guard_applied = guard_on;
     drone_set_lite(&dn, guard_on);
-    drum808_quiet = guard_on ? 3.2e-3f : 3.2e-5f;
+    drum808_quiet = guard_on ? 3.2e-4f : 3.2e-5f;      /* Penumbra: -70 dB, not -50 (a tail cut that high is heard) */
 }
 
 /* mixer: per part Level, Rev send, Dly send (a drum machine's add to its voices' own sends) */
@@ -220,6 +221,14 @@ void engine_out_loud(int on)
 static volatile int usb_full;
 static float vol_after = -1.0f;
 void engine_usb_full(int on) { usb_full = on; }
+/* where the drone renders, read once per stretch (render_sub): the first core by default. Some
+ * FM-1s' second core misreads memory now and then (fm1_cpu1.h); the more it does, the likelier
+ * a misread lands in the sound, so it keeps the 808 alone unless asked */
+static volatile uint8_t drone_on2;
+void engine_drone_core2(int on) { drone_on2 = (uint8_t)(on != 0); }
+static volatile uint32_t eng_quiet_frames;   /* engine_render: frames since the output last made a sound */
+uint32_t eng_out_clips;                       /* output samples past full scale (hard-limited), since power-on */
+uint32_t engine_quiet_ms(void) { return eng_quiet_frames / 44u; }
 
 void engine_volume(int32_t *out_lr, uint32_t n)
 {
@@ -598,13 +607,33 @@ __attribute__((noinline)) static void scale_glide(float *buf, glide_t *g, uint32
     g->cur = c;
 }
 
-/* the second core's job (or the first's, after its own part, with one core): the 808 into t0..tr;
- * arg bit 8: not timed (the cycle counter is the first core's). Nothing here is mixed: the first
- * core does that afterwards, in one core's order. (The break no longer renders.) */
-static uint8_t d808_was_active;
+/* the second core's job (or the first's, after its own part, with one core): the 808 into t0..tr,
+ * and with arg bit 9 the drone into dn_l, dn_r (GLO > DRONE CORE 2ND); arg bit 8: not timed (the
+ * cycle counter is the first core's). Nothing here is mixed: the first core does that afterwards, in
+ * one core's order. (The break no longer renders.) drone_trigger and drone_set run between
+ * stretches, never during this. */
+static uint8_t d808_was_active, dn_was_active;
+static float dn_l[256] POOL, dn_r[256] POOL;
+static void drone_job(uint32_t n)
+{
+    uint32_t i;
+    dn_was_active = (uint8_t)drone_active(&dn);
+    if (dn_was_active) {
+        for (i = 0; i < n; i++)
+            dn_l[i] = dn_r[i] = 0.0f;
+        drone_render(&dn, dn_l, dn_r, (int)n);
+    }
+}
 static void core2_job(uint32_t arg)
 {
     uint32_t n = arg & 0xFFu ? arg & 0xFFu : 256u, i, timed = !(arg & 0x100u), pt = timed ? plat_cycles() : 0;
+    if (arg & 0x200u) {
+        drone_job(n);
+        if (timed) {
+            PROF_ADD(PR_909, pt);
+            pt = plat_cycles();
+        }
+    }
     d808_was_active = (uint8_t)drum808_active(&d808);
     if (d808_was_active) {                                /* silent, it does nothing (and is not mixed) */
         for (i = 0; i < n; i++)
@@ -624,28 +653,30 @@ __attribute__((noinline)) static void kit_sends(int b, const float *m, uint32_t 
     meter(b, m, mix_level[b], n);
 }
 
-/* one stretch: the drone (into the mix, in place) and the melodies here while the second core renders
- * the 808; then those are mixed in, in the order one core always used (drone, 808, MEL A, MEL B):
- * the same sums either way */
+/* Penumbra: the reverb and the delay run a block behind. Each stretch keeps its sends (fx_cur, at
+ * its offset in the block) and adds the returns of the same stretch of the block before (fx_prev),
+ * which the first core works out while the second renders the 808: time it spent waiting. The
+ * returns come 5.8 ms (FX_LEAD) later; the delay reads that much sooner (fxbus_set_lead). */
+#define FX_LEAD 256
+static float fx_send[2][2][256] POOL;           /* [block parity][rev, dly][sample] */
+static float wet_l[256] POOL, wet_r[256] POOL;
+static uint8_t fx_par;                          /* fx_send[fx_par]: this block's */
+static uint32_t sub_off;                        /* this stretch's offset in the block */
+
+/* one stretch: the melodies (and the drone, unless it is the second core's) here while the second
+ * core renders the 808; then those are mixed in, in the order one core always used (drone, 808,
+ * MEL A, MEL B): the same sums either way */
 static void render_sub(float *out_l, float *out_r, uint32_t n)
 {
     float *bb[NBASS] = {out_l, out_r};
     int idle[NBASS], b;
-    uint32_t arg = n & 0xFFu, i, pt;
+    uint32_t arg = (n & 0xFFu) | (drone_on2 ? 0x200u : 0u), i, pt;
     int on2 = plat_cpu2_run(core2_job, arg | 0x100u);
     for (i = 0; i < n; i++)
         dry_l[i] = dry_r[i] = rev[i] = dly[i] = 0.0f;
-    {   /* the drone, straight into the mix (L, R), then its sends from both sides and its level and pan */
+    if (!(arg & 0x200u)) {
         PROF_T(p9);
-        if (drone_active(&dn)) {
-            drone_render(&dn, dry_l, dry_r, (int)n);
-            mix_targets(PART_909, mix_level[PART_909]);
-            for (i = 0; i < n; i++)
-                mono[i] = (dry_l[i] + dry_r[i]) * 0.5f;
-            scale_glide(dry_l, &mix_glide[PART_909][GL_L], n);
-            scale_glide(dry_r, &mix_glide[PART_909][GL_R], n);
-            kit_sends(PART_909, mono, n);
-        }
+        drone_job(n);
         PROF_ADD(PR_909, p9);
     }
     for (b = 0; b < NBASS; b++) {
@@ -653,6 +684,11 @@ static void render_sub(float *out_l, float *out_r, uint32_t n)
         idle[b] = mel[b].idle;                            /* idle: the render writes zeros */
         melody_render(&mel[b], bb[b], (int)n);
         PROF_ADD(2 + b, pb);
+    }
+    {   /* the last block's returns for this stretch, while the 808 renders */
+        PROF_T(pf);
+        fxbus_wet_st(&fx, fx_send[fx_par ^ 1u][0] + sub_off, fx_send[fx_par ^ 1u][1] + sub_off, wet_l, wet_r, (int)n);
+        PROF_ADD(5, pf);
     }
     pt = plat_cycles();
 #if X0X_DEBUG
@@ -671,6 +707,17 @@ static void render_sub(float *out_l, float *out_r, uint32_t n)
         core2_job(arg);                                   /* one core (or the second failed): here */
     else
         PROF_ADD(PR_808, pt);                             /* what the first core waited for the second */
+    if (dn_was_active) {   /* the drone, into the mix (L, R), then its sends from both sides and its level and pan */
+        for (i = 0; i < n; i++) {
+            dry_l[i] = dn_l[i];
+            dry_r[i] = dn_r[i];
+            mono[i] = (dn_l[i] + dn_r[i]) * 0.5f;
+        }
+        mix_targets(PART_909, mix_level[PART_909]);
+        scale_glide(dry_l, &mix_glide[PART_909][GL_L], n);
+        scale_glide(dry_r, &mix_glide[PART_909][GL_R], n);
+        kit_sends(PART_909, mono, n);
+    }
     if (d808_was_active) {
         mix_targets(PART_808, mix_level[PART_808]);
         add_glide(dry_l, t0, &mix_glide[PART_808][GL_L], n);
@@ -694,7 +741,14 @@ static void render_sub(float *out_l, float *out_r, uint32_t n)
     }
     {
         PROF_T(pf);
-        fxbus_process_st(&fx, dry_l, dry_r, rev, dly, out_l, out_r, (int)n);
+        float *sr = fx_send[fx_par][0] + sub_off, *sd = fx_send[fx_par][1] + sub_off;
+        for (i = 0; i < n; i++) {
+            sr[i] = rev[i];                               /* for the next block */
+            sd[i] = dly[i];
+            out_l[i] = dry_l[i] + wet_l[i];
+            out_r[i] = dry_r[i] + wet_r[i];
+        }
+        fxbus_post_st(&fx, out_l, out_r, (int)n);
         PROF_ADD(5, pf);
     }
 }
@@ -725,6 +779,7 @@ void engine_render(int32_t *out_lr, uint32_t n)
     }
     while (done < n) {
         uint32_t k = seq_until_event(&seq, n - done);
+        sub_off = done;
         render_sub(out_l + done, out_r + done, k);
         {
             PROF_T(pt);
@@ -733,6 +788,9 @@ void engine_render(int32_t *out_lr, uint32_t n)
         }
         done += k;
     }
+    for (i = n; i < 256u; i++)                            /* (a shorter block: the rest sends nothing) */
+        fx_send[fx_par][0][i] = fx_send[fx_par][1][i] = 0.0f;
+    fx_par ^= 1u;
     if (mot_playing && !seq.playing)                     /* stopped: every knob back to its own value */
         motion_release(&mot);
     mot_playing = seq.playing;
@@ -741,14 +799,22 @@ void engine_render(int32_t *out_lr, uint32_t n)
         master_process_st(&mst, out_l, out_r, (int)n, vol);
         PROF_ADD(6, pt);
     }
-    for (i = 0; i < n; i++) {
-        float l = out_l[i], r = out_r[i];            /* (out_scale: NORMAL 2^22, Felucca's; LOUD 2^23) */
-        l = l > out_lim ? out_lim : l < -out_lim ? -out_lim : l;
-        r = r > out_lim ? out_lim : r < -out_lim ? -out_lim : r;
-        out_lr[2u * i] = (int32_t)(l * out_scale);
-        out_lr[2u * i + 1u] = (int32_t)(r * out_scale);
-        if (i & 1u)
-            eng_scope[eng_scope_w++ & (SCOPE_N - 1u)] = (int16_t)((out_l[i] + out_r[i]) * 16383.5f);
+    {
+        float pk = 0.0f;
+        for (i = 0; i < n; i++) {
+            float l = out_l[i], r = out_r[i];            /* (out_scale: NORMAL 2^22, Felucca's; LOUD 2^23) */
+            eng_out_clips += (fm_fabsf(l) > out_lim) + (fm_fabsf(r) > out_lim);
+            l = l > out_lim ? out_lim : l < -out_lim ? -out_lim : l;
+            r = r > out_lim ? out_lim : r < -out_lim ? -out_lim : r;
+            out_lr[2u * i] = (int32_t)(l * out_scale);
+            out_lr[2u * i + 1u] = (int32_t)(r * out_scale);
+            if (i & 1u)
+                eng_scope[eng_scope_w++ & (SCOPE_N - 1u)] = (int16_t)((out_l[i] + out_r[i]) * 16383.5f);
+            pk = fm_maxf(pk, fm_maxf(fm_fabsf(l), fm_fabsf(r)));
+        }
+        /* Penumbra: how long the output has been silent (under -72 dBFS), for AUTOSAVE: a flash
+         * erase stops the audio, and drones and their reverb ring on with the sequencer stopped */
+        eng_quiet_frames = pk < 2.5e-4f ? (eng_quiet_frames + n > 0x7FFFFFFFu ? 0x7FFFFFFFu : eng_quiet_frames + n) : 0;
     }
     for (p = 0; p < NPARTS; p++) {                      /* meters: peak hold, ~300 ms decay at the UI */
         uint32_t q = (uint32_t)(fm_minf(part_peak[p], 1.0f) * 32767.0f);
@@ -924,12 +990,14 @@ void engine_init(pattern_t *patterns, song_t *song, lane_t *lanes, const sound_t
     for (p = 0; p < NPARTS * NDRUM; p++)
         prob[p / NDRUM][p % NDRUM] = 100;             /* every step plays, until a lane says */
     drone_init(&dn);
+    drone_swarm_buffer(&dn, swarm_l, swarm_r);
     drum808_init(&d808);
     melody_init(&mel[0]);
     melody_init(&mel[1]);
     breaks_init(&brk);
     fxbus_init(&fx, dly_buf, DLY_LEN);
     fxbus_reverb_buffers(&fx, rv_buf, rv_ps);
+    fxbus_set_lead(&fx, FX_LEAD);
     master_init(&mst);
     seq_init(&seq, patterns);
     seq.song = song;

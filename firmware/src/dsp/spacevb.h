@@ -11,14 +11,21 @@
  *    any DECAY, and soft-clipped.
  *
  * The lines are int16 (x 1/8192: +-4 full scale) in a buffer the caller passes in (.pool), the
- * shimmer's in another. Idle (no per-sample work) once its input and its lines are silent. */
+ * shimmer's in another. Idle (no per-sample work) once its input and its lines are silent.
+ *
+ * Penumbra: the network runs at half the rate (22050 Hz, SV_DS), between a 39-tap half-band
+ * decimator and interpolator (flat to 8 kHz, -80 dB from 14 kHz: nothing folds back as grit).
+ * Half the time and half the lines' memory; the shimmer keeps its air up to 11 kHz. */
 #pragma once
 #include <stdint.h>
 
 #define SV_LINES 8
 #define SV_SIZE_MAX 1.5f
-#define SV_TOTAL 27400                    /* int16 samples: every line at SIZE_MAX, + modulation room */
-#define SV_PS_LEN 4096                    /* the shimmer's line (power of two) */
+#define SV_DS 2                           /* the network's rate: 44100 / SV_DS */
+#define SV_TOTAL 14000                    /* int16 samples: every line at SIZE_MAX, + modulation room */
+#define SV_PS_LEN 2048                    /* the shimmer's line (power of two) */
+#define SV_HB_N 39                        /* the half-band's taps (19 on each side, 10 of them non-zero) */
+#define SV_HB_Y 20                        /* the interpolator's history: one output per even tap */
 
 typedef struct {
     int16_t *buf, *ps;                    /* 0: no reverb (the effect outputs nothing) */
@@ -30,6 +37,11 @@ typedef struct {
     int32_t ps_w;
     float ps_ph, shim_out;
     int32_t quiet, ctrl_left;
+    int32_t ds_ph, hw, yw;                /* the rate change: which half of a pair; the histories' heads */
+    float hx[2 * SV_HB_N];                /* the send, the last SV_HB_N samples (twice: read in one run) */
+    float hyl[2 * SV_HB_Y], hyr[2 * SV_HB_Y];   /* the return at the network's rate, likewise */
+    float odd_l, odd_r;                   /* the second sample of the pair the last tick made */
+    float pz[4];                          /* the shimmer feed's low-pass (two biquads, TDF-II) */
 } spacevb_t;
 
 void spacevb_init(spacevb_t *v, int16_t *buf, int16_t *ps);   /* buf: SV_TOTAL, ps: SV_PS_LEN */

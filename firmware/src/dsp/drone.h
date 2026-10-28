@@ -2,11 +2,17 @@
 /* DRONE part: six drone voices in the spirit of the Solar 42's drone blocks, ported from the
  * browser prototype (drone-proto/drone.html).
  *
- * Each voice is a cluster of five polyBLEP oscillators tuned around its note (a stack of
- * intervals plus a detune spread and a slow per-oscillator drift), morphing square -> saw,
- * through a one-pole tone filter and a slow amplitude envelope. The voices are summed in
- * stereo by their pans, with optional "wind" noise, into a pair of saturating SVFs
- * (low-pass or band-pass) swept by an LFO and a sample & hold.
+ * Each voice is a few polyBLEP oscillators tuned around its note (its stack's intervals, two to
+ * four, plus a detune spread and a slow per-oscillator drift), morphing square -> saw, through a
+ * one-pole tone filter and a slow amplitude envelope. The voices are summed in stereo by their
+ * pans, with optional "wind" noise, into a pair of saturating SVFs (low-pass or band-pass) swept
+ * by an LFO and a sample & hold.
+ *
+ * SWARM, after the filter: the crowd the oscillators no longer make. Three taps a side read a
+ * short delay (7 .. 16 ms) that keeps moving: MOTION 0 moves them by slow and fast sines a third
+ * of a turn apart (a string ensemble), MOTION 127 by each tap's own smoothed random walk (no two
+ * alike, many players). SWARM sets how much of it is heard. Its lines are the caller's
+ * (drone_swarm_buffer, .pool); without them it is off.
  *
  * The part sits where X0X's 909 was: eleven tracks, the first DRONE_VOICES of them voices
  * (the rest have no parameters and make no sound), and the kit (DRONE_KIT) the bus. A hit on
@@ -33,11 +39,23 @@ enum { DN_NOTE, DN_FINE, DN_SPREAD, DN_STACK, DN_WAVE, DN_TONE, DN_ATTACK, DN_RE
 enum { DN_MODE_HOLD, DN_MODE_SWELL };
 /* the bus's pots */
 enum { DB_ROOT, DB_DRIFT, DB_CUTOFF, DB_RESO, DB_DRIVE, DB_FMODE, DB_LFORATE, DB_LFOCUT, DB_LFOPITCH,
-       DB_LFOPAN, DB_SHRATE, DB_SHCUT, DB_WIND, DB_GAIN, DB_NPARAMS };
+       DB_LFOPAN, DB_SHRATE, DB_SHCUT, DB_WIND, DB_GAIN, DB_SWARM, DB_SWMOTION, DB_NPARAMS };
+
+#define SWARM_TAPS 3                      /* a side */
+#define SWARM_LEN 1024                    /* floats a side (power of two): 23 ms */
 
 typedef struct {
     float ic1, ic2;                       /* TPT SVF state */
 } drone_svf_t;
+
+typedef struct {
+    float *buf[2];                        /* 0: no swarm */
+    int32_t w;
+    float amt, motion;
+    float dl[2][SWARM_TAPS], step[2][SWARM_TAPS];   /* each tap's delay now and its step a sample */
+    float walk[2][SWARM_TAPS], walk2[2][SWARM_TAPS], walk_tgt[2][SWARM_TAPS];   /* (smoothed twice) */
+    float slow_ph, fast_ph;
+} drone_swarm_t;
 
 typedef struct {
     uint8_t pot[DN_NPARAMS];
@@ -68,12 +86,15 @@ struct drone {
     drone_svf_t fl, fr;
     float nb_l, nb_r;                     /* wind: brown noise */
     uint32_t rng;
-    int32_t lite;                         /* overload guard: three oscillators a voice */
+    int32_t lite;                         /* overload guard: two oscillators a voice */
+    float lite_g;                         /* the oscillators past the second: 1 sounding, 0 gone (glides, ~80 ms) */
     int32_t ctrl_left;                    /* samples to the next control step */
+    drone_swarm_t sw;
 };
 typedef struct drone drone_t;
 
 void drone_init(drone_t *d);
+void drone_swarm_buffer(drone_t *d, float *l, float *r);   /* SWARM_LEN each */
 void drone_trigger(drone_t *d, int track, float vel);   /* a hit: by the voice's MODE */
 void drone_end_swells(drone_t *d);                       /* STOP: swells fall now (latched voices stay) */
 void drone_all_off(drone_t *d);
