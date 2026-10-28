@@ -18,7 +18,7 @@ typedef struct {
     uint16_t bpm_x10;                    /* the internal tempo */
     uint8_t clk_out;                     /* 1: MIDI clock and START / STOP out while playing */
     uint8_t clk_in;                      /* 1: follow MIDI clock and transport in */
-    uint8_t midi_ch;                     /* LINE's notes in: 1-16, 0 = off */
+    uint8_t midi_ch;                     /* VOX's notes in: 1-16, 0 = off */
     uint8_t one_core;                    /* 1: the second core stays off (applies at the next power-on) */
     uint8_t drone_core;                  /* the drone voices: 0 the first core, 1 the second, 2 split (engine.h) */
     uint8_t out_loud;                    /* 1: the output 6 dB hotter (the codec's full scale) */

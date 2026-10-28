@@ -3,16 +3,17 @@
  * the main loop and reaches the ISR only through the command queue, so the voices' state is only
  * ever touched by one context (and the second core's job, while the first waits for it).
  *
- * Phase 1 (docs: "Penumbra: rewrite design"): the kept sound code on a fixed test scene. DRONE
- * (five voices, SWARM) on the black keys, the melody voice standing in for LINE on the white keys
- * and MIDI notes, the shimmer reverb, the tape delay and the master stage. Its real job is the
+ * Phase 2 (docs: "Penumbra: rewrite design"), on a fixed test scene: DRONE (five voices, SWARM) on
+ * the black keys, VOX (four voices) on the white keys and MIDI notes, the kept melody voice as LINE
+ * (the load test plays it until the generator does), the shimmer reverb, the tape delay and the
+ * master stage. Its real job is the
  * benchmark: every stage of every block timed on the 24 MHz timer, per core, published once a
  * second for the BENCH page.
  *
  * The render, per block:
  *   core 1: CTRL (commands, MIDI in, the clock, the drone's control steps for the block)
- *   core 2: DRN FILT and SWARM (the drone's bus: wind, drive and filter, then SWARM, on the last
- *           block's voices), DRONE 2 (its share of this block's drone voices), LINE
+ *   core 2: DRN BUS (the drone's bus: wind, drive and filter, then SWARM, on the last block's
+ *           voices), DRONE 2 (its share of this block's drone voices), VOX, LINE
  *   core 1: DRONE 1 (the rest of the drone voices), FX WET (the reverb and delay returns of the last
  *           block's sends), then WAIT for core 2, MIX (the voices' gains and sends, the distortion and
  *           glue compressor), MASTER (compressor, filter, limiter, the output's scale)
@@ -29,7 +30,7 @@ extern tclock_t eng_clock;
 
 /* the benchmark: what each stage cost, in % of the block's real-time budget x 10 (so 1000 = the
  * whole block), averaged over a second and its worst block in that second */
-enum { ST_CTRL, ST_DRN1, ST_DRN2, ST_DRNFILT, ST_SWARM, ST_LINE, ST_FXWET, ST_WAIT, ST_MIX, ST_MASTER,
+enum { ST_CTRL, ST_DRN1, ST_DRN2, ST_DRNBUS, ST_VOX, ST_LINE, ST_FXWET, ST_WAIT, ST_MIX, ST_MASTER,
        ST_CORE1, ST_CORE2, ST_N };
 enum { DRONE_CORE1, DRONE_CORE2, DRONE_SPLIT };
 typedef struct {
@@ -57,12 +58,13 @@ void engine_volume(int32_t *out_lr, uint32_t n);   /* ISR, after engine_render (
 void engine_drone_key(int voice);                  /* a black key: the voice by its MODE (HOLD: latch) */
 int engine_drone_on(int voice);                    /* (main loop) the voice is on: latched, or in its swell */
 float engine_drone_level(int voice);               /* (main loop) how loud it is now, 0..1 of its LEVEL (it rises, falls) */
-void engine_line_on(int note);                     /* LINE: a note (a white key, MIDI); legato glides */
-void engine_line_off(int note);
+void engine_vox_on(int note, int vel);             /* VOX: a note (a white key, MIDI), vel 0..127 */
+void engine_vox_off(int note);
+int engine_vox_sounding(void);                     /* (main loop) a VOX voice sounds */
 void engine_load_test(int on);                     /* every drone latched thick, LINE running: the worst case */
 int engine_load_testing(void);
 void engine_out_loud(int on);                      /* 1: the output at the codec's full scale */
 void engine_usb_full(int on);                      /* 1: USB audio at full level, MASTER after it */
 void engine_drone_core(int mode);                  /* DRONE_CORE1, DRONE_CORE2, DRONE_SPLIT */
-void engine_midi_ch(int ch);                       /* LINE's channel in: 1..16, 0 = off */
+void engine_midi_ch(int ch);                       /* VOX's channel in: 1..16, 0 = off */
 uint32_t engine_quiet_ms(void);                    /* how long the output has been silent */

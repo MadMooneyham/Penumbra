@@ -41,7 +41,7 @@ CFLAGS = ["-Os", "-ffunction-sections", "-fno-builtin", "-Wall", "-Wno-unused-fu
 # build (-ffp-contract=off) computes the same samples
 FPU = ["-mcpu=r3", "-mfprev1", "-ffp-contract=off"]
 # the DSP, the clock and the audio engine: separate units at -O2
-O2_UNITS = ["dsp/drone.c", "dsp/melody.c", "dsp/fxbus.c", "dsp/spacevb.c", "dsp/dsp_tables.c", "dsp/master.c",
+O2_UNITS = ["dsp/drone.c", "dsp/melody.c", "dsp/vox.c", "dsp/fxbus.c", "dsp/spacevb.c", "dsp/dsp_tables.c", "dsp/master.c",
             "seq/clock.c", "app/engine.c"]
 LINE = re.compile(r"^\s*([0-9a-f]+):\s+((?:[0-9a-f]{2} )+)\s*\t(.*)$")
 

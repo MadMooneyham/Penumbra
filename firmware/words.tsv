@@ -7,9 +7,10 @@ PENUMBRA	penumbra
 BENCH	benchmark
 CTRL	control
 FX WET	effect returns
-LINE OCT	line octave
-LINE OCTAVE #	line octave #
-LINE MIDI CH	line MIDI channel
+OCTAVE #	octave #
+VOX MIDI CH	vox MIDI channel
+VOX	vox
+DRN BUS	drone bus
 LOAD/PEAK	load and peak
 XRUNS	dropouts
 1ST	first

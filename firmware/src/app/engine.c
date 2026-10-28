@@ -4,6 +4,7 @@
 #include "plat.h"
 #include "../dsp/drone.h"
 #include "../dsp/melody.h"
+#include "../dsp/vox.h"
 #include "../dsp/fxbus.h"
 #include "../dsp/master.h"
 #include "../dsp/fastmath.h"
@@ -17,7 +18,8 @@ volatile uint32_t eng_steps;
 uint32_t eng_out_clips;
 
 static drone_t dn POOL;
-static melody_t line POOL;                       /* LINE, for now the kept melody voice */
+static melody_t line POOL;                       /* LINE, for now the kept melody voice (the load test plays it) */
+static vox_t vox POOL;
 static fxbus_t fx POOL;
 static master_t mst;
 #define DLY_LEN 66150                            /* 1.5 s */
@@ -30,7 +32,7 @@ _Static_assert(ENG_DRONES == DRONE_VOICES, "engine.h names the drone voices");
 _Static_assert(PLAT_TICKS_PER_BLOCK(256) == 139319u, "the block's budget in 24 MHz ticks");
 
 /* the voices' places in the mix */
-enum { P_DRONE, P_LINE, NPARTS };
+enum { P_DRONE, P_VOX, P_LINE, NPARTS };
 
 /* ------------------------------------------------------------ benchmark --- */
 /* each stage's 24 MHz ticks this block; summed over a second (acc), then published (pub) for the
@@ -43,7 +45,7 @@ static struct {
 } acc;
 static bench_t pub;
 static volatile uint32_t pub_serial;
-static const char *const ST_NAME[ST_N] = {"CTRL", "DRONE 1", "DRONE 2", "DRN FILT", "SWARM", "LINE", "FX WET",
+static const char *const ST_NAME[ST_N] = {"CTRL", "DRONE 1", "DRONE 2", "DRN BUS", "VOX", "LINE", "FX WET",
                                           "WAIT", "MIX", "MASTER", "CORE 1", "CORE 2"};
 const char *engine_stage_name(int st) { return st >= 0 && st < ST_N ? ST_NAME[st] : ""; }
 
@@ -130,7 +132,7 @@ static void guard_apply(void)
 
 /* ------------------------------------------------------- command queue --- */
 /* uint32 commands, single producer (main loop) / single consumer (audio ISR): type:4 | a:8 | b:8 | c:12 */
-enum { C_DRONE_KEY, C_LINE_ON, C_LINE_OFF, C_TEST, C_MIDI_CH };
+enum { C_DRONE_KEY, C_VOX_ON, C_VOX_OFF, C_TEST, C_MIDI_CH };
 #define CQ 256u
 static uint32_t cq[CQ];
 static volatile uint32_t cq_w, cq_r;
@@ -144,8 +146,10 @@ static void cq_put(uint32_t type, uint32_t a, uint32_t b, uint32_t c)
     cq_w = w + 1;
 }
 void engine_drone_key(int voice) { cq_put(C_DRONE_KEY, (uint32_t)voice, 0, 0); }
-void engine_line_on(int note) { cq_put(C_LINE_ON, 0, (uint32_t)note, 0); }
-void engine_line_off(int note) { cq_put(C_LINE_OFF, 0, (uint32_t)note, 0); }
+void engine_vox_on(int note, int vel) { cq_put(C_VOX_ON, 0, (uint32_t)note, (uint32_t)vel); }
+void engine_vox_off(int note) { cq_put(C_VOX_OFF, 0, (uint32_t)note, 0); }
+static volatile uint8_t vox_sounding;
+int engine_vox_sounding(void) { return vox_sounding; }
 static volatile uint8_t testing;
 void engine_load_test(int on) { cq_put(C_TEST, (uint32_t)(on != 0), 0, 0); }
 int engine_load_testing(void) { return testing; }
@@ -159,9 +163,10 @@ float engine_drone_level(int voice)
 /* --------------------------------------------------------------- the scene --- */
 /* the test scene, after the prototype's "Cinematic" (drone-proto/drone.html): an A minor drone (root,
  * fifth, octave, minor third, high octave on DR1-DR5; the prototype's second fifth went with the sixth
- * voice), each voice a little off true like a Solar tuned by ear, spread across the field; LINE and the drones into a long shimmering reverb
- * and a worn ping-pong tape delay, dotted quarters */
-static float mix_level[NPARTS] = {1.0f, 1.0f}, mix_rev[NPARTS], mix_dly[NPARTS];
+ * voice), each voice a little off true like a Solar tuned by ear, spread across the field; VOX a soft
+ * pad of two saws; all of it into a long shimmering reverb and a worn ping-pong tape delay, dotted
+ * quarters */
+static float mix_level[NPARTS] = {1.0f, 0.8f, 1.0f}, mix_rev[NPARTS], mix_dly[NPARTS];
 static void scene_default(void)
 {
     static const uint8_t NOTE[DRONE_VOICES] = {24, 31, 36, 39, 48};       /* 0 +7 +12 +15 +24 */
@@ -180,6 +185,8 @@ static void scene_default(void)
         drone_set(&dn, DRONE_KIT, i, drone_param(DRONE_KIT, i)->def);
     for (i = 0; i < MEL_NPARAMS; i++)
         melody_set(&line, i, melody_param(i)->def);
+    for (i = 0; i < VX_NPARAMS; i++)
+        vox_set(&vox, i, vox_param(i)->def);
     for (i = 0; i < fxbus_nparams(); i++)
         fxbus_set(&fx, i, fxbus_param(i)->def);
     for (i = 0; i < fxbus_ext_nparams(); i++)
@@ -195,11 +202,13 @@ static void scene_default(void)
         mix_rev[v] = 64.0f / 127.0f;
         mix_dly[v] = 41.0f / 127.0f;
     }
+    mix_rev[P_VOX] = 80.0f / 127.0f;             /* VOX further back, in the shimmer */
 }
 
 /* the load test: the heaviest the voices get. Every drone voice latched on its thickest stack
- * (Min9, four oscillators) with SWARM full, LINE playing eighths, the reverb long and shimmering.
- * Off, the scene comes back and the drones are latched as they were */
+ * (Min9, four oscillators) with SWARM full, VOX's four voices held (a new chord every two seconds,
+ * taking the sounding voices), LINE playing eighths, the reverb long and shimmering. Off, the scene
+ * comes back and the drones are latched as they were */
 static uint8_t test_latched;                     /* the voices that were latched before the test */
 static uint32_t test_left, test_i;
 static void test_set(int on)
@@ -229,13 +238,16 @@ static void test_set(int on)
             if (dn.v[v].on != (int32_t)((test_latched >> v) & 1u))
                 drone_trigger(&dn, v, 1.0f);
         melody_note_off(&line);
+        vox_all_off(&vox);
         guard_enabled = 1;
     }
     testing = (uint8_t)on;
 }
-static void test_tick(uint32_t n)                /* LINE's eighths, up and down A minor */
+static void test_tick(uint32_t n)                /* LINE's eighths, up and down A minor; VOX's chords */
 {
     static const uint8_t ARP[8] = {57, 60, 64, 67, 69, 67, 64, 60};
+    static const uint8_t CHORD[2][4] = {{57, 60, 64, 67}, {53, 57, 60, 64}};   /* Am7, Fmaj7 */
+    int k;
     if (!testing)
         return;
     if (test_left > n) {
@@ -243,46 +255,17 @@ static void test_tick(uint32_t n)                /* LINE's eighths, up and down 
         return;
     }
     melody_note_on(&line, ARP[test_i & 7u], (test_i & 3u) == 0u, 0);   /* (an accent each half bar) */
+    if ((test_i & 7u) == 0u) {
+        vox_all_off(&vox);
+        for (k = 0; k < 4; k++)
+            vox_note_on(&vox, CHORD[(test_i >> 3) & 1u][k], 1.0f);
+    }
     test_i++;
     test_left = 44100u / 4u;
 }
 
-/* ------------------------------------------------------------- LINE keys --- */
-/* a mono voice: the newest held note sounds; let go, it glides back to the one held before */
-#define LHELD 8
-static uint8_t lheld[LHELD], nlheld;
-static void line_on(int note)
-{
-    int i;
-    for (i = 0; i < nlheld; i++)
-        if (lheld[i] == note)
-            return;
-    if (nlheld == LHELD) {                       /* full: the oldest goes */
-        for (i = 1; i < LHELD; i++)
-            lheld[i - 1] = lheld[i];
-        nlheld--;
-    }
-    melody_note_on(&line, note, 0, nlheld > 0);
-    lheld[nlheld++] = (uint8_t)note;
-}
-static void line_off(int note)
-{
-    int i, j;
-    for (i = 0; i < nlheld && lheld[i] != note; i++)
-        ;
-    if (i == nlheld)
-        return;
-    for (j = i + 1; j < nlheld; j++)
-        lheld[j - 1] = lheld[j];
-    nlheld--;
-    if (!nlheld)
-        melody_note_off(&line);
-    else if (i == nlheld)                        /* the one sounding went: back to the newest left */
-        melody_note_on(&line, lheld[nlheld - 1], 0, 1);
-}
-
 /* ------------------------------------------------------------- MIDI, clock --- */
-static uint8_t midi_ch = 1;                      /* LINE's notes in: 1..16, 0 off */
+static uint8_t midi_ch = 1;                      /* VOX's notes in: 1..16, 0 off */
 static void clk_midi(void *x, uint8_t st)
 {
     (void)x;
@@ -316,9 +299,9 @@ static void midi_in(uint32_t pkt)
     if (ty == 0x90 && d2 == 0)
         ty = 0x80;
     if (ty == 0x90)
-        line_on(d1);
+        vox_note_on(&vox, d1, (float)d2 * (1.0f / 127.0f));
     else if (ty == 0x80)
-        line_off(d1);
+        vox_note_off(&vox, d1);
 }
 
 static void drain(void)
@@ -327,13 +310,14 @@ static void drain(void)
     int guard = 64;
     while (r != cq_w) {
         uint32_t c = cq[r % CQ], type = c >> 28, a = (c >> 20) & 0xFFu, b = (c >> 12) & 0xFFu;
+        (void)c;
         r++;
         if (type == C_DRONE_KEY && !testing)
             drone_trigger(&dn, (int)a, 1.0f);
-        else if (type == C_LINE_ON)
-            line_on((int)b);
-        else if (type == C_LINE_OFF)
-            line_off((int)b);
+        else if (type == C_VOX_ON)
+            vox_note_on(&vox, (int)b, (float)(c & 127u) * (1.0f / 127.0f));
+        else if (type == C_VOX_OFF)
+            vox_note_off(&vox, (int)b);
         else if (type == C_TEST)
             test_set((int)a);
         else if (type == C_MIDI_CH)
@@ -412,7 +396,8 @@ __attribute__((noinline)) static void add_glide(float *dst, const float *src, gl
     g->cur = c;
 }
 enum { GL_L, GL_R, GL_REV, GL_DLY, GL_N };
-static glide_t mix_glide[NPARTS][GL_N] = {{{-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}}, {{-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}}};
+static glide_t mix_glide[NPARTS][GL_N] = {{{-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}}, {{-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}},
+                                          {{-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}}};
 static void mix_targets(int p)
 {
     glide_set(&mix_glide[p][GL_L], mix_level[p]);
@@ -434,9 +419,9 @@ static uint8_t fx_par;
  * while core 1 renders that block's own share. The drone is heard 5.8 ms later; nothing else is */
 static float dbus[2][2][256] POOL;              /* [block parity][L, R][sample] */
 static float dn2_l[256] POOL, dn2_r[256] POOL;
-static float line_buf[256] POOL, mono[256] POOL;
+static float line_buf[256] POOL, mono[256] POOL, vox_l[256] POOL, vox_r[256] POOL;
 static float out_l[256] POOL, out_r[256] POOL, rev[256] POOL, dly[256] POOL;
-static uint8_t line_was_idle, bus_par;
+static uint8_t line_was_idle, vox_was_active, bus_par;
 static uint8_t bus_due, bus_plan;               /* the last block planned voices: its bus runs now, on its plan */
 static uint32_t bus_n;
 
@@ -462,7 +447,7 @@ static uint32_t drone_mask2(void)
 }
 
 /* the second core's job (or the first's, with one core): with arg bit 15 the drone's bus on the last
- * block's voices (DRN FILT, SWARM), its drone voices (arg bits 9..13, the voices' mask) into dn2, and
+ * block's voices (DRN BUS), its drone voices (arg bits 9..13, the voices' mask) into dn2, VOX and
  * LINE. It times itself on the 24 MHz timer, which both cores read, and touches only the bus, its own
  * voices and buffers: nothing here is mixed */
 #define C2_BUS 0x8000u
@@ -472,10 +457,8 @@ static void core2_job(uint32_t arg)
     if (arg & C2_BUS) {
         float *bl = dbus[bus_par ^ 1u][0], *br = dbus[bus_par ^ 1u][1];
         drone_bus_filter(&dn, bus_plan, bl, br);
-        st_t[ST_DRNFILT] = plat_ticks24() - t;
-        t = plat_ticks24();
         drone_bus_swarm(&dn, bus_plan, bl, br);
-        st_t[ST_SWARM] = plat_ticks24() - t;
+        st_t[ST_DRNBUS] = plat_ticks24() - t;
         t = plat_ticks24();
     }
     if (mask) {
@@ -486,6 +469,16 @@ static void core2_job(uint32_t arg)
         t = plat_ticks24();
         st_t[ST_DRN2] = t - tv;
     }
+    vox_was_active = (uint8_t)vox_active(&vox);
+    if (vox_was_active) {
+        uint32_t tv = t;
+        for (i = 0; i < n; i++)
+            vox_l[i] = vox_r[i] = 0.0f;
+        vox_render(&vox, vox_l, vox_r, (int)n);
+        t = plat_ticks24();
+        st_t[ST_VOX] = t - tv;
+    }
+    vox_sounding = vox_was_active;
     line_was_idle = (uint8_t)line.idle;
     melody_render(&line, line_buf, (int)n);
     st_t[ST_LINE] = plat_ticks24() - t;
@@ -549,6 +542,7 @@ void engine_render(int32_t *out_lr, uint32_t n)
     for (i = 0; i < n; i++)
         out_l[i] = out_r[i] = rev[i] = dly[i] = 0.0f;
     mix_targets(P_DRONE);
+    mix_targets(P_VOX);
     mix_targets(P_LINE);
     if (bus_due) {                               /* the drone: the last block's voices, through the bus */
         const float *bl = dbus[bus_par ^ 1u][0], *br = dbus[bus_par ^ 1u][1];
@@ -559,6 +553,14 @@ void engine_render(int32_t *out_lr, uint32_t n)
         add_glide(out_r, br, &mix_glide[P_DRONE][GL_R], m);
         add_glide(rev, mono, &mix_glide[P_DRONE][GL_REV], m);
         add_glide(dly, mono, &mix_glide[P_DRONE][GL_DLY], m);
+    }
+    if (vox_was_active) {
+        for (i = 0; i < n; i++)
+            mono[i] = (vox_l[i] + vox_r[i]) * 0.5f;
+        add_glide(out_l, vox_l, &mix_glide[P_VOX][GL_L], n);
+        add_glide(out_r, vox_r, &mix_glide[P_VOX][GL_R], n);
+        add_glide(rev, mono, &mix_glide[P_VOX][GL_REV], n);
+        add_glide(dly, mono, &mix_glide[P_VOX][GL_DLY], n);
     }
     if (!line_was_idle) {
         add_glide(out_l, line_buf, &mix_glide[P_LINE][GL_L], n);
@@ -614,6 +616,7 @@ void engine_init(void)
     drone_init(&dn);
     drone_swarm_buffer(&dn, swarm_l, swarm_r);
     melody_init(&line);
+    vox_init(&vox);
     fxbus_init(&fx, dly_buf, DLY_LEN);
     fxbus_reverb_buffers(&fx, rv_buf, rv_ps);
     fxbus_set_lead(&fx, FX_LEAD);

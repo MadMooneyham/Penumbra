@@ -3,13 +3,13 @@
  *
  *   HOME    the corona: the Lunar Eclipse Forge mark on the eclipsed moon, its corona pulsing with
  *           the music, a bead on the rim for each drone voice (lit while it sounds), a star for each
- *           LINE note, the bar's 16ths underneath while the clock runs. KNOB 1: the tempo.
+ *           VOX note, the bar's 16ths underneath while the clock runs. KNOB 1: the tempo.
  *   SYSTEM  the settings, a list: SELECT moves, any knob (or SEL) changes the row.
  *   BENCH   the benchmark: each stage of the render, its average and its worst block over the last
  *           second, in % of the block's real-time budget. SEL runs the load test.
  *
  * Panel: HOME goes home, GLO opens SYSTEM and then BENCH, PLAY starts and stops the clock, SAVE
- * saves the settings now. Black keys 1-5 latch the five drone voices; the white keys play LINE in
+ * saves the settings now. Black keys 1-5 latch the five drone voices; the white keys play VOX in
  * A minor, OCT- and OCT+ move them.
  *
  * The screen is three bands (header, main, knob strip), each drawn into Felucca's canvas and
@@ -25,9 +25,9 @@ static uint8_t BLACK_KEY[11];
 enum { V_HOME, V_SYSTEM, V_BENCH, NVIEWS };
 static const char *const VIEW_N[NVIEWS] = {"HOME", "SYSTEM", "BENCH"};
 
-/* LINE on the white keys: A natural minor from A3, two octaves and a bit */
+/* VOX on the white keys: A natural minor from A3, two octaves and a bit */
 static const uint8_t MINOR[7] = {0, 2, 3, 5, 7, 8, 10};
-#define LINE_ROOT 57
+#define KEY_ROOT 57
 
 typedef struct {
     uint8_t view;
@@ -91,7 +91,7 @@ static void warn(const char *a, const char *b) { say_as(a, b, ANN_NOW | ANN_KEEP
 /* ================================================================ settings === */
 /* SYSTEM's rows: a setting, its choices, and what a change does */
 enum { R_CLKOUT, R_CLKIN, R_MIDICH, R_CORES, R_DRNCORE, R_OUTLOUD, R_USBFULL, R_ABOUT, NROWS };
-static const char *const ROW_N[NROWS] = {"MIDI CLOCK OUT", "FOLLOW CLOCK IN", "LINE MIDI CH", "2ND CORE",
+static const char *const ROW_N[NROWS] = {"MIDI CLOCK OUT", "FOLLOW CLOCK IN", "VOX MIDI CH", "2ND CORE",
                                          "DRONE CORE", "OUTPUT LEVEL", "USB AUDIO", "ABOUT"};
 static const char *const ONOFF_N[] = {"OFF", "ON"};
 static const char *const CORE_N[] = {"1ST", "2ND", "SPLIT"};
@@ -196,7 +196,7 @@ static void set_view(int v)
 
 static int white_note(int w)
 {
-    int n = LINE_ROOT + 12 * ui.oct + 12 * (w / 7) + MINOR[w % 7];
+    int n = KEY_ROOT + 12 * ui.oct + 12 * (w / 7) + MINOR[w % 7];
     return n < 0 ? 0 : n > 127 ? 127 : n;
 }
 
@@ -211,7 +211,7 @@ static void input(void)
         if (kd >> i & 1u) {
             if (w >= 0) {
                 ui.key_note[w] = (uint8_t)white_note(w);
-                engine_line_on(ui.key_note[w]);
+                engine_vox_on(ui.key_note[w], 100);
                 if (ui.stars < 8u)
                     ui.stars++;
             } else if (bk >= 0 && bk < ENG_DRONES) {
@@ -219,7 +219,7 @@ static void input(void)
             }
         }
         if ((ku >> i & 1u) && w >= 0)
-            engine_line_off(ui.key_note[w]);
+            engine_vox_off(ui.key_note[w]);
     }
     if (down & (1u << B_HOME))
         set_view(V_HOME);
@@ -239,7 +239,7 @@ static void input(void)
         ui.oct = (int8_t)(ui.oct + ((down >> B_OCTUP) & 1u) - ((down >> B_OCTDN) & 1u));
         ui.oct = (int8_t)(ui.oct < -2 ? -2 : ui.oct > 2 ? 2 : ui.oct);
         put_i(put_s(t, ui.oct > 0 ? "+" : ""), ui.oct);
-        say("LINE OCTAVE ", t);
+        say("OCTAVE ", t);
     }
     if (down & (1u << B_SEL)) {
         if (ui.view == V_SYSTEM)
@@ -524,7 +524,7 @@ static uint32_t ec_rand(void)
     ec_rng ^= ec_rng << 5;
     return ec_rng;
 }
-static void ec_star_new(void)                     /* a LINE note: a star comes out */
+static void ec_star_new(void)                     /* a VOX note: a star comes out */
 {
     float a = (float)(ec_rand() & 1023u) * (FM_TWO_PI / 1024.0f);
     float r = (float)(EC_RS + EC_CW + 4) + (float)(ec_rand() % 40u);
@@ -559,7 +559,7 @@ static void draw_corona(void)
         int tw8 = (int)(((h >> 20) + ui.frame / 6u) & 15u);
         cv_pset(sx, sy, blend(bg, C_GRAY, tw8 < 3 ? 12 : 5));
     }
-    for (k = 0; k < EC_NSTAR; k++)                /* LINE's stars, fading */
+    for (k = 0; k < EC_NSTAR; k++)                /* VOX's stars, fading */
         if (ec_star[k].life) {
             dot(ec_star[k].x, ec_star[k].y, ec_star[k].life > 160 ? 2 : 1, blend(bg, RGB(130, 176, 255), ec_star[k].life >> 4));
             ec_star[k].life = (uint8_t)(ec_star[k].life > 5 ? ec_star[k].life - 5 : 0);
@@ -627,7 +627,7 @@ static void draw_home(void)
                 dot(sx, 124, 1, (s & 3) == 0 ? C_GRAY : C_DIM);
         }
     } else {
-        text_c(120, 118, &FONT_XS, "BLACK KEYS: DRONES   WHITE KEYS: LINE", C_DIM);
+        text_c(120, 118, &FONT_XS, "BLACK KEYS: DRONES   WHITE KEYS: VOX", C_DIM);
     }
 }
 
@@ -714,7 +714,7 @@ static void draw_knobs(void)
         cell(1, "", "-", C_DIM);
         cell(2, "", "-", C_DIM);
         put_i(put_s(d, ui.oct > 0 ? "+" : ""), ui.oct);
-        cell(3, "LINE OCT", d, C_HI);
+        cell(3, "OCTAVE", d, C_HI);
     } else if (ui.view == V_SYSTEM) {
         text_c(120, 30, &FONT_XS, "SELECT: ROW    KNOB OR SEL: CHANGE", C_DIM);
         text_c(120, 46, &FONT_XS, "SAVE: SAVE NOW", C_DIM);
