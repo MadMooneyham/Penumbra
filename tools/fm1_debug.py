@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
 """Read and write the FM-1's registers over USB-MIDI, through a development build of X0X
-(X0X_DEBUG=1 ./build.sh; the commands are in firmware/src/app/editor.c and refuse anything outside
+(PEN_DEBUG=1 ./build.sh; the commands are in firmware/src/app/editor.c and refuse anything outside
 a few register and RAM ranges). Needs mido with python-rtmidi.
 
   fm1_debug.py peek ADDR [N]          N words (<= 16) from ADDR

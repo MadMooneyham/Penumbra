@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* MELODY part: the Solar-style lead voice of the browser prototype (drone-proto/drone.html),
- * in the 303 parts' place and with their interface (note on with accent and slide, note off),
- * so the sequencer, the keys and TB-3PO play it unchanged.
+/* MELODY: the Solar-style lead voice of the browser prototype (drone-proto/drone.html); in the
+ * rewrite it stands in for LINE until phase 2 (note on with accent and slide, note off).
  *
  * One mono voice: a saw <-> square oscillator with a sub-octave square, glide, vibrato and a
  * ring modulator, through a saturating low-pass SVF swept by an ADSR, out through the same
@@ -11,7 +10,7 @@
  * Mono, 44.1 kHz, float, no libm, no allocation. Every instance is self-contained. */
 #pragma once
 #include <stdint.h>
-#include "x0x_param.h"
+#include "param.h"
 
 #define MELODY_CTRL 16                    /* control rate: every 16 samples */
 #define MELODY_MAX_BLOCK 256
@@ -49,6 +48,6 @@ void melody_note_off(melody_t *m);
 void melody_all_off(melody_t *m);
 void melody_render(melody_t *m, float *out, int n);    /* writes n samples */
 int melody_nparams(void);
-const x0x_param_t *melody_param(int i);
+const param_t *melody_param(int i);
 void melody_set(melody_t *m, int i, int value);
 int melody_get(const melody_t *m, int i);

@@ -1,0 +1,17 @@
+# An external clock takes over (tempo measured, START and STOP followed) and gives up 0.5 s after it ends
+wait 300
+midi FA
+clockin 120 3000
+wait 2500
+expect ext 1
+expect playing 1
+expect tempo >117
+expect tempo <123
+expect steps >15
+expect starts_out 0
+midi FC
+wait 400
+expect playing 0
+wait 1200
+expect ext 0
+expect tempo 90

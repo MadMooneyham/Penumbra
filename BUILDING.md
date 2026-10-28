@@ -1,12 +1,12 @@
-# Building X0X
+# Building Penumbra
 
 The build makes three files in `build/`:
 
 | File | What |
 | --- | --- |
-| `x0x.bin` | the firmware app |
+| `penumbra.bin` | the firmware app |
 | `loader/ota.bin` | the update loader |
-| `x0x.fwsc` | the installable package (app + loader) |
+| `penumbra.fwsc` | the installable package (app + loader) |
 
 ## Prerequisites (macOS)
 
@@ -41,20 +41,17 @@ On Linux x86-64 the toolchain runs natively and Docker is not needed.
 `JIELI_TOOLCHAIN` and `AC79_SDK` override the default locations
 (`~/.jieli/toolchain`, `~/fw-AC79_AIoT_SDK`).
 
-`./build.sh --release 0.1-beta` makes a release build; the package is `build/x0x-0.1-beta.fwsc`.
+`./build.sh --release 0.7-beta` makes a release build; the package is `build/penumbra-0.7-beta.fwsc`.
 
 On macOS with podman instead of Docker, put a `docker` script that runs `exec podman "$@"` first
-on your PATH. `X0X_JOBS` (default 4) limits parallel compiles: a podman machine drops
+on your PATH. `PEN_JOBS` (default 4) limits parallel compiles: a podman machine drops
 connections when many containers start at once.
 
-Build option: `X0X_CDC=1` adds Felucca's USB serial function (off by default: one plain
+Build option: `PEN_CDC=1` adds Felucca's USB serial function (off by default: one plain
 MIDI interface).
 
-The build also generates `build/gen/`: the font, the 909's samples and tables
-(`tools/gen_drum_samples.py`), and the built-in break loops, rendered by the 909 port on the
-host (`tools/gen_builtin_break.sh`, needs a host `cc`). Opt-in, `X0X_BREAK_BANK=DIR` builds
-the break bank from one-bar WAVs instead (`tools/import_breaks.py` makes such a folder from
-BB Gen's samples, in `build/breaks/`); see README.md, Breaks. It fails if a soft-double routine is
+The build also generates `build/gen/`: the font, the logo (`tools/gen_logo.py`, from `assets/logo.jpg`), the
+effects' tables (`tools/gen_dsp_tables.py`) and the screen reader's words link. It fails if a soft-double routine is
 linked (a `double` crept in) and checks the image, RAM and pool sizes.
 
 ## Tests
@@ -63,48 +60,33 @@ linked (a `double` crept in) and checks the image, RAM and pool sizes.
 tests/run_tests.sh
 ```
 
-Runs, on the build machine: the maths library against libm; the sequencer and TB-3PO
-(against schwung-tb3po, from `../schwung-tb3po` or `TB3PO_REF`); each engine against its
-original (9W9, 8W8, schwung-303, BB Gen — the scripts in `tests/host/` say where they look
-for those sources); flash storage; Felucca's update-path tests against `build/x0x.fwsc`
-(the loader test needs `AC79_SDK`); and the whole app in the simulator
-(`tests/scenarios/*.x0x`), with its screenshots and audio in `build/scenarios/`.
+Runs, on the build machine: the maths library against libm; the clock; the effects and the master stage; flash
+storage; Felucca's update-path tests against `build/penumbra.fwsc` (the loader test needs `AC79_SDK`); and the whole
+app in the simulator (`tests/scenarios/*.pen`), with its screenshots and audio in `build/scenarios/`, the audio
+checked for clicks (`tests/click_check.py`).
 
-`host/build_host.sh` builds the simulator alone; `build/host/x0x_host SCRIPT OUTDIR` runs one
-script (the command list is at the top of `host/x0x_host.c`).
+`host/build_host.sh` builds the simulator alone; `build/host/penumbra_host SCRIPT OUTDIR` runs one script (the
+command list is at the top of `host/penumbra_host.c`). The simulator's timing is the computer's: how hard the FM-1
+works is measured on the FM-1 itself, on its BENCH page (GLO, then GLO again).
 
 ## Install
-
-X0X's web installer is <https://charlesvestal.github.io/fm1-x0x/install/> (Felucca's, at
-hugelton.github.io, installs Felucca). To install your own build, use the command line, or a local
-copy of the site (below).
 
 From the command line (needs `pip3 install mido python-rtmidi`):
 
 ```
-python3 tools/fm1_install.py build/x0x.fwsc
+python3 tools/fm1_install.py build/penumbra.fwsc
 python3 tools/fm1_install.py --info          # identity of the connected FM-1
 ```
 
-Or, to install your own build from the web installer, make a local copy of the site and open it from `localhost`
-(Web MIDI needs a secure context):
+Or from the web installer, served from `localhost` (Web MIDI needs a secure context):
 
 ```
-./build.sh --release 0.1-beta                     # the site wants a release build (identity FM-1_9XY)
-python3 tools/make_pages.py build/x0x-0.1-beta.fwsc 0.1-beta build/pages
+./build.sh --release 0.7-beta                     # the site wants a release build (identity FM-1_9XXYYZZ)
+python3 tools/make_pages.py build/penumbra-0.7-beta.fwsc 0.7-beta build/pages
 cd build/pages && python3 -m http.server 8000
 # open http://localhost:8000/install/
 ```
 
 Installing firmware is at your own risk. If the FM-1 no longer starts but reaches the chip's
-update mode (4C4A:8057 on USB), `tools/fm1_rescue.sh` puts stock V15 back from a Mac (docs/MANUAL.md,
-Troubleshooting); otherwise recovery needs [FM-1-transporter](https://github.com/kurogedelic/FM-1-transporter).
-
-## Publishing a release
-
-1. `./build.sh --release X.Y-beta` (the identity, FM-1_9XY, is what the installers check).
-2. `tools/publish_pages.sh X.Y-beta`: builds the site (landing page, web installer, manual,
-   firmware) with `tools/make_pages.py` and pushes it to the `gh-pages` branch, which GitHub
-   Pages serves at <https://charlesvestal.github.io/fm1-x0x/>.
-3. `gh release create vX.Y-beta build/x0x-X.Y-beta.fwsc --prerelease` for the command-line
-   download.
+update mode (4C4A:8057 on USB), `tools/fm1_rescue.sh` puts stock V15 back from a Mac; otherwise recovery
+needs [FM-1-transporter](https://github.com/kurogedelic/FM-1-transporter).

@@ -27,14 +27,14 @@ static const char *const STACK_N[4] = {"Clust", "5ths", "Oct", "Min9"};
 static const char *const MODE_N[2] = {"Hold", "Swell"};
 static const char *const FMODE_N[2] = {"LP", "BP"};
 
-static const x0x_param_t VOICE_P[DN_NPARAMS] = {
+static const param_t VOICE_P[DN_NPARAMS] = {
     [DN_NOTE] = {"Note", 60, 24, NOTE_N},     [DN_FINE] = {"Fine", 127, 64, 0},
     [DN_SPREAD] = {"Spread", 127, 20, 0},     [DN_STACK] = {"Stack", 3, 0, STACK_N},
     [DN_WAVE] = {"Wave", 127, 44, 0},         [DN_TONE] = {"Tone", 127, 75, 0},
     [DN_ATTACK] = {"Rise", 127, 98, 0},       [DN_RELEASE] = {"Fall", 127, 98, 0},
     [DN_HOLD] = {"Hold", 127, 81, 0},         [DN_MODE] = {"Mode", 1, DN_MODE_HOLD, MODE_N},
     [DN_LEVEL] = {"Level", 127, 106, 0},      [DN_PAN] = {"Pan", 127, 64, 0}};
-static const x0x_param_t BUS_P[DB_NPARAMS] = {
+static const param_t BUS_P[DB_NPARAMS] = {
     [DB_ROOT] = {"Root", 24, 12, ROOT_N},     [DB_DRIFT] = {"Drift", 127, 25, 0},
     [DB_CUTOFF] = {"Cutoff", 127, 81, 0},     [DB_RESO] = {"Reso", 127, 45, 0},
     [DB_DRIVE] = {"Drive", 127, 15, 0},       [DB_FMODE] = {"Filter", 1, 0, FMODE_N},
@@ -51,7 +51,7 @@ int drone_nparams(int track)
     return track == DRONE_KIT ? DB_NPARAMS : 0;
 }
 
-const x0x_param_t *drone_param(int track, int i)
+const param_t *drone_param(int track, int i)
 {
     if (i < 0 || i >= drone_nparams(track))
         return 0;
@@ -60,8 +60,7 @@ const x0x_param_t *drone_param(int track, int i)
 
 const char *drone_track_name(int track)
 {
-    static const char *const N[DRONE_TRACKS + 1] = {"DR1", "DR2", "DR3", "DR4", "DR5", "DR6",
-                                                    "-", "-", "-", "-", "-", "BUS"};
+    static const char *const N[DRONE_VOICES + 1] = {"DR1", "DR2", "DR3", "DR4", "DR5", "DR6", "BUS"};
     return track >= 0 && track <= DRONE_KIT ? N[track] : "";
 }
 
@@ -126,7 +125,7 @@ static void bus_derive(drone_t *d, int i)
 
 void drone_set(drone_t *d, int track, int i, int value)
 {
-    const x0x_param_t *p = drone_param(track, i);
+    const param_t *p = drone_param(track, i);
     if (!p)
         return;
     if (value < 0) value = 0;
@@ -352,7 +351,7 @@ static void control(drone_t *d)
         }
         pan = v->pan + d->lfo_now * d->lfo_pan * 63.0f * ((i & 1) ? 1.0f : -1.0f);   /* neighbours swing apart */
         pp = (int)(pan + 0.5f);
-        x0x_pan_gains(pp < 0 ? 0 : pp > 127 ? 127 : pp, &v->pan_l, &v->pan_r);
+        pan_gains(pp < 0 ? 0 : pp > 127 ? 127 : pp, &v->pan_l, &v->pan_r);
     }
     fc = d->cutoff * fm_exp2f(d->lfo_now * d->lfo_cut + d->sh_sm * d->sh_cut);
     fc = fm_clampf(fc, 20.0f, SR * 0.45f);

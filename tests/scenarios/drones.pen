@@ -1,0 +1,25 @@
+# The black keys latch the drone voices (HOLD): a tap on, a tap off, the voice falling away (FALL: seconds).
+# Sound, no clips, and silence once both have fallen
+wait 300
+wav drones.wav
+tapkey b0
+tapkey b2
+wait 4000
+expect drone1 1
+expect drone3 1
+expect drone2 0
+shot drones.png
+leds
+expect peak_db_min -30
+expect peak_db_max -1
+tapkey b0
+wait 100
+expect drone1 0
+expect drone3 1
+tapkey b2
+wait 100
+expect drone3 0
+wait 30000
+expect quiet_ms >100
+wavstop
+expect clips 0

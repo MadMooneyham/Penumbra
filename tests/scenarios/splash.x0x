@@ -1,4 +1,0 @@
-# Penumbra's boot screen (gfx.c draw_splash): the Lunar Eclipse Forge mark in its corona
-wait 300
-splash
-shot splash.png

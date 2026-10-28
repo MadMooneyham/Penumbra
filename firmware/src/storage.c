@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * X0X: object map changed (see below). */
+ * X0X, Penumbra: object map changed (see below). */
 /* Persistent storage on the SPI NOR.
  *
  * Every object has an A/B sector pair. A save goes to the copy that is not
@@ -12,15 +12,14 @@
  * Flash access goes through three hooks (also used by the host test):
  *   st_read(off, dst, n)   st_erase(off)   st_prog(off, src, n)
  */
-#define ST_MAGIC 0x30583058u                   /* "X0X0": never mistaken for a Felucca object */
+#define ST_MAGIC 0x30583058u                   /* "X0X0" (kept: the panel's calibration carries over) */
 #define ST_SECTOR 4096u
 #define ST_PAYLOAD_OFF 256u
 #define ST_PAYLOAD_MAX (ST_SECTOR - ST_PAYLOAD_OFF)
 
-/* flash map, X0X (plat.h OBJ_*): settings 0xFC000 (FL_GLOB); sound, patterns 1-8, patterns 9-16,
- * the song at 0x97000.. (2 sectors each, below the user sample slots at 0xA0000); the panel
- * calibration at 0xDC000 and motion at 0xDE000 (Felucca's user-preset area, unused by X0X). Nothing
- * above 0xDFFFF: 0xE0000.. is the update loader's staging area. */
+/* flash map (plat.h OBJ_*): the settings at 0xFC000 (FL_GLOB), the panel calibration at 0xDC000
+ * (Felucca's user-preset area). X0X's sound, patterns and song (0x97000..0x9EFFF) and motion (0xDE000)
+ * are free for journeys. Nothing above 0xDFFFF: 0xE0000.. is the update loader's staging area. */
 typedef struct {
     uint32_t magic;
     uint16_t type, slot;
@@ -47,24 +46,21 @@ static uint32_t st_crc32(const void *p, uint32_t n)   /* zlib CRC-32, 4 bits per
     return ~c;
 }
 
-static uint32_t st_sector(uint32_t obj, uint32_t copy)  /* flash offset of copy A (0) / B (1) */
+#define ST_NONE 0xFFFFFFFFu
+static uint32_t st_sector(uint32_t obj, uint32_t copy)  /* flash offset of copy A (0) / B (1); ST_NONE: no such object */
 {
     if (obj == OBJ_SET)
         return 0xFC000u + copy * ST_SECTOR;
     if (obj == OBJ_PANEL)
         return 0xDC000u + copy * ST_SECTOR;
-    if (obj == OBJ_MOTION)
-        return 0xDE000u + copy * ST_SECTOR;
-    if (obj == OBJ_SONG)
-        return 0x9D000u + copy * ST_SECTOR;
-    return 0x97000u + (obj - OBJ_SOUND) * 2u * ST_SECTOR + copy * ST_SECTOR;   /* SOUND, PAT0, PAT1 */
+    return ST_NONE;
 }
 
 static uint8_t st_buf[ST_PAYLOAD_MAX] __attribute__((aligned(4)));
 
 static int st_head(uint32_t obj, uint32_t copy, st_hdr_t *h)   /* commit record valid: 0 */
 {
-    if (st_read(st_sector(obj, copy), h, sizeof *h))
+    if (st_sector(obj, copy) == ST_NONE || st_read(st_sector(obj, copy), h, sizeof *h))
         return -1;
     if (h->magic != ST_MAGIC || h->type != obj || h->len > ST_PAYLOAD_MAX ||
         h->hcrc != st_crc32(h, sizeof *h - 4u))
@@ -104,8 +100,7 @@ static int st_current(uint32_t obj, st_hdr_t *h)
     return -1;
 }
 
-/* load object into dst (up to max bytes); returns the length, or -1 (none; an empty copy, as a restore of an
- * absent object writes it (backup.c), is none too) */
+/* load object into dst (up to max bytes); returns the length, or -1 (none; an empty copy is none too) */
 static int st_load(uint32_t obj, void *dst, uint32_t max)
 {
     uint32_t i;
@@ -119,28 +114,12 @@ static int st_load(uint32_t obj, void *dst, uint32_t max)
     return (int)h.len;
 }
 
-/* the copy before the current one, if it is valid too: its length, or -1 (a stream torn across
- * objects falls back to the copies of the save before: project.c load_stream) */
-static int st_load_prev(uint32_t obj, void *dst, uint32_t max)
-{
-    uint32_t i;
-    st_hdr_t h;
-    int cur = st_current(obj, &h);
-    if (cur < 0 || st_head(obj, (uint32_t)!cur, &h) || st_body(obj, (uint32_t)!cur, &h))
-        return -1;
-    if (h.len > max)
-        h.len = max;
-    for (i = 0; i < h.len; i++)
-        ((uint8_t *)dst)[i] = st_buf[i];
-    return (int)h.len;
-}
-
 static int st_save(uint32_t obj, const void *src, uint32_t len)
 {
     uint32_t seq, base, off;
     int cur, rc;
     st_hdr_t h;
-    if (len > ST_PAYLOAD_MAX)
+    if (len > ST_PAYLOAD_MAX || st_sector(obj, 0) == ST_NONE)
         return -1;
     cur = st_current(obj, &h);
     seq = cur < 0 ? 0u : h.seq;

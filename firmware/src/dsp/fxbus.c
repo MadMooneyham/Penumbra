@@ -12,7 +12,7 @@ static const float fx_beats[13] = {
 /* ---- parameters ---- */
 enum { CV_LIN, CV_EXP, CV_SW };
 typedef struct {
-    x0x_param_t ui;
+    param_t ui;
     uint8_t curve, exp;
     float lo, hi;
 } fx_pspec_t;
@@ -29,30 +29,30 @@ static const char *const fx_onoff_names[2] = { "OFF", "ON" };
 static const fx_pspec_t fx_p[FX_NPARAMS] = {
     [FX_VOLUME]   = { { "Volume", 127, 44, 0 }, CV_LIN, 0, 0.0f, 1.0f },
     [FX_DIST]     = { { "Dist", 7, 0, fx_dist_names }, CV_SW, 0, 0.0f, 0.0f },
-    [FX_DRIVE]    = { { "Drive", 127, 41, 0 }, CV_EXP, X0X_EXP_DRIVE, 0.0f, 0.0f },
+    [FX_DRIVE]    = { { "Drive", 127, 41, 0 }, CV_EXP, DSP_EXP_DRIVE, 0.0f, 0.0f },
     [FX_COMP]     = { { "Comp", 127, 0, 0 }, CV_LIN, 0, 0.0f, 1.0f },
     [FX_RV_DECAY] = { { "RvDec", 127, 91, 0 }, CV_LIN, 0, 0.0f, 1.0f },     /* 1 .. 40 s; 91 = 14 s */
     [FX_RV_TONE]  = { { "RvTone", 127, 57, 0 }, CV_LIN, 0, 0.0f, 1.0f },
-    [FX_RV_HPF]   = { { "RvHPF", 127, 62, 0 }, CV_EXP, X0X_EXP_FX_HPF, 0.0f, 0.0f },
+    [FX_RV_HPF]   = { { "RvHPF", 127, 62, 0 }, CV_EXP, DSP_EXP_FX_HPF, 0.0f, 0.0f },
     [FX_RV_LEVEL] = { { "RvLvl", 127, 106, 0 }, CV_LIN, 0, 0.0f, 1.2f },
     [FX_DL_TIME]  = { { "DlTime", 12, 7, fx_div_names }, CV_SW, 0, 0.0f, 0.0f },
     [FX_DL_FDBK]  = { { "DlFdbk", 127, 52, 0 }, CV_LIN, 0, 0.0f, 0.85f },
     [FX_DL_TONE]  = { { "DlTone", 127, 51, 0 }, CV_LIN, 0, 0.0f, 1.0f },
     [FX_DL_LEVEL] = { { "DlLvl", 127, 85, 0 }, CV_LIN, 0, 0.0f, 1.2f },
-    [FX_DL_HPF]   = { { "DlHPF", 127, 62, 0 }, CV_EXP, X0X_EXP_FX_HPF, 0.0f, 0.0f },
+    [FX_DL_HPF]   = { { "DlHPF", 127, 62, 0 }, CV_EXP, DSP_EXP_FX_HPF, 0.0f, 0.0f },
     [FX_DL_TYPE]  = { { "DlType", 1, 0, fx_type_names }, CV_SW, 0, 0.0f, 0.0f },
     [FX_DL_WEAR]  = { { "Wear", 127, 64, 0 }, CV_LIN, 0, 0.0f, 1.0f },
     [FX_DL_PING]  = { { "Ping", 1, 0, fx_onoff_names }, CV_SW, 0, 0.0f, 0.0f },
 };
 
-static const x0x_param_t fx_ext_p[FXX_NPARAMS] = {
+static const param_t fx_ext_p[FXX_NPARAMS] = {
     [FXX_RV_SIZE] = { "Size", 127, 89, 0 },           /* 0.5 .. 1.5; 89 = 1.2 */
     [FXX_RV_MOD] = { "Mod", 127, 64, 0 },
     [FXX_RV_SHIMMER] = { "Shimmr", 127, 25, 0 },
 };
 
 int fxbus_ext_nparams(void) { return FXX_NPARAMS; }
-const x0x_param_t *fxbus_ext_param(int i) { return i >= 0 && i < FXX_NPARAMS ? &fx_ext_p[i] : 0; }
+const param_t *fxbus_ext_param(int i) { return i >= 0 && i < FXX_NPARAMS ? &fx_ext_p[i] : 0; }
 int fxbus_ext_get(const fxbus_t *f, int i) { return i >= 0 && i < FXX_NPARAMS ? f->ext_pots[i] : 0; }
 
 void fxbus_ext_set(fxbus_t *f, int i, int value)
@@ -73,7 +73,7 @@ void fxbus_ext_set(fxbus_t *f, int i, int value)
 
 int fxbus_nparams(void) { return FX_NPARAMS; }
 
-const x0x_param_t *fxbus_param(int i)
+const param_t *fxbus_param(int i)
 {
     return i >= 0 && i < FX_NPARAMS ? &fx_p[i].ui : 0;
 }
@@ -140,7 +140,7 @@ void fxbus_set(fxbus_t *f, int i, int value)
     f->pots[i] = (uint8_t)value;
     float v;
     if (s->curve == CV_EXP)
-        v = x0x_pot_exp[s->exp][value];
+        v = dsp_pot_exp[s->exp][value];
     else if (s->curve == CV_SW)
         v = (float)value;
     else
@@ -235,7 +235,7 @@ static inline float fx_psin(uint32_t ph)                 /* parabolic sine of a 
     return 4.0f * x * (1.0f - fm_fabsf(x));
 }
 
-/* the line at d samples behind w, interpolated (X0X: the ping-pong tap) */
+/* the line at d samples behind w, interpolated (the ping-pong tap) */
 static inline float dl_tap(const int16_t *buf, int32_t len, float flen, int32_t w, float d)
 {
     float rp = (float)w - d;
@@ -416,7 +416,7 @@ void fxbus_process(fxbus_t *f, const float *dry, const float *rev, const float *
         out[i] *= vol;
 }
 
-/* X0X stereo: 9W9's chain on L and R. The distortion runs on each side; the glue compressor reads
+/* Stereo: 9W9's chain on L and R. The distortion runs on each side; the glue compressor reads
  * the louder side and moves both together, so the image holds */
 void fxbus_process_st(fxbus_t *f, const float *dry_l, const float *dry_r, const float *rev, const float *dly,
                       float *out_l, float *out_r, int n)

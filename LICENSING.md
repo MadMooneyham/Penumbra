@@ -1,30 +1,20 @@
-# X0X licensing
+# Penumbra licensing
 
-X0X is free software under the GNU General Public License, version 3 only
-(`GPL-3.0-only`, full text in `LICENSE`). It is a fork of Felucca and keeps Felucca's
-licence. If you distribute X0X, or firmware derived from it, you must give your
-recipients its complete corresponding source under the same licence.
+Penumbra is free software under the GNU General Public License, version 3 only
+(`GPL-3.0-only`, full text in `LICENSE`). It is a fork of X0X (charlesvestal), itself a fork of
+Felucca, and keeps their licence. If you distribute Penumbra, or firmware derived from it, you must
+give your recipients its complete corresponding source under the same licence.
 
 ## Where the code comes from
 
 | What | Origin | Licence |
 | --- | --- | --- |
 | Platform: `firmware/hal/`, `firmware/loader/`, `firmware/src/{libc,lcd,gfx,usb,storage,ota}.c`, `tools/` (build, package, install, upload), `web/` (installer) | [Felucca](https://github.com/hugelton/Felucca), Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments; `usb.c` and `storage.c` changed for X0X | GPL-3.0-only |
-| `firmware/src/app/{slots,editor,panel,main_fm1}.c` | adapted from Felucca's `eng_sample.c`, `editor.c`, `panel.c`, `main.c` / `audio.c` | GPL-3.0-only |
-| 909 (`dsp/drum909*`, `dsp/fxbus*`) | ported from [9W9](https://github.com/athousanddetails/schwung-9W9) (athousanddetails), itself after [ER-99](https://github.com/matthewcieplak/er-99) (Matthew Cieplak) | GPL-3.0 |
-| 909 hi-hat, ride and crash samples (`assets/909/`) | ER-99 via 9W9 | GPL-3.0 |
-| 808 (`dsp/drum808*`) | ported from [8W8](https://github.com/athousanddetails/schwung-8W8) (athousanddetails); circuit models after the TR-808 service notes and Werner / Abel / Smith; rim shot after sc808 (Yoshinosuke Horiuchi / Sam Aaron) | GPL-3.0 |
-| 303 (`dsp/bass303*`) | ported from [schwung-303](https://github.com/charlesvestal/schwung-303): Open303 by Robin Schmidt (MIT), Devilfish extensions after jc303 (midilab), RAT drive after dm-Rat (Dave Mollen) | GPL-3.0 (Open303 parts MIT) |
-| TB-3PO (`seq/tb3po*`) | ported from [schwung-tb3po](https://github.com/charlesvestal/schwung-tb3po), itself a port of the Phazerville Hemisphere Suite `TB_3PO` applet (djphazer and contributors) | GPL-3.0 |
-| Break generator (`dsp/breaks*`) | ported from [schwung-breakbeat](https://github.com/mestela/schwung-breakbeat) (BB Gen) by mestela, **used with the author's permission** (that repository carries no licence file) | GPL-3.0-only here, by permission |
+| `firmware/src/app/{panel,main_fm1}.c` | adapted from Felucca's `panel.c`, `main.c` / `audio.c` | GPL-3.0-only |
+| The effects (`dsp/fxbus*`, `dsp/fxkit.h`): the tape delay and the master's distortion and glue compressor | ported from [9W9](https://github.com/athousanddetails/schwung-9W9) (athousanddetails), after [ER-99](https://github.com/matthewcieplak/er-99) (Matthew Cieplak) | GPL-3.0 |
+| The clock's external sync and clock out (`seq/clock.c`), the master (`dsp/master*`), the platform glue | X0X | GPL-3.0-only |
 | The second core's start-up and job hand-off (`firmware/hal/fm1_cpu1.*`) | X0X, after what [Melodee](https://github.com/keremimo/melodee) (keremimo)'s dual-core audio found, with [Jangada](https://github.com/zednaked/jangada) (zednaked)'s measurements and mailbox layout | GPL-3.0-only |
-| The idea of a browser emulator for FM-1 firmware (`web/emu/`) | [Groove OS](https://www.groove-os.com/) by Peter Gombos, whose site runs its firmware in the browser; no code from it | credit only |
-| Everything else in `firmware/src/{app,dsp,seq}`, `host/`, `tests/` | X0X | GPL-3.0-only |
-
-No recorded breaks are in this tree or in the default firmware: the built-in break loops are
-generated at build time by X0X's own 909 code. `tools/import_breaks.py`,
-`tools/gen_break_bank.py` (`X0X_BREAK_BANK`) and `tools/upload_breaks.py` can put recordings
-of your choosing into a build or onto a device; those recordings keep their own copyright.
+| Everything else in `firmware/src/{app,dsp,seq}`, `host/`, `tests/` | Penumbra (Lunar Eclipse Forge), on X0X's | GPL-3.0-only |
 
 ## Felucca Assets
 
@@ -44,10 +34,10 @@ permission concerns those assets only, so it is not needed here.
 ## Trademarks
 
 "Felucca" and "Hügelton Instruments" are names of Hügelton Instruments. "M-VAVE" and
-"FM-1" are trademarks of their respective owners. TR-808, TR-909 and TB-303 are
-trademarks of Roland Corporation, used only to describe what the parts emulate. X0X is
-independent firmware; it is not affiliated with, endorsed by or supported by any of them.
+"FM-1" are trademarks of their respective owners. ELTA Solar 42 is named only to describe the
+sound Penumbra aims for. Penumbra is independent firmware; it is not affiliated with, endorsed by or
+supported by any of them.
 
 ## Radio
 
-X0X never enables the Bluetooth / Wi-Fi radio of the hardware.
+Penumbra, like X0X and Felucca, never enables the Bluetooth / Wi-Fi radio of the hardware.

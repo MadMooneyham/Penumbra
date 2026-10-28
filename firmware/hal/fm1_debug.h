@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Register access for development builds (X0X_DEBUG=1; the app's editor.c PEEK / POKE / CLOCK
+/* Register access for development builds (PEN_DEBUG=1; the app's editor.c PEEK / POKE / CLOCK
  * commands): word reads and writes inside a few ranges only (a stray read of a gated block could
  * fault), and a fixed loop timed against the 24 MHz TIMER4 with IRQs off. */
 #pragma once

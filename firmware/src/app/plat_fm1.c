@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* X0X platform on the FM-1: plat.h over Felucca's HAL, panel map, USB rings and storage.
- * Part of the unity build (x0x.c), after the HAL, usb.c, storage.c and panel.c. */
+/* Penumbra's platform on the FM-1: plat.h over Felucca's HAL, panel map, USB rings and storage.
+ * Part of the unity build (penumbra.c), after the HAL, usb.c, storage.c and panel.c. */
 
 uint32_t plat_ms(void) { return fm1_ms; }
 
@@ -56,7 +56,7 @@ static void led_pos_init(void)
 static uint8_t glow_on = 1;
 void plat_glow(int on) { glow_on = (uint8_t)(on != 0); }
 /* PLAY has two LEDs: its red at the button's own position, a green at the keyless matrix position
- * column 8, row PA5 (found on the device). Green, unless recording. */
+ * column 8, row PA5 (found on the device). Green, unless asked for red. */
 static uint8_t play_red;
 void plat_play_red(int red) { play_red = (uint8_t)(red != 0); }
 static uint32_t keys_dim;
@@ -98,27 +98,16 @@ void plat_midi_out(uint32_t pkt) { midi_out_event(pkt); }
 
 int plat_store_load(uint32_t obj, void *dst, uint32_t max) { return flash_ok ? st_load(obj, dst, max) : -1; }
 int plat_store_save(uint32_t obj, const void *src, uint32_t len) { return flash_ok ? st_save(obj, src, len) : -9; }
-int plat_store_load_prev(uint32_t obj, void *dst, uint32_t max) { return flash_ok ? st_load_prev(obj, dst, max) : -1; }
-
-int plat_slot_zones(int k) { return (k >= 0 && k < SMP_USER_SLOTS) ? usr_nz[k] : 0; }
-
-const uint8_t *plat_slot(int k, int z, uint32_t *nsamples, uint32_t *rate, char name[9])
-{
-    const smp_user_hdr_t *h;
-    uint32_t i;
-    if (k < 0 || k >= SMP_USER_SLOTS || z < 0 || z >= usr_nz[k])
-        return 0;
-    h = (const smp_user_hdr_t *)smp_user_xip((uint32_t)k);
-    for (i = 0; i < 8u; i++)
-        name[i] = h->name[i] >= 32 && h->name[i] < 127 ? h->name[i] : 0;
-    name[8] = 0;
-    *nsamples = h->zone[z].n;
-    *rate = (h->zone[z].rate * 44100u + 32768u) >> 16;
-    return smp_user_xip((uint32_t)k) + SMP_USER_DATA + h->zone[z].off;
-}
 
 static volatile uint32_t audio_cpu_pct, audio_xruns, audio_peak_pct;
 uint32_t plat_cpu_pct(void) { return audio_cpu_pct; }
+uint32_t plat_cpu_peak_pct(void)
+{
+    uint32_t p = audio_peak_pct;
+    audio_peak_pct = 0;
+    return p;
+}
+uint32_t plat_xruns(void) { return audio_xruns; }
 
 int plat_cpu2_set(int on)
 {
@@ -144,9 +133,7 @@ int plat_cpu2_run(void (*fn)(uint32_t), uint32_t arg) { return fm1_cpu1_run(fn, 
 int plat_cpu2_wait(void) { return fm1_cpu1_wait(); }
 int plat_cpu2_gave_up(void) { return fm1_c1_gave_up; }
 uint32_t plat_cpu2_bad(void) { return fm1_c1_mb.bad; }
-uint8_t plat_vdc14_level, plat_sysvdd_level;    /* main_fm1.c, at start */
-int plat_vdc14_mv(void) { return 1250 + 50 * plat_vdc14_level; }
-int plat_sysvdd_mv(void) { return 930 + 30 * plat_sysvdd_level; }
+int plat_cpu2_barred(void) { return fm1_c1_bar.magic == FM1_C1_BAR_MAGIC && fm1_c1_bar.barred == 1u; }
 int plat_last_crash(uint32_t v[5])                   /* fm1_crash (.noinit): a warm reset keeps it, power-off clears it */
 {
     if (fm1_crash.magic != FM1_CRASH_MAGIC)
@@ -154,15 +141,30 @@ int plat_last_crash(uint32_t v[5])                   /* fm1_crash (.noinit): a w
     v[0] = fm1_crash.vec, v[1] = fm1_crash.pc, v[2] = fm1_crash.emu, v[3] = fm1_crash.dbg, v[4] = fm1_crash.rets;
     return 1;
 }
-int plat_cpu2_barred(void) { return fm1_c1_bar.magic == FM1_C1_BAR_MAGIC && fm1_c1_bar.barred == 1u; }
-uint32_t plat_xruns(void) { return audio_xruns; }
 
-static int perf_cyc_ok, perf_stalls_on;
-void plat_perf_init(void) { perf_cyc_ok = fm1_perf_cycles_run(); }
-uint32_t plat_cycles(void) { return perf_cyc_ok ? fm1_perf_cycles() : fm1_ticks(); }
-int plat_cycles_cpu(void) { return perf_cyc_ok; }
-uint32_t plat_cycles_hz(void) { return 24000000u; }   /* the timer; the CPU's rate is measured */
 uint32_t plat_ticks24(void) { return fm1_ticks(); }
+
+/* the CPU's clock: its cycle counter against the 24 MHz timer since boot (perf_init); 0 when the
+ * counter does not run (fm1_perf.h: not verified on every unit) */
+static int perf_cyc_ok;
+static uint32_t perf_c0, perf_t0, perf_mhz10;
+static void plat_perf_init(void)
+{
+    perf_cyc_ok = fm1_perf_cycles_run();
+    perf_c0 = fm1_perf_cycles();
+    perf_t0 = fm1_ticks();
+}
+uint32_t plat_cpu_mhz10(void)                        /* main loop: windows of a second or more */
+{
+    uint32_t t = fm1_ticks(), c = fm1_perf_cycles(), dt = t - perf_t0;
+    if (!perf_cyc_ok || dt < 24000000u)
+        return perf_mhz10;
+    perf_mhz10 = (c - perf_c0) / (dt / 240u);        /* cycles per 10 us (32-bit: no __udivdi3) */
+    perf_c0 = c;
+    perf_t0 = t;
+    return perf_mhz10;
+}
+
 /* the interrupts' stack (fm1_guard.h): filled with a mark before any interrupt runs (irq_stack_mark,
  * fm1_cstart), so the deepest point reached is the lowest word no longer marked */
 #define IRQ_STACK_MARK 0x49525153u                  /* "IRQS" */
@@ -182,23 +184,4 @@ uint32_t plat_irq_stack_used(void)
     while (p < top && *p == IRQ_STACK_MARK)
         p++;
     return (uint32_t)((const char *)top - (const char *)p);
-}
-
-uint32_t plat_cpu_peak_pct(void)
-{
-    uint32_t p = audio_peak_pct;
-    audio_peak_pct = 0;
-    return p;
-}
-int plat_stalls(uint32_t s[3])
-{
-    if (!perf_stalls_on)
-        return -1;
-    fm1_perf_stalls(s);
-    return 0;
-}
-void plat_stalls_enable(int on)
-{
-    perf_stalls_on = on;
-    fm1_perf_stalls_enable(on);
 }

@@ -28,9 +28,9 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
         nor[off + i] &= s[i];
     return 0;
 }
-#include "../firmware/src/app/plat.h"     /* X0X: the object map */
+#include "../firmware/src/app/plat.h"     /* the object map */
 #include "../firmware/src/storage.c"
-#define OBJ_PROJECT0 OBJ_SOUND                 /* the test's three data objects: SOUND, PAT0, PAT1 */
+#define OBJ_DATA OBJ_PANEL                      /* the test's data object */
 #define OBJ_SETTINGS OBJ_SET
 
 static int check(const char *what, int ok)
@@ -46,66 +46,63 @@ int main(void)
     memset(nor, 0xFF, sizeof nor);
     memset(a, 'A', sizeof a);
     memset(b, 'B', sizeof b);
-    bad += check("empty flash loads nothing", st_load(OBJ_PROJECT0, got, sizeof got) < 0);
-    bad += check("save A", st_save(OBJ_PROJECT0, a, sizeof a) == 0);
-    n = st_load(OBJ_PROJECT0, got, sizeof got);
+    bad += check("empty flash loads nothing", st_load(OBJ_DATA, got, sizeof got) < 0);
+    bad += check("save A", st_save(OBJ_DATA, a, sizeof a) == 0);
+    n = st_load(OBJ_DATA, got, sizeof got);
     bad += check("load returns A", n == (int)sizeof a && !memcmp(got, a, sizeof a));
-    bad += check("save B", st_save(OBJ_PROJECT0, b, sizeof b) == 0);
-    n = st_load(OBJ_PROJECT0, got, sizeof got);
+    bad += check("save B", st_save(OBJ_DATA, b, sizeof b) == 0);
+    n = st_load(OBJ_DATA, got, sizeof got);
     bad += check("load returns B (newer seq)", n == (int)sizeof b && !memcmp(got, b, sizeof b));
     fail_after = 1;                                  /* payload page 1 written, the rest torn */
-    st_save(OBJ_PROJECT0, a, sizeof a);
+    st_save(OBJ_DATA, a, sizeof a);
     fail_after = -1;
-    n = st_load(OBJ_PROJECT0, got, sizeof got);
+    n = st_load(OBJ_DATA, got, sizeof got);
     bad += check("torn save keeps B", n == (int)sizeof b && !memcmp(got, b, sizeof b));
     fail_after = 3;                                  /* all payload pages, header torn */
-    st_save(OBJ_PROJECT0, a, sizeof a);
+    st_save(OBJ_DATA, a, sizeof a);
     fail_after = -1;
-    n = st_load(OBJ_PROJECT0, got, sizeof got);
+    n = st_load(OBJ_DATA, got, sizeof got);
     bad += check("header not written keeps B", n == (int)sizeof b && !memcmp(got, b, sizeof b));
-    bad += check("save A again", st_save(OBJ_PROJECT0, a, sizeof a) == 0);
-    n = st_load(OBJ_PROJECT0, got, sizeof got);
+    bad += check("save A again", st_save(OBJ_DATA, a, sizeof a) == 0);
+    n = st_load(OBJ_DATA, got, sizeof got);
     bad += check("load returns A", n == (int)sizeof a && !memcmp(got, a, sizeof a));
-    n = st_load_prev(OBJ_PROJECT0, got, sizeof got);
-    bad += check("the copy before A is B", n == (int)sizeof b && !memcmp(got, b, sizeof b));
-    bad += check("no copy before on an empty object", st_load_prev(OBJ_MOTION, got, sizeof got) < 0);
-    nor[st_sector(OBJ_PROJECT0, 0) + ST_PAYLOAD_OFF + 10] ^= 0x01;   /* bit rot in one copy */
-    nor[st_sector(OBJ_PROJECT0, 1) + ST_PAYLOAD_OFF + 10] ^= 0x01;
-    n = st_load(OBJ_PROJECT0, got, sizeof got);
+    nor[st_sector(OBJ_DATA, 0) + ST_PAYLOAD_OFF + 10] ^= 0x01;   /* bit rot in one copy */
+    nor[st_sector(OBJ_DATA, 1) + ST_PAYLOAD_OFF + 10] ^= 0x01;
+    n = st_load(OBJ_DATA, got, sizeof got);
     bad += check("both copies corrupt -> nothing", n < 0);
-    bad += check("other objects untouched", st_load(OBJ_PROJECT0 + 1, got, sizeof got) < 0);
+    bad += check("other objects untouched", st_load(OBJ_SETTINGS, got, sizeof got) < 0);
+    bad += check("no such object: not saved", st_save(1, a, 16) < 0 && st_load(1, got, sizeof got) < 0);
     bad += check("settings save/load",
                  st_save(OBJ_SETTINGS, "hello", 5) == 0 && st_load(OBJ_SETTINGS, got, 5) == 5 && !memcmp(got, "hello", 5));
     bad += check("CRC-32 is zlib's (check value 0xCBF43926)", st_crc32("123456789", 9) == 0xCBF43926u);
     memset(nor, 0xFF, sizeof nor);
-    st_save(OBJ_PROJECT0 + 2, a, sizeof a);
-    st_save(OBJ_PROJECT0 + 2, b, sizeof b);              /* B is newer, in the other copy */
+    st_save(OBJ_DATA, a, sizeof a);
+    st_save(OBJ_DATA, b, sizeof b);              /* B is newer, in the other copy */
     {
         st_hdr_t h;
-        int cur = st_current(OBJ_PROJECT0 + 2, &h);
-        nor[st_sector(OBJ_PROJECT0 + 2, (uint32_t)cur) + ST_PAYLOAD_OFF + 300] ^= 0x10;   /* rot in the newer copy */
+        int cur = st_current(OBJ_DATA, &h);
+        nor[st_sector(OBJ_DATA, (uint32_t)cur) + ST_PAYLOAD_OFF + 300] ^= 0x10;   /* rot in the newer copy */
     }
-    n = st_load(OBJ_PROJECT0 + 2, got, sizeof got);
+    n = st_load(OBJ_DATA, got, sizeof got);
     bad += check("newer copy rotten -> the older one loads", n == (int)sizeof a && !memcmp(got, a, sizeof a));
-    bad += check("save over the rotten copy", st_save(OBJ_PROJECT0 + 2, b, sizeof b) == 0);
-    n = st_load(OBJ_PROJECT0 + 2, got, sizeof got);
+    bad += check("save over the rotten copy", st_save(OBJ_DATA, b, sizeof b) == 0);
+    n = st_load(OBJ_DATA, got, sizeof got);
     bad += check("... loads the new data", n == (int)sizeof b && !memcmp(got, b, sizeof b));
-    nor[st_sector(OBJ_PROJECT0 + 2, 0) + 8] ^= 0x01;    /* both headers broken */
-    nor[st_sector(OBJ_PROJECT0 + 2, 1) + 8] ^= 0x01;
-    bad += check("both headers broken -> nothing", st_load(OBJ_PROJECT0 + 2, got, sizeof got) < 0);
-    {   /* X0X map: every object in a data region, none in the sample slots (0xA0000..0xDBFFF), no overlaps */
-        uint32_t o, p, ok = 1;
-        for (o = 0; o < OBJ_NOBJ; o++) {
-            uint32_t a0 = st_sector(o, 0), a1 = st_sector(o, 1) + 4096;
-            int in_data = (a0 >= 0x97000 && a1 <= 0xA0000) || (a0 >= 0xDC000 && a1 <= 0xE0000) ||
-                          (a0 >= 0xFC000 && a1 <= 0xFF000);
+    nor[st_sector(OBJ_DATA, 0) + 8] ^= 0x01;    /* both headers broken */
+    nor[st_sector(OBJ_DATA, 1) + 8] ^= 0x01;
+    bad += check("both headers broken -> nothing", st_load(OBJ_DATA, got, sizeof got) < 0);
+    {   /* the map: each object in a data region, its two copies side by side, no overlaps */
+        static const uint32_t O[2] = {OBJ_SET, OBJ_PANEL};
+        uint32_t o, ok = 1;
+        for (o = 0; o < 2; o++) {
+            uint32_t a0 = st_sector(O[o], 0), a1 = st_sector(O[o], 1) + 4096;
+            int in_data = (a0 >= 0xDC000 && a1 <= 0xE0000) || (a0 >= 0xFC000 && a1 <= 0xFF000);
             if (!in_data || a1 - a0 != 8192)
                 ok = 0;
-            for (p = 0; p < o; p++)
-                if (a0 < st_sector(p, 1) + 4096 && st_sector(p, 0) < a1)
-                    ok = 0;
         }
-        bad += check("objects in data regions, clear of the sample slots", (int)ok);
+        if (st_sector(OBJ_SET, 0) < st_sector(OBJ_PANEL, 1) + 4096 && st_sector(OBJ_PANEL, 0) < st_sector(OBJ_SET, 1) + 4096)
+            ok = 0;
+        bad += check("objects in data regions, apart", (int)ok);
     }
     printf("%s\n", bad ? "STORAGE TEST FAILED" : "storage test passed");
     return bad != 0;

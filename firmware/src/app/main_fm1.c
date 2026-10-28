@@ -1,15 +1,16 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Boot, audio ISR and main loop adapted from Felucca's main.c / audio.c, Copyright (C) 2026
  * Leo Kuroshita (@kurogedelic), Hugelton Instruments. */
-/* X0X on the FM-1: boot (WDT first, boot-loop guard, guards), LCD, input (TIMER5 10 kHz),
+/* Penumbra on the FM-1: boot (WDT first, boot-loop guard, guards), LCD, input (TIMER5 10 kHz),
  * audio (ALNK0), USB; then the main loop: UI at ~60 frames/s, input polled in between. */
 extern uint32_t _data_start[], _data_end[], _data_load[], _bss_start[], _bss_end[];
 extern uint32_t _pool_start[], _pool_end[], _rt_start[], _rt_end[], _rt_load[], _c1_start[], _c1_end[], _c1_load[];
 
 /* --------------------------------------------------------------- audio --- */
-/* X0X: 512-frame halves (11.6 ms; Felucca 256). The render runs inside the DMA's deadline, and a
+/* 512-frame halves (11.6 ms; Felucca 256). The render runs inside the DMA's deadline, and a
  * busy pattern averaging ~80 % ran over it about one half in 300 (a heavy step): a dropped half.
  * Twice the half averages a heavy step over twice the time, for one more half of latency. */
+#define FS 44100u
 #define HALF_FRAMES 512u                    /* I2S half buffer: 11.6 ms at 44.1 kHz */
 #define HALF_WORDS (HALF_FRAMES * 2u)
 #define REND_FRAMES 256u                    /* engine_render's most per call */
@@ -19,26 +20,17 @@ _Static_assert(REND_FRAMES == UA_HALF, "usb.c sizes the USB audio ring band for 
 static int32_t abuf[2u * HALF_WORDS] __attribute__((aligned(4)));
 
 #define DBG_MAGIC 0x44424731u                       /* "DBG1": read with `fm1t memr` */
-struct x0x_dbg {
+struct pen_dbg {
     uint32_t magic, halves, max_us, nested, in_audio, late, timer_irqs, ui_frames;
     uint32_t last_us, cpu_q8, boots, stage;
     uint32_t crash_seen;                            /* the crash count already reported at a boot */
-} x0x_dbg __attribute__((section(".noinit")));
-static uint8_t safe_mode;
-#if X0X_DEBUG
-/* development: the slowest block since boot, taken apart (read over USB: tools/fm1_debug.py) */
-extern volatile uint32_t eng_dbg_wait, eng_dbg_nsub;
-extern uint8_t plat_vdc14_level, plat_sysvdd_level;   /* plat_fm1.c: PERF's supplies */
-static volatile uint32_t dbg_tmr;                   /* 24 MHz ticks of TIMER5 nested in the render */
-struct x0x_worst_s {
-    uint32_t magic, us, wait, tmr, nsub, half_no, over90, over100, blocks, late_in;
-} x0x_worst;
-#endif                           /* two failed boots: no audio, USB on (safe_main) */
+} pen_dbg __attribute__((section(".noinit")));
+static uint8_t safe_mode;                           /* two failed boots: no audio, USB on (safe_main) */
 
 static void render_block(int32_t *o)                /* ALNK0: one half, measured */
 {
     uint32_t t0 = fm1_ticks(), us, budget = HALF_FRAMES * 1000000u / FS;
-    x0x_dbg.in_audio = 1;
+    pen_dbg.in_audio = 1;
 #if FELUCCA_UAC
     uac_render_start();
 #endif
@@ -53,33 +45,16 @@ static void render_block(int32_t *o)                /* ALNK0: one half, measured
         }
     }
     us = (fm1_ticks() - t0) / FM1_TICKS_PER_US;
-#if X0X_DEBUG
-    x0x_worst.magic = 0x57525354u;                  /* "WRST" */
-    x0x_worst.blocks++;
-    if (us * 100u > budget * 90u)
-        x0x_worst.over90++;
-    if (us > budget)
-        x0x_worst.over100++;
-    if (us > x0x_worst.us) {
-        x0x_worst.us = us;
-        x0x_worst.wait = eng_dbg_wait;
-        x0x_worst.tmr = dbg_tmr;
-        x0x_worst.nsub = eng_dbg_nsub;
-        x0x_worst.half_no = x0x_dbg.halves;
-    }
-    eng_dbg_wait = eng_dbg_nsub = 0;
-    dbg_tmr = 0;
-#endif
-    x0x_dbg.cpu_q8 = (x0x_dbg.cpu_q8 * 15u + (us * 256u) / budget) / 16u;
-    audio_cpu_pct = (x0x_dbg.cpu_q8 * 100u) >> 8;
+    pen_dbg.cpu_q8 = (pen_dbg.cpu_q8 * 15u + (us * 256u) / budget) / 16u;
+    audio_cpu_pct = (pen_dbg.cpu_q8 * 100u) >> 8;
     if (us * 100u / budget > audio_peak_pct)
         audio_peak_pct = us * 100u / budget;        /* the PERF screen's peak (read and reset) */
     engine_load(us * 100u / budget, HALF_FRAMES);
-    x0x_dbg.halves++;
-    x0x_dbg.last_us = us;
-    if (us > x0x_dbg.max_us)
-        x0x_dbg.max_us = us;
-    x0x_dbg.in_audio = 0;
+    pen_dbg.halves++;
+    pen_dbg.last_us = us;
+    if (us > pen_dbg.max_us)
+        pen_dbg.max_us = us;
+    pen_dbg.in_audio = 0;
 }
 
 void fm1_alnk0_irq(void)                            /* via isr_alnk0 (hal/fm1_isr.S) */
@@ -91,10 +66,7 @@ void fm1_alnk0_irq(void)                            /* via isr_alnk0 (hal/fm1_is
         render_block(&abuf[half * HALF_WORDS]);
         fm1_audio_ack_half();
         if (fm1_audio_free_half() != half) {
-#if X0X_DEBUG
-            x0x_worst.late_in++;
-#endif
-            x0x_dbg.late++;                         /* the DMA moved on while we rendered */
+            pen_dbg.late++;                         /* the DMA moved on while we rendered */
             audio_xruns++;
         }
     }
@@ -121,13 +93,10 @@ static uint8_t usb_due;
 void fm1_timer5_irq(void)
 {
     static uint32_t sub;
-#if X0X_DEBUG
-    uint32_t tt0 = fm1_ticks();
-#endif
     fm1_timer5_ack();
-    x0x_dbg.timer_irqs++;
-    if (x0x_dbg.in_audio)
-        x0x_dbg.nested++;
+    pen_dbg.timer_irqs++;
+    if (pen_dbg.in_audio)
+        pen_dbg.nested++;
     fm1_input_tick();
     /* 2 kHz: all USB SIE traffic lives here. This ISR now nests into the audio render (so the key
      * matrix keeps its rhythm, below); USB shares the MIDI queues with the audio ISR, so a poll that
@@ -138,14 +107,14 @@ void fm1_timer5_irq(void)
         /* the USB audio stream cannot wait for the render (one packet per 1 ms frame, a render takes
          * up to ~11.6 ms): it runs nested too. It touches only EP4 (INDEX is set on every access) and
          * the consumer side of its ring, and usb_poll never runs nested, so the two never interleave */
-        if (x0x_dbg.in_audio)
+        if (pen_dbg.in_audio)
             uac_service();
 #endif
     }
-    if (usb_due && !x0x_dbg.in_audio) {
+    if (usb_due && !pen_dbg.in_audio) {
         usb_due = 0;
         usb_poll();
-#if X0X_TRS
+#if PEN_TRS
         uart_midi_poll();                           /* the TRS jack: same context, same queue */
 #endif
     }
@@ -161,16 +130,12 @@ void fm1_timer5_irq(void)
             fm1_ms++;
         }
     }
-#if X0X_DEBUG
-    if (x0x_dbg.in_audio)
-        dbg_tmr += fm1_ticks() - tt0;
-#endif
 }
 extern void isr_timer5(void);
 
 /* ------------------------------------------------------------- boot --- */
 #define BOOTGUARD_MAGIC 0x42475244u
-struct bootguard_s bootguard __attribute__((section(".noinit")));   /* declared in x0x.c (ota_commit) */
+struct bootguard_s bootguard __attribute__((section(".noinit")));   /* declared in penumbra.c (ota_commit) */
 
 static void hexs(char *b, uint32_t v)
 {
@@ -217,9 +182,9 @@ static void enter_uboot(const char *why)
     fm1_enter_uboot();
 }
 
-/* SAFE MODE: X0X crashed (or hung) twice while starting. Nothing that makes sound runs: no audio,
- * no engine, no UI; USB is on, so the web installer (X0X, or the stock firmware) and M-UPGRADE can
- * reach it. PLAY tries X0X again. The chip's own update mode stays the last resort (fm1_cstart). */
+/* SAFE MODE: Penumbra crashed (or hung) twice while starting. Nothing that makes sound runs: no audio,
+ * no engine, no UI; USB is on, so the web installer (Penumbra, or the stock firmware) and M-UPGRADE can
+ * reach it. PLAY tries Penumbra again. The chip's own update mode stays the last resort (fm1_cstart). */
 static void safe_main(void)
 {
     char b[24];
@@ -255,14 +220,14 @@ static void safe_main(void)
         if (bootguard.pending && fm1_ms - t0 > 10000u)
             bootguard.pending = 0;                  /* safe mode itself is up: not another failed boot */
         if ((fm1_in.buttons & play) && fm1_ms - t0 > 500u) {
-            bootguard.failed = 0;                   /* try X0X again, from scratch */
+            bootguard.failed = 0;                   /* try again, from scratch */
             bootguard.pending = 0;
             draw_text_box(0, 172, 240, &FONT_S, "STARTING " FW_NAME "...", C_HI, 1);
             usb_detach();
             fm1_delay_ms(30);
             fm1_reboot();
         }
-        if ((fm1_in.buttons & both) != both)        /* OCT- + OCT+ held 5 s: the chip's update mode, as in X0X
+        if ((fm1_in.buttons & both) != both)        /* OCT- + OCT+ held 5 s: the chip's update mode, as in Felucca
                                                      * (fm1-x0x#20: with USB gone, the only way left) */
             t_oct = fm1_ms;
         else if (fm1_ms - t_oct > 5000u)
@@ -278,140 +243,30 @@ static void safe_main(void)
     }
 }
 
-/* ------------------------------------------------- backup and restore --- */
-/* backup.c's hooks: the project to a file and back over USB (tools/x0x_backup.py, web/backup/index.html) */
-#if X0X_DEBUG
-uint32_t rs_auto;                                   /* development: 1 answers the question yes, 2 no (fm1_debug poke) */
-#endif
-static int rs_fetch(uint32_t addr, uint8_t *dst, uint32_t n) { return ota_read(addr, dst, n); }
-static int rs_note(uint32_t addr)                   /* (past the question: no session deadline, 3 tries) */
-{
-    uint8_t b[8];
-    ota_deadline = 0;
-    return ota_read(addr, b, 8);
-}
-static int rs_playing(void) { return seq.playing || seq.req_stop; }
-static void rs_begin(void)                          /* a backup is coming: patient now (5 s a read, 2 min in all) */
-{
-    ota_try_ms = 5000u;
-    ota_deadline = ota_now_ms() + 120000u;
-}
-static void rs_show(uint32_t pct)
-{
-    char b[8];
-    uint32_t i = 0;
-    if (pct >= 100u)
-        b[i++] = '1';
-    if (pct >= 10u)
-        b[i++] = (char)('0' + pct / 10u % 10u);
-    b[i++] = (char)('0' + pct % 10u);
-    b[i++] = '%';
-    b[i] = 0;
-    if (!pct)
-        lcd_fill(0, 0, 240, 240, C_BLACK);
-    draw_text_box(0, 92, 240, &FONT_B, "RESTORE FROM USB", C_WHITE, 1);
-    draw_text_box(0, 124, 240, &FONT_S, b, C_HI, 1);
-}
-static int rs_ask(void)                             /* SEL yes, HOME no; playing or 60 s: no */
-{
-    uint32_t t0 = fm1_ms, was = plat_buttons(), sel = 1u << B_SEL, home = 1u << B_HOME;
-    int yes = -1;
-    lcd_fill(0, 0, 240, 240, C_BLACK);
-    draw_text_box(0, 64, 240, &FONT_B, "RESTORE FROM USB?", C_WHITE, 1);
-    draw_text_box(0, 92, 240, &FONT_S, "REPLACES THE PROJECT:", C_GRAY, 1);
-    draw_text_box(0, 112, 240, &FONT_S, "SOUND, PATTERNS, SONG", C_GRAY, 1);
-    draw_text_box(0, 150, 240, &FONT_B, "SEL  YES      HOME  NO", C_HI, 1);
-    while (yes < 0 && fm1_ms - t0 < 60000u) {
-        uint32_t b = plat_buttons(), down = b & ~was;
-        fm1_wdt_feed();
-        was = b;
-        if (down & sel)
-            yes = 1;
-        else if ((down & home) || rs_playing())
-            yes = 0;
-#if X0X_DEBUG
-        if (rs_auto)
-            yes = rs_auto == 1u;
-#endif
-    }
-    for (t0 = fm1_ms; plat_buttons() && fm1_ms - t0 < 3000u;)
-        fm1_wdt_feed();                             /* let go first: the UI must not take the press as its own */
-    return yes > 0;
-}
-static void rs_reload(void) { app_restored(); }
-static int rs_rec_erase(void) { return ota_erase(RS_REC); }
-static int rs_rec_prog(uint32_t off, const void *src, uint32_t n) { return ota_prog(RS_REC + off, src, n); }
-static int rs_rec_read(uint32_t off, void *dst, uint32_t n) { return ota_fread(RS_REC + off, dst, n); }
-static int bu_room(void)                            /* the SysEx ring empty: a frame goes in whole; -1: USB gone */
-{
-    if (!usb.config || usb.suspended)
-        return -1;
-    return so_w == so_r;
-}
-static int bu_send(const uint8_t *p, uint32_t n) { return ota_wire_send(p, n); }
-static void bu_flush(void) { ui_flush(); }
-static int bu_unsaved(void) { return ui_dirty(); }
-static void bu_hold(int on) { ui_hold_saves(on); }
-
-/* the main loop: the host's backup and restore requests (ota.c's framing; ota_service hands them over) */
-static void backup_service(uint32_t req)
-{
-    if (req == 11u && ota_dec[2] == BU_REQ && bu_rd32(ota_dec + 6) == BU_MAGIC && flash_ok)
-        bu_start();                                 /* a backup to the host: streamed by bu_step, playing on */
-    bu_step();
-    if (req == 15u && ota_dec[2] == RS_REQ && flash_ok) {
-        uint32_t len = ota_rd32(ota_dec + 6), crc = ota_rd32(ota_dec + 10);
-        int begun = 0, rc;
-        if (bu.on)
-            bu_stop();                              /* (a backup streaming: given up) */
-        ota_try_ms = 300u;                          /* its head first: a host that does not answer costs a second */
-        ota_deadline = ota_now_ms() + 3000u;
-        rc = restore_rx(len, crc, &begun);
-        ota_try_ms = 5000u;
-        ota_deadline = 0;
-        if (begun && rc)
-            ui_redraw();                            /* (restored: app_restored drew it all again) */
-        (rc ? ui_warn : ui_say)(!rc ? "RESTORED FROM USB" : rc == RS_E_PLAYING ? "STOP FIRST, THEN RESTORE"
-                                : rc == RS_E_NO ? "NOT RESTORED" : "RESTORE FAILED", 0);
-#if X0X_DEBUG
-        rs_auto = 0;
-#endif
-    }
-}
-
 static void fm1_main(void)
 {
     int32_t knob = 512 * 16;
-    uint32_t last_frame = 0, k;
-    uint8_t last_pat = 0xFF;
+    uint32_t last_frame = 0;
     {
         uint32_t f = irq_save();
         fm1_vdc14_raise(7);                         /* M-VAVE's own supplies before anything loads them: */
         fm1_sysvdd_raise(15);                       /* 1.60 V, then 1.38 V (fm1_sys.h) */
-        plat_vdc14_level = (uint8_t)fm1_vdc14();
-        plat_sysvdd_level = (uint8_t)fm1_sysvdd();
         flash_ok = FL_FAR(fl_jedec_ram)() == 0x856014u;   /* the expected 1 MiB part, else RAM only */
         irq_restore(f);
-        if (flash_ok) {
-            rs_boot();                              /* a restore's commit cut short by a power loss: finished */
-            fl_plain_window_init();                 /* user sample slots read as plaintext through XIP */
-            for (k = 0; k < SMP_USER_SLOTS; k++)
-                smp_user_scan(k);
+        if (flash_ok)
             ota_boot_cleanup();
-        }
     }
     lcd_init();
-    palette_set(0);
     draw_splash(FW_NAME, "LUNAR ECLIPSE FORGE");
-    if (x0x_dbg.magic != DBG_MAGIC) {
-        memset(&x0x_dbg, 0, sizeof x0x_dbg);
-        x0x_dbg.magic = DBG_MAGIC;
+    if (pen_dbg.magic != DBG_MAGIC) {
+        memset(&pen_dbg, 0, sizeof pen_dbg);
+        pen_dbg.magic = DBG_MAGIC;
     }
     if (safe_mode)
         safe_main();                                /* never returns */
-    if (fm1_crash.magic == FM1_CRASH_MAGIC && fm1_crash.count != x0x_dbg.crash_seen) {
+    if (fm1_crash.magic == FM1_CRASH_MAGIC && fm1_crash.count != pen_dbg.crash_seen) {
         char b[16];                                 /* a crash since the last boot: say so, a moment */
-        x0x_dbg.crash_seen = fm1_crash.count;
+        pen_dbg.crash_seen = fm1_crash.count;
         b[0] = 'P';
         b[1] = 'C';
         b[2] = ' ';
@@ -423,33 +278,28 @@ static void fm1_main(void)
         fm1_delay_ms(2500);
         fm1_wdt_feed();
     }
-    x0x_dbg.boots++;
-    x0x_dbg.max_us = 0;
+    pen_dbg.boots++;
+    pen_dbg.max_us = 0;
     fm1_input_init();
     fm1_adc_init();
     panel_init();
     led_pos_init();
     plat_perf_init();
-    engine_init(proj.pat, &proj.arr.song, proj.arr.lane, &proj.sound);
-    if (project_load() != 0)
-        project_defaults();                         /* nothing saved yet (or another format) */
-    engine_apply_sound(&proj.sound);
-    seq.bpm = (float)proj.set.bpm_x10 / 10.0f;
-    seq.accent_q7 = proj.set.accent_q7;
-    project_apply_io();                             /* clock and notes out, the MIDI channels, the output */
-    engine_brk_loops();
-    if (plat_cpu2_barred() && !proj.set.one_core) { /* it crashed (or was given up) with two cores: one from now on */
-        proj.set.one_core = 1;
-        project_save_settings();                    /* written now, on one core, not in the session that crashed;
-                                                     * GLO > 2ND CORE turns it back on */
+    engine_init();
+    settings_load();                                /* (nothing saved yet, or another firmware's: the defaults) */
+    settings_apply();
+    if (plat_cpu2_barred() && !cfg.one_core) {      /* it crashed (or was given up) with two cores: one from now on */
+        cfg.one_core = 1;
+        settings_save();                            /* written now, on one core, not in the session that crashed;
+                                                     * SYSTEM > 2ND CORE turns it back on */
     }
-    if (!proj.set.one_core && !bootguard.failed)    /* after a failed start, one core (as Melodee) */
+    if (!cfg.one_core && !bootguard.failed)         /* after a failed start, one core (as Melodee) */
         plat_cpu2_set(1);                           /* the second core: at power-on, before the audio and the
                                                      * timers, as Melodee starts it (started later, it does not
                                                      * reach its entry); if it does not answer, one core */
     audio_init();
     usb_start();
-#if X0X_TRS
+#if PEN_TRS
     uart_midi_init();                               /* before TIMER5: it read-modify-writes port H too */
 #endif
     /* above ALNK0 (3): the key / encoder / LED matrix is scanned one column per tick and must keep
@@ -465,8 +315,6 @@ static void fm1_main(void)
     fm1_delay_ms(300);
     lcd_fill(0, 0, 240, 240, C_BG);
     ui_init();
-    set_view(V_HOME);                               /* Penumbra starts on the eclipse (the simulator's */
-                                                    /* scenarios, as X0X's, start on the part) */
     for (;;) {
         fm1_wdt_feed();
         usb_retry(fm1_ms);
@@ -513,11 +361,10 @@ static void fm1_main(void)
             if (ota_frame_get(&p, &n) && ann_frame(p, n, fm1_ms))
                 ota_frame_done();
         }
-        ed_service();                               /* sample upload SysEx */
-        backup_service(ota_service());              /* M-UPGRADE handshake; backup and restore */
+        ota_service();                              /* M-UPGRADE handshake */
         if (usb.ota_req) {
             usb.ota_req = 0;
-            seq_stop(&seq);
+            tclock_stop(&eng_clock);
             if (flash_ok)
                 ota_session();                      /* returns only if nothing was committed */
             lcd_fill(0, 0, 240, 240, C_BLACK);
@@ -525,16 +372,13 @@ static void fm1_main(void)
         }
         if (usb.uboot_req)
             enter_uboot("UBOOT (USB)");
-#if X0X_CDC
+#if PEN_CDC
         cdc_task();
 #endif
-        if (seq.ppat[TRK_BRK] != last_pat) {        /* the break's new pattern may name other loops */
-            last_pat = seq.ppat[TRK_BRK];
-            engine_brk_loops();
-        }
+        plat_cpu_mhz10();                           /* (keeps its measuring window about a second) */
         if (fm1_ms - last_frame >= 16u) {           /* ~60 frames/s at most; input in between */
             last_frame = fm1_ms;
-            x0x_dbg.ui_frames++;
+            pen_dbg.ui_frames++;
             ui_frame();
         } else {
             ui_input_only();

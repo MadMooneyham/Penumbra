@@ -1,0 +1,13 @@
+# A screen reader hears what changes and, asked, the whole screen
+wait 300
+listen
+wait 100
+said HOME
+tap GLO
+said SYSTEM
+turn SELECT 1
+said FOLLOW CLOCK IN ON
+tap HOME
+where
+wait 50
+said STOPPED. TEMPO 90

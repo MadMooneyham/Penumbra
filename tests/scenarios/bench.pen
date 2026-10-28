@@ -1,0 +1,29 @@
+# BENCH: the benchmark publishes once a second; SEL runs the load test (every drone latched, Min9,
+# SWARM full, LINE running, the guard off) and stops it, which puts the scene back; HOME stops it too
+wait 300
+tapkey b1
+tap GLO
+tap GLO
+expect view 2
+wait 1500
+expect bench 1
+expect bench_avg7 >0
+tap SEL
+wait 100
+expect testing 1
+wait 2500
+expect drone6 1
+expect guardcount 0
+shot bench.png
+tap SEL
+wait 100
+expect testing 0
+wait 12000
+expect drone2 1
+expect drone1 0
+tap SEL
+wait 100
+tap HOME
+wait 100
+expect testing 0
+expect view 0

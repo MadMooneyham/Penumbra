@@ -1,0 +1,8 @@
+# Power-on: HOME (the corona), stopped, silent, the six drone keys dim and nothing lit but HOME
+wait 600
+expect view 0
+expect playing 0
+expect drone1 0
+expect quiet_ms >400
+shot home.png
+leds

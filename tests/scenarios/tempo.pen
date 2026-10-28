@@ -1,0 +1,14 @@
+# HOME's KNOB 1 is the tempo; it is saved and the clock follows it
+wait 300
+turn K1 30
+expect set_bpm 120
+tap PLAY
+wait 2000
+expect clocks_out >88
+expect clocks_out <102
+tap PLAY
+wait 3000
+expect dirty 0
+reboot
+wait 300
+expect set_bpm 120

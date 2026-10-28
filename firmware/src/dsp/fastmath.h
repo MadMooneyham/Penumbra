@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* X0X single-precision maths, with no libm.
+/* Single-precision maths, with no libm.
  *
  * The FM-1's FPU is float-only (-mfprev1) and the firmware links no libm, so this
  * is the whole maths library of the DSP. The same code runs in the host build,

@@ -14,52 +14,24 @@ typedef struct {               /* proportional, see tools/gen_font.py */
 } felucca_font_t;
 #include "felucca_font.h"
 
-#define CV_MAX (240u * 144u)      /* X0X: the main area, both bands, is 240 x 144 */
+#define CV_MAX (240u * 144u)      /* the main area, both bands, is 240 x 144 */
 static uint16_t cv_px[CV_MAX] __attribute__((section(".pool")));
 static uint32_t cv_w, cv_h;
 static int32_t cv_oy;            /* y offset for graph drawing */
-static int32_t cv_y0, cv_y1;     /* X0X: the rows drawing may touch (cv_band) */
+static int32_t cv_y0, cv_y1;     /* the rows drawing may touch (cv_band) */
 
 #define RGB(r, g, b) ((uint16_t)((((r) >> 3) << 11) | (((g) >> 2) << 5) | ((b) >> 3)))
 #define C_BLACK 0x0000u
 #define C_WHITE 0xFFFFu              /* accent only: what is being touched / where we are */
-/* The screen's five steps, darkest to brightest, plus white; picked as THEME in GLOBAL. */
-typedef struct {
-    const char *name;
-    uint16_t c[5];
-    uint16_t bg;                     /* the screen behind everything */
-} palette_t;
-/* X0X: the first three steps are neutral greys in every theme (structure: rules, empty cells,
- * labels); only the two brightest carry the theme's hue (values, highlights). Colour on the
- * screen then means something: a part, a value, an alarm.
- * Penumbra: ECLIPSE, the default, is the night sky: blue-grey structure, the corona's orange for
- * what is secondary, moonlight for values, on a blue-black. */
-#define NEUTRALS RGB(34, 34, 40), RGB(74, 74, 82), RGB(150, 150, 158)
-static const palette_t PALETTES[] = {
-    {"ECLIPSE", {RGB(30, 33, 52), RGB(66, 71, 102), RGB(138, 143, 174), RGB(255, 150, 70), RGB(236, 234, 246)},
-     RGB(7, 8, 16)},
-    {"GREEN", {NEUTRALS, RGB(80, 220, 120), RGB(150, 255, 175)}, 0},
-    {"AMBER", {NEUTRALS, RGB(232, 136, 30), RGB(255, 184, 70)}, 0},
-    {"CYAN", {NEUTRALS, RGB(60, 180, 235), RGB(150, 225, 255)}, 0},
-    {"RED", {NEUTRALS, RGB(232, 76, 60), RGB(255, 132, 112)}, 0},
-    {"MONO", {NEUTRALS, RGB(196, 196, 202), RGB(236, 236, 240)}, 0},
-};
-#define NPALETTES (sizeof(PALETTES) / sizeof(PALETTES[0]))
-static uint16_t pal[5], pal_bg;
-#define C_LINE pal[0]                /* 1 rules, separators */
-#define C_DIM pal[1]                 /* 2 inactive, empty steps, units */
-#define C_GRAY pal[2]                /* 3 labels */
-#define C_AMB pal[3]                 /* 4 secondary text */
-#define C_HI pal[4]                  /* 5 values, curves */
-#define C_BG pal_bg                  /* the background */
-
-static void palette_set(uint32_t i)
-{
-    uint32_t k;
-    for (k = 0; k < 5u; k++)
-        pal[k] = PALETTES[i % NPALETTES].c[k];
-    pal_bg = PALETTES[i % NPALETTES].bg;
-}
+/* Penumbra's one palette, ECLIPSE: the night sky. Five steps, darkest to brightest, on a blue-black:
+ * blue-grey structure (rules, empty cells, labels), the corona's orange for what is secondary or
+ * active, moonlight for values. Colour on the screen then means something. */
+#define C_LINE RGB(30, 33, 52)       /* 1 rules, separators */
+#define C_DIM RGB(66, 71, 102)       /* 2 inactive, units */
+#define C_GRAY RGB(138, 143, 174)    /* 3 labels */
+#define C_AMB RGB(255, 150, 70)      /* 4 the corona: secondary, active */
+#define C_HI RGB(236, 234, 246)      /* 5 moonlight: values */
+#define C_BG RGB(7, 8, 16)           /* the night behind everything */
 
 static inline uint16_t swap16(uint32_t c) { return (uint16_t)(((c >> 8) & 0xFFu) | ((c & 0xFFu) << 8)); }
 
@@ -78,7 +50,7 @@ static void cv_begin(uint32_t w, uint32_t h, uint16_t bg)
         cv_px[i] = swap16(bg);
 }
 
-/* X0X: draw the next things as if the canvas were rows y0 .. y0+h-1 alone (one band of a
+/* draw the next things as if the canvas were rows y0 .. y0+h-1 alone (one band of a
  * canvas that holds several, sent in one transfer so the bands change on screen together) */
 static void cv_band(int32_t y0, int32_t h)
 {
@@ -212,7 +184,7 @@ static void draw_text_box(uint32_t x, uint32_t y, uint32_t w, const felucca_font
  * eclipse's corona: a ring that glows out from its edge into the dark, and a few stars. */
 #include "logo.h"
 #include "dsp/fastmath.h"
-#define C_NIGHT RGB(7, 8, 16)                /* (ECLIPSE's background) */
+#define C_NIGHT C_BG
 static uint16_t mix565(uint16_t a, uint16_t b, uint32_t t)   /* a to b, t 0..255 */
 {
     uint32_t r = ((a >> 11) * (255u - t) + (b >> 11) * t) / 255u;

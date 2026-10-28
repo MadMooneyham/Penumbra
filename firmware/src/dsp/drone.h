@@ -14,22 +14,20 @@
  * alike, many players). SWARM sets how much of it is heard. Its lines are the caller's
  * (drone_swarm_buffer, .pool); without them it is off.
  *
- * The part sits where X0X's 909 was: eleven tracks, the first DRONE_VOICES of them voices
- * (the rest have no parameters and make no sound), and the kit (DRONE_KIT) the bus. A hit on
- * a track (a step, a key) plays its voice by its MODE:
+ * Parameters are addressed by "track": 0 .. DRONE_VOICES-1 a voice, DRONE_KIT the bus. A hit
+ * on a voice (a black key, the director) plays it by its MODE:
  *   HOLD  the hit turns the voice on, the next turns it off (the Solar's latching keys)
  *   SWELL the hit swells it in, it stays for HOLD, then fades out
  *
- * Stereo, 44.1 kHz, float, no libm, no allocation. Threading as drum808: drone_trigger
- * and drone_set between render blocks, from the context that renders. */
+ * Stereo, 44.1 kHz, float, no libm, no allocation. drone_trigger and drone_set run between
+ * render blocks, from the context that renders. */
 #pragma once
 #include <stdint.h>
-#include "x0x_param.h"
+#include "param.h"
 
 #define DRONE_VOICES 6
 #define DRONE_OSC 5
-#define DRONE_TRACKS 11                   /* the pattern's drum tracks (NDRUM) */
-#define DRONE_KIT DRONE_TRACKS            /* the bus's parameters */
+#define DRONE_KIT DRONE_VOICES            /* the bus's parameters */
 #define DRONE_CTRL 32                     /* control rate: every 32 samples */
 #define DRONE_MAX_BLOCK 256
 
@@ -103,7 +101,7 @@ void drone_render(drone_t *d, float *l, float *r, int n);
 int drone_active(const drone_t *d);
 void drone_set_lite(drone_t *d, int on);
 int drone_nparams(int track);
-const x0x_param_t *drone_param(int track, int i);
+const param_t *drone_param(int track, int i);
 const char *drone_track_name(int track);
 void drone_set(drone_t *d, int track, int i, int value);
 int drone_get(const drone_t *d, int track, int i);

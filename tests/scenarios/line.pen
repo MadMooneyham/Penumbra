@@ -1,0 +1,28 @@
+# The white keys play LINE in A minor, legato glides; OCT moves the keys; a MIDI note on channel 1 too
+wait 300
+wav line.wav
+key w0 down
+wait 400
+key w2 down
+wait 400
+key w2 up
+wait 400
+key w0 up
+wait 1500
+tap OCT+
+tapkey w4
+wait 800
+expect peak_db_min -30
+# let go: the note ends, its shimmer and tape echoes fall away over some 8 s
+wait 9000
+peakreset
+wait 1000
+expect peak_db_max -45
+midi 90 39 64
+wait 600
+midi 80 39 00
+wait 400
+expect peak_db_min -30
+midi 91 39 64
+wavstop
+expect clips 0

@@ -11,7 +11,7 @@ static const char *const TUNE_N[25] = {"-12", "-11", "-10", "-9", "-8", "-7", "-
                                        "0", "+1", "+2", "+3", "+4", "+5", "+6", "+7", "+8", "+9", "+10", "+11",
                                        "+12"};
 
-static const x0x_param_t MEL_P[MEL_NPARAMS] = {
+static const param_t MEL_P[MEL_NPARAMS] = {
     [MEL_CUTOFF] = {"Cutoff", 127, 84, 0},  [MEL_RESO] = {"Reso", 127, 40, 0},
     [MEL_ENVMOD] = {"EnvMod", 127, 32, 0},  [MEL_ACCENT] = {"Accent", 127, 64, 0},
     [MEL_ATTACK] = {"Attack", 127, 50, 0},  [MEL_DECAY] = {"Decay", 127, 91, 0},
@@ -22,7 +22,7 @@ static const x0x_param_t MEL_P[MEL_NPARAMS] = {
     [MEL_TUNE] = {"Tune", 24, 12, TUNE_N},  [MEL_VOLUME] = {"Volume", 127, 100, 0}};
 
 int melody_nparams(void) { return MEL_NPARAMS; }
-const x0x_param_t *melody_param(int i) { return i >= 0 && i < MEL_NPARAMS ? &MEL_P[i] : 0; }
+const param_t *melody_param(int i) { return i >= 0 && i < MEL_NPARAMS ? &MEL_P[i] : 0; }
 int melody_get(const melody_t *m, int i) { return i >= 0 && i < MEL_NPARAMS ? m->pot[i] : 0; }
 
 static float pot_exp(int pot, float lo, float oct) { return lo * fm_exp2f(oct * (float)pot * (1.0f / 127.0f)); }

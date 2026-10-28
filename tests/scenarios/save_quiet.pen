@@ -1,0 +1,12 @@
+# A setting changed under a sounding drone waits (an erase would interrupt it); SAVE saves at once
+wait 300
+tapkey b0
+wait 2000
+tap GLO
+turn K1 1
+wait 4000
+expect dirty 1
+expect store_writes 0
+tap SAVE
+expect dirty 0
+expect store_writes 1

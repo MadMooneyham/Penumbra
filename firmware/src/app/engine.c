@@ -1,63 +1,102 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* X0X audio engine; see engine.h. */
+/* Penumbra's audio engine; see engine.h. */
 #include "engine.h"
 #include "plat.h"
 #include "../dsp/drone.h"
-#include "../dsp/drum808.h"
 #include "../dsp/melody.h"
-#include "../dsp/breaks.h"
 #include "../dsp/fxbus.h"
 #include "../dsp/master.h"
 #include "../dsp/fastmath.h"
 
-#define POOL X0X_POOL
-
-/* time per stage of the render, in plat_cycles() units (the CPU's cycles, or the 24 MHz timer):
- * running totals (wrapping; the PERF screen takes differences) and the frames rendered. */
-volatile uint32_t eng_prof[ENG_PROF_N], eng_prof_frames;
-#define PROF_T(v) uint32_t v = plat_cycles()
-#define PROF_ADD(k, t0) (eng_prof[k] += plat_cycles() - (t0))
+#define POOL PEN_POOL
 
 /* ---------------------------------------------------------------- state --- */
-seq_t seq;
-volatile uint8_t eng_step[NTRACKS];
-volatile uint16_t eng_peak[NPARTS];
-volatile uint8_t eng_hit[NKIT][NDRUM];
-int16_t eng_scope[SCOPE_N];
-volatile uint32_t eng_scope_w;
+tclock_t eng_clock;
+volatile uint16_t eng_level;
+volatile uint32_t eng_steps;
+uint32_t eng_out_clips;
 
-/* the parts: DRONE in the 909's place (PART_909, T_909), the 808, MELODY A and B in the 303s'
- * (PART_303A/B, T_303); the break part is kept in the project but no longer sounds */
 static drone_t dn POOL;
-static drum808_t d808 POOL;
-static melody_t mel[NBASS] POOL;
-static breaks_t brk POOL;
+static melody_t line POOL;                       /* LINE, for now the kept melody voice */
 static fxbus_t fx POOL;
 static master_t mst;
-#define DLY_LEN 66150                  /* 1.5 s (2 s before the reverb's lines needed the room) */
+#define DLY_LEN 66150                            /* 1.5 s */
 static int16_t dly_buf[DLY_LEN] POOL;
 static int16_t rv_buf[SV_TOTAL] POOL, rv_ps[SV_PS_LEN] POOL;
 static float swarm_l[SWARM_LEN] POOL, swarm_r[SWARM_LEN] POOL;
-static volatile uint8_t brk_hold;      /* main loop is rewriting the break loops: ISR leaves it alone */
-static motion_t mot;
-static const sound_t *mot_base_snd;    /* the knobs' own values (the project's mirror) */
-static uint8_t mot_playing;
-static volatile uint8_t mot_on = 1;
-static uint8_t mot_was_on = 1;
-void engine_motion_enable(int on) { mot_on = (uint8_t)(on != 0); }   /* the ISR releases the knobs */
-static volatile uint8_t mot_release_req;
-void engine_motion_reset(void) { mot_release_req = 1; }   /* lanes changed under it (undo): knobs back */
 
-/* overload guard: past the CPU (a block over 92%, or 85% on average) the drone voices fade down to two
- * oscillators each (a thinner cluster) and the 808's voices end at -70 dB instead of -90;
- * after 3 s back under 65% both return. The platform reports each
- * block's load after rendering it (engine_load, same context as engine_render); the change is
- * made at the start of the next block. Off during the PERF test, which measures the full cost. */
+_Static_assert(ENG_DRONES == DRONE_VOICES, "engine.h names the drone voices");
+/* a 256-frame block is 5.805 ms, 139,320 ticks of 24 MHz (the benchmark's 100 %; 0.7-beta's overflowed) */
+_Static_assert(PLAT_TICKS_PER_BLOCK(256) == 139319u, "the block's budget in 24 MHz ticks");
+
+/* the voices' places in the mix */
+enum { P_DRONE, P_LINE, NPARTS };
+
+/* ------------------------------------------------------------ benchmark --- */
+/* each stage's 24 MHz ticks this block; summed over a second (acc), then published (pub) for the
+ * main loop, which copies it when the serial moves (and again if it moved while copying) */
+static uint32_t st_t[ST_N];
+static struct {
+    float sum[ST_N], budget;
+    uint16_t peak[ST_N];
+    uint32_t blocks, frames;
+} acc;
+static bench_t pub;
+static volatile uint32_t pub_serial;
+static const char *const ST_NAME[ST_N] = {"CTRL", "DRONE", "LINE", "FX WET", "WAIT", "MIX", "MASTER",
+                                          "CORE 1", "CORE 2"};
+const char *engine_stage_name(int st) { return st >= 0 && st < ST_N ? ST_NAME[st] : ""; }
+
+uint32_t engine_bench(bench_t *out)
+{
+    uint32_t s, tries;
+    for (tries = 0; tries < 4u; tries++) {
+        s = pub_serial;
+        *out = pub;
+        if (s == pub_serial)
+            break;
+    }
+    return s;
+}
+
+static volatile uint8_t drone_on2;               /* the drone renders on the second core */
+static void bench_block(uint32_t n)
+{
+    float budget = (float)PLAT_TICKS_PER_BLOCK(n);
+    uint32_t k;
+    for (k = 0; k < ST_N; k++) {
+        uint32_t p10 = (uint32_t)((float)st_t[k] * 1000.0f / budget);
+        acc.sum[k] += (float)st_t[k];
+        if (p10 > acc.peak[k])
+            acc.peak[k] = (uint16_t)(p10 > 65535u ? 65535u : p10);
+    }
+    acc.budget += budget;
+    acc.blocks++;
+    acc.frames += n;
+    if (acc.frames >= 44100u) {                  /* a second: publish, start again */
+        for (k = 0; k < ST_N; k++) {
+            pub.avg[k] = (uint16_t)(acc.sum[k] * 1000.0f / acc.budget + 0.5f);
+            pub.peak[k] = acc.peak[k];
+            acc.sum[k] = 0.0f;
+            acc.peak[k] = 0;
+        }
+        pub.blocks = acc.blocks;
+        pub.two_cores = (uint8_t)plat_cpu2_on();
+        pub.drone_on2 = drone_on2;
+        acc.budget = 0.0f;
+        acc.blocks = acc.frames = 0;
+        __asm__ volatile("" ::: "memory");
+        pub_serial++;
+    }
+}
+
+/* ------------------------------------------------------- overload guard --- */
+/* past the CPU (a block over 92%, or 85% on average) the drone voices fade down to two oscillators
+ * each; after 3 s back under 65% they return. Off during the load test, which measures the full cost */
 #define GUARD_ON_LAST 92u
 #define GUARD_ON_AVG 85u
 #define GUARD_OFF 65u
 #define GUARD_CALM_FRAMES (3u * 44100u)
-extern float drum808_quiet;
 static uint8_t guard_on, guard_applied, guard_enabled = 1;
 static uint32_t guard_avg_q8, guard_calm;
 volatile uint32_t eng_guard_count;
@@ -87,147 +126,240 @@ static void guard_apply(void)
         return;
     guard_applied = guard_on;
     drone_set_lite(&dn, guard_on);
-    drum808_quiet = guard_on ? 3.2e-4f : 3.2e-5f;      /* Penumbra: -70 dB, not -50 (a tail cut that high is heard) */
 }
 
-/* mixer: per part Level, Rev send, Dly send (a drum machine's add to its voices' own sends) */
-static const x0x_param_t MIX_P[MX_NPARAMS] = {{"LEVEL", 127, 100, 0}, {"REV", 127, 0, 0}, {"DLY", 127, 0, 0},
-                                               {"PAN", 127, 64, 0}};
-static const char *const PART_NAMES[NPARTS] = {"DRONE", "808", "MEL A", "MEL B", "BREAK"};
-static float mix_level[NPARTS], mix_rev[NPARTS], mix_dly[NPARTS];
-/* pan: a balance law. Centre is full level on both sides (a centred mix is the mono one exactly);
- * turning toward a side fades the other out along a quarter cosine, the near side stays at 1 */
-static float mix_pl[NPARTS] = {1, 1, 1, 1, 1}, mix_pr[NPARTS] = {1, 1, 1, 1, 1};
-
 /* ------------------------------------------------------- command queue --- */
-/* uint32 commands, single producer (main loop) / single consumer (audio ISR):
- * type:4 | a:8 | b:8 | c:12 */
-enum { C_PARAM_T0 = 0, C_DRUM = 8, C_BON, C_BOFF, C_BRK, C_NOP };
-#define CQ 1024u
+/* uint32 commands, single producer (main loop) / single consumer (audio ISR): type:4 | a:8 | b:8 | c:12 */
+enum { C_DRONE_KEY, C_LINE_ON, C_LINE_OFF, C_TEST, C_MIDI_CH };
+#define CQ 256u
 static uint32_t cq[CQ];
 static volatile uint32_t cq_w, cq_r;
-
 static void cq_put(uint32_t type, uint32_t a, uint32_t b, uint32_t c)
 {
     uint32_t w = cq_w;
     if (w - cq_r >= CQ)
-        return;                        /* full: drop (a param flood; the mirror still has it) */
+        return;                                  /* full: dropped (nothing queued here is a flood) */
     cq[w % CQ] = (type << 28) | ((a & 0xFFu) << 20) | ((b & 0xFFu) << 12) | (c & 0xFFFu);
     __asm__ volatile("" ::: "memory");
     cq_w = w + 1;
 }
-
-/* ------------------------------------------------------------ params --- */
-int engine_nvoices(int t)
+void engine_drone_key(int voice) { cq_put(C_DRONE_KEY, (uint32_t)voice, 0, 0); }
+void engine_line_on(int note) { cq_put(C_LINE_ON, 0, (uint32_t)note, 0); }
+void engine_line_off(int note) { cq_put(C_LINE_OFF, 0, (uint32_t)note, 0); }
+static volatile uint8_t testing;
+void engine_load_test(int on) { cq_put(C_TEST, (uint32_t)(on != 0), 0, 0); }
+int engine_load_testing(void) { return testing; }
+void engine_midi_ch(int ch) { cq_put(C_MIDI_CH, (uint32_t)ch, 0, 0); }
+int engine_drone_on(int voice) { return voice >= 0 && voice < DRONE_VOICES && dn.v[voice].on; }
+float engine_drone_level(int voice)
 {
-    switch (t) {
-    case T_909: return DRONE_TRACKS + 1;
-    case T_808: return D8_NUM + 1;
-    case T_303: return NBASS;
-    case T_MIX: return NPARTS;
-    case T_FX: return 3;                                 /* 0: fxbus, 1: the UI's TAPE knob (not sent), 2: the reverb's ext */
-    default: return 1;
+    return voice >= 0 && voice < DRONE_VOICES && dn.v[voice].level > 0.0f ? fm_minf(dn.v[voice].amp / dn.v[voice].level, 1.0f) : 0.0f;
+}
+
+/* --------------------------------------------------------------- the scene --- */
+/* the test scene, the prototype's "Cinematic" (drone-proto/drone.html): an A minor drone (root,
+ * fifth, octave, minor third, fifth, high octave on DR1-DR6), each voice a little off true like a
+ * Solar tuned by ear, spread across the field; LINE and the drones into a long shimmering reverb
+ * and a worn ping-pong tape delay, dotted quarters */
+static float mix_level[NPARTS] = {1.0f, 1.0f}, mix_rev[NPARTS], mix_dly[NPARTS];
+static void scene_default(void)
+{
+    static const uint8_t NOTE[DRONE_VOICES] = {24, 31, 36, 39, 43, 48};   /* 0 +7 +12 +15 +19 +24 */
+    static const uint8_t FINE[DRONE_VOICES] = {64, 61, 66, 60, 64, 67};   /* 0 -4 +3 -7 0 +5 cents */
+    static const uint8_t PAN[DRONE_VOICES] = {64, 38, 89, 26, 102, 64};
+    int v, i;
+    for (v = 0; v < DRONE_VOICES; v++) {
+        for (i = 0; i < DN_NPARAMS; i++)
+            drone_set(&dn, v, i, drone_param(v, i)->def);
+        drone_set(&dn, v, DN_NOTE, NOTE[v]);
+        drone_set(&dn, v, DN_FINE, FINE[v]);
+        drone_set(&dn, v, DN_PAN, PAN[v]);
+    }
+    drone_set(&dn, 5, DN_SPREAD, 30);            /* the high octave: a wider, shimmering cluster */
+    for (i = 0; i < DB_NPARAMS; i++)
+        drone_set(&dn, DRONE_KIT, i, drone_param(DRONE_KIT, i)->def);
+    for (i = 0; i < MEL_NPARAMS; i++)
+        melody_set(&line, i, melody_param(i)->def);
+    for (i = 0; i < fxbus_nparams(); i++)
+        fxbus_set(&fx, i, fxbus_param(i)->def);
+    for (i = 0; i < fxbus_ext_nparams(); i++)
+        fxbus_ext_set(&fx, i, fxbus_ext_param(i)->def);
+    fxbus_set(&fx, FX_VOLUME, 127);              /* unity */
+    fxbus_set(&fx, FX_DL_TYPE, 1);               /* tape */
+    fxbus_set(&fx, FX_DL_TIME, 10);              /* 1/4. */
+    fxbus_set(&fx, FX_DL_FDBK, 82);
+    fxbus_set(&fx, FX_DL_TONE, 57);
+    fxbus_set(&fx, FX_DL_WEAR, 44);
+    fxbus_set(&fx, FX_DL_PING, 1);
+    for (v = 0; v < NPARTS; v++) {
+        mix_rev[v] = 64.0f / 127.0f;
+        mix_dly[v] = 41.0f / 127.0f;
     }
 }
 
-int engine_nparams(int t, int v)
+/* the load test: the heaviest the voices get. Every drone voice latched on its thickest stack
+ * (Min9, four oscillators) with SWARM full, LINE playing eighths, the reverb long and shimmering.
+ * Off, the scene comes back and the drones are latched as they were */
+static uint8_t test_latched;                     /* the voices that were latched before the test */
+static uint32_t test_left, test_i;
+static void test_set(int on)
 {
-    switch (t) {
-    case T_909: return drone_nparams(v);
-    case T_808: return drum808_nparams(v);
-    case T_303: return melody_nparams();
-    case T_BRK: return 3;                                /* Level, Pitch, Filter (sends: the mixer's; the rest: the pattern's) */
-    case T_FX: return v == 0 ? fxbus_nparams() : v == 2 ? fxbus_ext_nparams() : 0;
-    case T_MIX: return MX_NPARAMS;                       /* every part: Level, Rev send, Dly send */
-    case T_MST: return master_nparams();
-    default: return 0;
+    int v;
+    if (on == testing)
+        return;
+    if (on) {
+        test_latched = 0;
+        for (v = 0; v < DRONE_VOICES; v++) {
+            if (dn.v[v].on)
+                test_latched |= (uint8_t)(1u << v);
+            drone_set(&dn, v, DN_MODE, DN_MODE_HOLD);
+            drone_set(&dn, v, DN_STACK, 3);
+            drone_set(&dn, v, DN_SPREAD, 60);
+            if (!dn.v[v].on)
+                drone_trigger(&dn, v, 1.0f);
+        }
+        drone_set(&dn, DRONE_KIT, DB_SWARM, 127);
+        drone_set(&dn, DRONE_KIT, DB_WIND, 64);
+        fxbus_ext_set(&fx, FXX_RV_SHIMMER, 127);
+        test_left = test_i = 0;
+        guard_enabled = 0;
+    } else {
+        scene_default();
+        for (v = 0; v < DRONE_VOICES; v++)
+            if (dn.v[v].on != (int32_t)((test_latched >> v) & 1u))
+                drone_trigger(&dn, v, 1.0f);
+        melody_note_off(&line);
+        guard_enabled = 1;
     }
+    testing = (uint8_t)on;
+}
+static void test_tick(uint32_t n)                /* LINE's eighths, up and down A minor */
+{
+    static const uint8_t ARP[8] = {57, 60, 64, 67, 69, 67, 64, 60};
+    if (!testing)
+        return;
+    if (test_left > n) {
+        test_left -= n;
+        return;
+    }
+    melody_note_on(&line, ARP[test_i & 7u], (test_i & 3u) == 0u, 0);   /* (an accent each half bar) */
+    test_i++;
+    test_left = 44100u / 4u;
 }
 
-const x0x_param_t *engine_param(int t, int v, int i)
+/* ------------------------------------------------------------- LINE keys --- */
+/* a mono voice: the newest held note sounds; let go, it glides back to the one held before */
+#define LHELD 8
+static uint8_t lheld[LHELD], nlheld;
+static void line_on(int note)
 {
-    switch (t) {
-    case T_909: return drone_param(v, i);
-    case T_808: return drum808_param(v, i);
-    case T_303: return melody_param(i);
-    case T_BRK: return breaks_param(BRK_NSET + i);
-    case T_FX: return v == 0 ? fxbus_param(i) : v == 2 ? fxbus_ext_param(i) : 0;
-    case T_MIX: return (i >= 0 && i < MX_NPARAMS) ? &MIX_P[i] : 0;
-    case T_MST: return master_param(i);
-    default: return 0;
+    int i;
+    for (i = 0; i < nlheld; i++)
+        if (lheld[i] == note)
+            return;
+    if (nlheld == LHELD) {                       /* full: the oldest goes */
+        for (i = 1; i < LHELD; i++)
+            lheld[i - 1] = lheld[i];
+        nlheld--;
     }
+    melody_note_on(&line, note, 0, nlheld > 0);
+    lheld[nlheld++] = (uint8_t)note;
+}
+static void line_off(int note)
+{
+    int i, j;
+    for (i = 0; i < nlheld && lheld[i] != note; i++)
+        ;
+    if (i == nlheld)
+        return;
+    for (j = i + 1; j < nlheld; j++)
+        lheld[j - 1] = lheld[j];
+    nlheld--;
+    if (!nlheld)
+        melody_note_off(&line);
+    else if (i == nlheld)                        /* the one sounding went: back to the newest left */
+        melody_note_on(&line, lheld[nlheld - 1], 0, 1);
 }
 
-static const char *const N808[D8_NUM + 1] = {"BD", "SD", "LT", "MT", "HT", "RS", "CP", "CB", "CY", "OH", "CH", "KIT"};
-
-const char *engine_voice_name(int t, int v)
+/* ------------------------------------------------------------- MIDI, clock --- */
+static uint8_t midi_ch = 1;                      /* LINE's notes in: 1..16, 0 off */
+static void clk_midi(void *x, uint8_t st)
 {
-    switch (t) {
-    case T_909: return drone_track_name(v);
-    case T_808: return (v >= 0 && v <= D8_NUM) ? N808[v] : "";
-    case T_303: return v ? "MEL B" : "MEL A";
-    case T_MIX: return (v >= 0 && v < NPARTS) ? PART_NAMES[v] : "";
-    case T_BRK: return "BREAK";
-    case T_FX: return "FX";
-    case T_MST: return "MASTER";
-    default: return "";
-    }
+    (void)x;
+    plat_midi_out(0x0Fu | ((uint32_t)st << 8));
 }
-
-static void apply_param(int t, int v, int i, int val)    /* ISR */
+static void clk_step(void *x, uint32_t n)
 {
-    switch (t) {
-    case T_909: drone_set(&dn, v, i, val); break;
-    case T_808: drum808_set(&d808, v, i, val); break;
-    case T_303: if (v >= 0 && v < NBASS) melody_set(&mel[v], i, val); break;
-    case T_BRK: breaks_set(&brk, BRK_NSET + i, val); break;
-    case T_FX:
-        if (v == 0)
-            fxbus_set(&fx, i, val);
-        else if (v == 2)
-            fxbus_ext_set(&fx, i, val);
-        break;
-    case T_MIX:
-        if (v < 0 || v >= NPARTS)
-            break;
-        if (i == MX_LEVEL)
-            mix_level[v] = (float)val * (float)val / (100.0f * 100.0f);     /* 100 = unity, square law */
-        else if (i == MX_REV)
-            mix_rev[v] = (float)val / 127.0f;
-        else if (i == MX_DLY)
-            mix_dly[v] = (float)val / 127.0f;
-        else if (i == MX_PAN)
-            x0x_pan_gains(val, &mix_pl[v], &mix_pr[v]);
-        break;
-    case T_MST: master_set(&mst, i, val); break;
+    (void)x;
+    eng_steps = n + 1u;
+}
+static void clk_stopped(void *x)
+{
+    (void)x;
+    drone_end_swells(&dn);
+}
+static const tclock_sink_t CLK_SINK = {0, clk_midi, clk_step, clk_stopped};
+
+static void midi_in(uint32_t pkt)
+{
+    uint8_t st = (uint8_t)(pkt >> 8), d1 = (uint8_t)(pkt >> 16) & 0x7F, d2 = (uint8_t)(pkt >> 24) & 0x7F;
+    uint8_t ty = st & 0xF0;
+    switch (st) {
+    case 0xF8: tclock_ext_tick(&eng_clock); return;
+    case 0xFA: if (eng_clock.follow) tclock_play(&eng_clock); return;
+    case 0xFB: if (eng_clock.follow) tclock_continue(&eng_clock); return;
+    case 0xFC: if (eng_clock.follow) tclock_stop(&eng_clock); return;
     default: break;
     }
+    if (!midi_ch || st >= 0xF0 || (st & 0x0F) != midi_ch - 1u)
+        return;
+    if (ty == 0x90 && d2 == 0)
+        ty = 0x80;
+    if (ty == 0x90)
+        line_on(d1);
+    else if (ty == 0x80)
+        line_off(d1);
 }
 
-void engine_set(int t, int v, int i, int val) { cq_put((uint32_t)t, (uint32_t)v, (uint32_t)i, (uint32_t)val); }
+static void drain(void)
+{
+    uint32_t r = cq_r, pkt;
+    int guard = 64;
+    while (r != cq_w) {
+        uint32_t c = cq[r % CQ], type = c >> 28, a = (c >> 20) & 0xFFu, b = (c >> 12) & 0xFFu;
+        r++;
+        if (type == C_DRONE_KEY && !testing)
+            drone_trigger(&dn, (int)a, 1.0f);
+        else if (type == C_LINE_ON)
+            line_on((int)b);
+        else if (type == C_LINE_OFF)
+            line_off((int)b);
+        else if (type == C_TEST)
+            test_set((int)a);
+        else if (type == C_MIDI_CH)
+            midi_ch = (uint8_t)(a <= 16u ? a : 0u);
+    }
+    cq_r = r;
+    while (guard-- && plat_midi_in(&pkt))
+        midi_in(pkt);
+}
 
+/* ------------------------------------------------------------------ output --- */
 /* the output's scale: Felucca's -6 dBFS ceiling of the 24-bit codec (2^22), or its full scale (LOUD); the
- * clamp keeps an over from wrapping (normal: the codec's own full scale, as before) */
+ * clamp keeps an over from wrapping */
 static volatile float out_scale = 4194303.0f, out_lim = 2.0f;
 void engine_out_loud(int on)
 {
     out_scale = on ? 8388607.0f : 4194303.0f;
     out_lim = on ? 1.0f : 2.0f;
 }
-
-/* USB AUDIO FULL (#12): the render at full level, for the USB tap, and the MASTER knob after it, for
- * the speaker, headphones and line out (with the master's ~10 ms glide). The limiter then works at
- * full level too: turned down, the FM-1 plays what it sends, quieter. */
+/* USB AUDIO FULL: the render at full level, for the USB tap, and the MASTER knob after it, for the
+ * speaker, headphones and line out (with the master's ~10 ms glide) */
 static volatile int usb_full;
 static float vol_after = -1.0f;
 void engine_usb_full(int on) { usb_full = on; }
-/* where the drone renders, read once per stretch (render_sub): the first core by default. Some
- * FM-1s' second core misreads memory now and then (fm1_cpu1.h); the more it does, the likelier
- * a misread lands in the sound, so it keeps the 808 alone unless asked */
-static volatile uint8_t drone_on2;
 void engine_drone_core2(int on) { drone_on2 = (uint8_t)(on != 0); }
-static volatile uint32_t eng_quiet_frames;   /* engine_render: frames since the output last made a sound */
-uint32_t eng_out_clips;                       /* output samples past full scale (hard-limited), since power-on */
+static volatile uint32_t eng_quiet_frames;
 uint32_t engine_quiet_ms(void) { return eng_quiet_frames / 44u; }
 
 void engine_volume(int32_t *out_lr, uint32_t n)
@@ -250,294 +382,11 @@ void engine_volume(int32_t *out_lr, uint32_t n)
     vol_after = v;
 }
 
-void engine_sound_defaults(sound_t *s)
-{
-    int t, v, i;
-    uint8_t *z = (uint8_t *)s;
-    for (i = 0; i < (int)sizeof *s; i++)
-        z[i] = 0;
-    for (t = 0; t < NTARGETS; t++)
-        for (v = 0; v < engine_nvoices(t) && v < NVOICES_MAX; v++)
-            for (i = 0; i < engine_nparams(t, v) && i < NPARAMS_MAX; i++) {
-                const x0x_param_t *p = engine_param(t, v, i);
-                s->v[t][v][i] = p ? p->def : 0;
-            }
-    /* the factory sound: the prototype's "Cinematic" (drone-proto/drone.html). An A minor drone
-     * (root, fifth, octave on; minor third, fifth and a high octave ready on DR4-DR6), each voice
-     * a little off true like a Solar tuned by ear, spread across the field; the melodies and the
-     * drones into a long shimmering reverb and a worn ping-pong tape delay, dotted quarters. */
-    {
-        static const uint8_t NOTE[DRONE_VOICES] = {24, 31, 36, 39, 43, 48};   /* 0 +7 +12 +15 +19 +24 */
-        static const uint8_t FINE[DRONE_VOICES] = {64, 61, 66, 60, 64, 67};   /* 0 -4 +3 -7 0 +5 cents */
-        static const uint8_t PAN[DRONE_VOICES] = {64, 38, 89, 26, 102, 64};
-        for (v = 0; v < DRONE_VOICES; v++) {
-            s->v[T_909][v][DN_NOTE] = NOTE[v];
-            s->v[T_909][v][DN_FINE] = FINE[v];
-            s->v[T_909][v][DN_PAN] = PAN[v];
-        }
-        s->v[T_909][5][DN_SPREAD] = 30;              /* the high octave: a wider, shimmering cluster */
-    }
-    s->v[T_MIX][PART_909][MX_REV] = 64;
-    s->v[T_MIX][PART_909][MX_DLY] = 41;
-    s->v[T_MIX][PART_808][MX_LEVEL] = 90;
-    s->v[T_MIX][PART_808][MX_REV] = 30;
-    s->v[T_808][D8_KIT][0] = 127;                    /* kit level */
-    for (v = 0; v < NBASS; v++) {
-        s->v[T_MIX][PART_303A + v][MX_REV] = 64;
-        s->v[T_MIX][PART_303A + v][MX_DLY] = 41;
-    }
-    s->v[T_303][1][MEL_TUNE] = 0;                    /* MEL B an octave down: a bass line under A */
-    s->v[T_MIX][PART_BRK][MX_LEVEL] = 0;             /* (silent anyway) */
-    s->v[T_FX][0][FX_VOLUME] = 127;                  /* unity: 9W9's 0.35 (-9 dB) balanced its hot kit, not drones */
-    s->v[T_FX][0][FX_DL_TYPE] = 1;                   /* tape */
-    s->v[T_FX][0][FX_DL_TIME] = 10;                  /* 1/4. */
-    s->v[T_FX][0][FX_DL_FDBK] = 82;
-    s->v[T_FX][0][FX_DL_TONE] = 57;
-    s->v[T_FX][0][FX_DL_WEAR] = 44;
-    s->v[T_FX][0][FX_DL_PING] = 1;
-    s->v[T_FX][1][0] = (uint8_t)(16 + s->v[T_FX][0][FX_DL_WEAR] * 111 / 127);   /* TAPE (ui.c R_TAPE): on, its wear */
-}
-
-void engine_sound_centre_drum_pans(sound_t *s)
-{
-    int t, v;
-    for (t = T_909; t <= T_808; t++)
-        for (v = 0; v < NDRUM && v < NVOICES_MAX; v++) {
-            int i = engine_nparams(t, v) - 1;           /* PAN is every voice's last pot */
-            const x0x_param_t *p = engine_param(t, v, i);
-            if (p && p->def == 64 && p->max == 127)
-                s->v[t][v][i] = 64;
-        }
-}
-
-void engine_apply_sound(const sound_t *s)
-{
-    int t, v, i;
-    engine_set(T_MST, 0, MST_COMP1, s->v[T_MST][0][MST_COMP1]);   /* the macros first: the pots they set */
-    engine_set(T_MST, 0, MST_DJF, s->v[T_MST][0][MST_DJF]);       /* follow as saved (a project's own sound) */
-    for (t = 0; t < NTARGETS; t++)
-        for (v = 0; v < engine_nvoices(t) && v < NVOICES_MAX; v++)
-            for (i = 0; i < engine_nparams(t, v) && i < NPARAMS_MAX; i++)
-                if (t != T_MST || i < MST_COMP1)
-                    engine_set(t, v, i, s->v[t][v][i]);
-}
-
-void engine_drum(int kit, int voice, float vel)
-{
-    cq_put(C_DRUM, (uint32_t)kit, (uint32_t)voice, (uint32_t)(vel * 4095.0f));
-}
-void engine_bass_on(int part, int note, int accent, int slide)
-{
-    cq_put(C_BON, (uint32_t)part, (uint32_t)note, (uint32_t)((accent ? 1 : 0) | (slide ? 2 : 0)));
-}
-void engine_bass_off(int part) { cq_put(C_BOFF, (uint32_t)part, 0, 0); }
-void engine_brk_live(int key, int down) { cq_put(C_BRK, (uint32_t)key, (uint32_t)(down != 0), 0); }
-
-/* ------------------------------------------------------- sequencer sink --- */
-/* probability: each part's (and drum track's) chance on the step playing now, set by its T_PROB lane
- * before the step fires (motion_step runs first); 100 = always */
-static uint8_t prob[NPARTS][NDRUM];
-static uint32_t prob_rng = 0x2545F491u;
-static int prob_skip(int part, int v)                 /* ISR: 1 = this hit does not play */
-{
-    uint32_t p = prob[part][v];
-    if (p > 100u && p < PROB_COND + PROB_NCOND) {      /* A:B: the A-th of every B passes (seq_track_t.bars) */
-        int a, b;
-        prob_cond((int)p - PROB_COND, &a, &b);
-        return (int)(seq.t[part].bars % (uint32_t)b) != a - 1;
-    }
-    if (p >= 100u)
-        return 0;
-    prob_rng ^= prob_rng << 13;
-    prob_rng ^= prob_rng >> 17;
-    prob_rng ^= prob_rng << 5;
-    return prob_rng % 100u >= p;
-}
-static void s_drum(void *x, int kit, int v, float vel);
-static int s_drum_seq(void *x, int kit, int v, float vel)
-{
-    if (prob_skip(kit, v))
-        return 0;
-    s_drum(x, kit, v, vel);
-    return 1;
-}
-static void s_drum(void *x, int kit, int v, float vel)
-{
-    (void)x;
-    if (v == 0 && kit == 1)              /* the 808's BD: the master's PUMP key (a drone is no kick) */
-        master_key(&mst, kit, vel);
-    if ((unsigned)kit < NKIT && (unsigned)v < NDRUM)   /* MIX's drum pages: the track's meter jumps */
-        eng_hit[kit][v] = (uint8_t)(vel >= 1.0f ? 255 : (int)(vel * 255.0f));
-    if (kit == 0)
-        drone_trigger(&dn, v, vel);      /* by the voice's MODE: latch on / off, or a swell */
-    else                                 /* the 808's unaccented hit sits at D8_VEL_NORMAL, not at our 909 level */
-        drum808_trigger(&d808, v, vel >= 0.999f ? 1.0f : vel * (D8_VEL_NORMAL / (88.0f / 127.0f)));
-}
-static void s_bon(void *x, int p, int note, int acc, int sl)
-{
-    (void)x;
-    if (prob_skip(PART_303A + p, 0))                  /* skipped: a rest */
-        melody_note_off(&mel[p]);
-    else
-        melody_note_on(&mel[p], note, acc, sl);
-}
-static void s_boff(void *x, int p) { (void)x; melody_note_off(&mel[p]); }
-static uint8_t brk_applied[BRK_NSET];  /* the pattern settings the break was last given */
-static void s_brk(void *x, int s16, int bar, float spb, int en)
-{
-    const brkpart_t *bp = &seq.pat[seq.ppat[TRK_BRK]].brk;
-    int i;
-    if (en && prob_skip(PART_BRK, 0))
-        en = 0;
-    (void)x;
-    if (brk_hold)
-        return;
-    breaks_set_quiet(&brk, bp->steps == 0 || (seq.mute & (1u << MUTE_BRK)));   /* unheard: stop decoding */
-    for (i = 0; i < BRK_NSET; i++)       /* follow the playing pattern's settings (12 compares) */
-        if (bp->set[i] != brk_applied[i]) {
-            brk_applied[i] = bp->set[i];
-            breaks_set(&brk, i, bp->set[i]);
-        }
-    breaks_pin(&brk, (int)bp->slice[s16 & 15] - 1);   /* the step's own slice, if it has one */
-    breaks_step(&brk, s16, bar, spb, en);
-}
-static void s_brkstop(void *x)            /* the sequencer stopped */
-{
-    (void)x;
-    breaks_stop(&brk);
-    drone_end_swells(&dn);
-}
-static void s_midi(void *x, uint8_t st, uint8_t d1, uint8_t d2)
-{
-    uint32_t cin = st >= 0xF0 ? 0x0Fu : (uint32_t)(st >> 4);
-    (void)x;
-    plat_midi_out(cin | ((uint32_t)st << 8) | ((uint32_t)d1 << 16) | ((uint32_t)d2 << 24));
-}
-static void s_step(void *x, int t, int p)
-{
-    (void)x;
-    eng_step[t] = (uint8_t)p;
-    if (mot_on)
-        motion_step(&mot, t, seq.ppat[t], p, seq_next_step(&seq, t, p), seq_part_len(&seq, t));
-}
-
-/* --------------------------------------------------------------- motion --- */
-static int mot_base(void *x, int t, int v, int i)
-{
-    (void)x;
-    if (t >= NTARGETS)
-        return 100;                                   /* T_PROB: always */
-    return mot_base_snd ? mot_base_snd->v[t][v][i] : 0;
-}
-static void mot_apply(void *x, int t, int v, int i, int val)
-{
-    (void)x;
-    if (t == T_PROB) {
-        if ((v >> 4) < NPARTS && (v & 15) < NDRUM)
-            prob[v >> 4][v & 15] = (uint8_t)val;
-    } else if (t < NTARGETS)
-        apply_param(t, v, i, val);
-}
-
-int engine_motion_part(int t, int v)
-{
-    switch (t) {
-    case T_909: return PART_909;
-    case T_808: return PART_808;
-    case T_303: return PART_303A + (v & 1);
-    case T_BRK: return PART_BRK;
-    case T_MIX: return v < NPARTS ? v : PART_909;
-    case T_PROB: return (v >> 4) < NPARTS ? v >> 4 : PART_909;
-    default: return PART_909;                     /* FX, master: the bar */
-    }
-}
-int engine_motion_value(int k) { return motion_value(&mot, k); }
-void engine_motion_rec(int k) { motion_req_rec(&mot, k); }
-void engine_motion_hold(int k) { motion_req_hold(&mot, k); }
-static const seq_sink_t SINK = {s_drum_seq, s_bon, s_boff, s_brk, s_brkstop, s_midi, s_step, 0};
-
-/* ---------------------------------------------------------------- MIDI in --- */
-static uint8_t bass_held[NBASS];       /* note held from MIDI, for legato = slide */
-
-static void midi_in(uint32_t pkt)
-{
-    uint8_t st = (uint8_t)(pkt >> 8), d1 = (uint8_t)(pkt >> 16) & 0x7F, d2 = (uint8_t)(pkt >> 24) & 0x7F;
-    uint8_t ch = st & 0x0F, ty = st & 0xF0;
-    int k, v;
-    switch (st) {
-    case 0xF8: seq_ext_clock(&seq); return;
-    case 0xFA: seq_start(&seq); return;
-    case 0xFB: seq_continue(&seq); return;
-    case 0xFC: seq_stop(&seq); return;
-    default: break;
-    }
-    if (ty == 0x90 && d2 == 0)
-        ty = 0x80;
-    for (k = 0; k < NKIT; k++)                          /* each part on its own channel (GLO): the drum */
-        if (seq.ch[k] == ch && ty == 0x90) {             /* machines on GM drum notes */
-            static const uint8_t GM[NDRUM] = {36, 38, 41, 45, 50, 37, 39, 42, 46, 49, 51};
-            static const uint8_t GM8[NDRUM] = {36, 38, 41, 45, 50, 37, 39, 56, 49, 46, 42};
-            for (v = 0; v < NDRUM; v++)
-                if ((k ? GM8 : GM)[v] == d1)
-                    s_drum(0, k, v, (float)d2 / 127.0f);
-        }
-    for (k = 0; k < NBASS; k++)                         /* the melodies: overlapping notes slide */
-        if (seq.ch[TRK_BASS0 + k] == ch) {
-            if (ty == 0x90) {
-                melody_note_on(&mel[k], d1, d2 >= 100, bass_held[k] != 0);
-                bass_held[k] = d1;
-            } else if (ty == 0x80 && bass_held[k] == d1) {
-                melody_note_off(&mel[k]);
-                bass_held[k] = 0;
-            }
-        }
-    if (seq.ch[TRK_BRK] == ch && (ty == 0x90 || ty == 0x80) && d1 >= 36 && d1 <= 43)   /* the break's slices */
-        breaks_live(&brk, d1 - 36, ty == 0x90);
-}
-
-/* ---------------------------------------------------------------- render --- */
-static void drain(void)
-{
-    uint32_t r = cq_r, pkt;
-    int guard = 64;
-    while (r != cq_w) {
-        uint32_t c = cq[r % CQ], type = c >> 28, a = (c >> 20) & 0xFFu, b = (c >> 12) & 0xFFu, v = c & 0xFFFu;
-        r++;
-        if (type < 8u)
-            apply_param((int)type, (int)a, (int)b, (int)v);
-        else if (type == C_DRUM)
-            s_drum(0, (int)a, (int)b, (float)v / 4095.0f);
-        else if (type == C_BON && a < NBASS)
-            melody_note_on(&mel[a], (int)b, (int)(v & 1u), (int)((v >> 1) & 1u));
-        else if (type == C_BOFF && a < NBASS)
-            melody_note_off(&mel[a]);
-        else if (type == C_BRK && !brk_hold)
-            breaks_live(&brk, (int)a, (int)b);
-    }
-    cq_r = r;
-    while (guard-- && plat_midi_in(&pkt))
-        midi_in(pkt);
-}
-
-static float part_peak[NPARTS];
-__attribute__((noinline)) static void meter(int p, const float *x, float g, uint32_t n)
-{
-    uint32_t i;
-    float pk = part_peak[p];
-    for (i = 0; i < n; i++) {
-        float a = fm_fabsf(x[i]) * g;
-        if (a > pk)
-            pk = a;
-    }
-    part_peak[p] = pk;
-}
-
-/* dry into L and R by the part's pan; the sends stay mono (the reverb and delay make the width) */
-/* a mix gain that glides to its target (one pole, ~10 ms) instead of stepping each block, which
- * zippered on quick turns of LEVEL, PAN or a send. cur < 0: never used, takes the target at once
- * (no fade-in at boot); settled, cur IS the target, so the product is the unsmoothed one exactly */
+/* ------------------------------------------------------------------- mix --- */
+/* a mix gain that glides to its target (one pole, ~10 ms) instead of stepping each block. cur < 0:
+ * never used, takes the target at once; settled, cur IS the target */
 typedef struct { float cur, tgt; } glide_t;
-#define GLIDE_A 0.0022651f                                /* 1 - exp(-1 / (10 ms * 44.1 kHz)) */
+#define GLIDE_A 0.0022651f                       /* 1 - exp(-1 / (10 ms * 44.1 kHz)) */
 static void glide_set(glide_t *g, float t)
 {
     g->tgt = t;
@@ -562,58 +411,28 @@ __attribute__((noinline)) static void add_glide(float *dst, const float *src, gl
         c = t;
     g->cur = c;
 }
-/* each part's gains: dry left and right, its reverb and delay sends, and (drums) the voices' own sends */
-enum { GL_L, GL_R, GL_REV, GL_DLY, GL_VREV, GL_VDLY, GL_N };
-static glide_t mix_glide[NPARTS][GL_N] = {
-    {{-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}}, {{-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}},
-    {{-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}}, {{-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}},
-    {{-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}}};
-static void mix_targets(int p, float g)                     /* g: the part level */
+enum { GL_L, GL_R, GL_REV, GL_DLY, GL_N };
+static glide_t mix_glide[NPARTS][GL_N] = {{{-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}}, {{-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}}};
+static void mix_targets(int p)
 {
-    glide_set(&mix_glide[p][GL_L], g * mix_pl[p]);
-    glide_set(&mix_glide[p][GL_R], g * mix_pr[p]);
-    glide_set(&mix_glide[p][GL_REV], g * mix_rev[p]);
-    glide_set(&mix_glide[p][GL_DLY], g * mix_dly[p]);
-    glide_set(&mix_glide[p][GL_VREV], g);
-    glide_set(&mix_glide[p][GL_VDLY], g);
+    glide_set(&mix_glide[p][GL_L], mix_level[p]);
+    glide_set(&mix_glide[p][GL_R], mix_level[p]);
+    glide_set(&mix_glide[p][GL_REV], mix_level[p] * mix_rev[p]);
+    glide_set(&mix_glide[p][GL_DLY], mix_level[p] * mix_dly[p]);
 }
 
-#if X0X_DEBUG
-/* development: what one block cost, for the worst-block record (main_fm1.c render_block) */
-volatile uint32_t eng_dbg_wait, eng_dbg_nsub;  /* 24 MHz ticks waiting for core 1, stretches */
-#endif
+/* ---------------------------------------------------------------- render --- */
+/* the reverb and the delay run a block behind: each block keeps its sends (fx_send[fx_par]) and
+ * hears the returns of the block before, which the first core works out while the second renders:
+ * time it would otherwise spend waiting. The delay reads FX_LEAD sooner to make up (fxbus_set_lead) */
+#define FX_LEAD 256
+static float fx_send[2][2][256] POOL;           /* [block parity][rev, dly][sample] */
+static float wet_l[256] POOL, wet_r[256] POOL;
+static uint8_t fx_par;
+static float dn_l[256] POOL, dn_r[256] POOL, line_buf[256] POOL, mono[256] POOL;
+static float out_l[256] POOL, out_r[256] POOL, rev[256] POOL, dly[256] POOL;
+static uint8_t dn_was_active, line_was_idle;
 
-/* the mix of one stretch between two events: dry left and right, the reverb and delay sends;
- * t0..tr the 808's scratch, mono the drone's send */
-static float dry_l[256], dry_r[256], rev[256], dly[256], t0[256], t1[256], t2[256], tr[256], mono[256];
-
-/* a glide applied in place to a buffer that started at zero: buf * c is 0 + buf * c exactly, so this
- * is add_glide(zeros, buf) to the bit (the same steps of c) */
-__attribute__((noinline)) static void scale_glide(float *buf, glide_t *g, uint32_t n)
-{
-    uint32_t i;
-    float c = g->cur, t = g->tgt;
-    if (c == t) {
-        for (i = 0; i < n; i++)
-            buf[i] *= c;
-        return;
-    }
-    for (i = 0; i < n; i++) {
-        c += (t - c) * GLIDE_A;
-        buf[i] *= c;
-    }
-    if (fm_fabsf(t - c) < 1e-5f)
-        c = t;
-    g->cur = c;
-}
-
-/* the second core's job (or the first's, after its own part, with one core): the 808 into t0..tr,
- * and with arg bit 9 the drone into dn_l, dn_r (GLO > DRONE CORE 2ND); arg bit 8: not timed (the
- * cycle counter is the first core's). Nothing here is mixed: the first core does that afterwards, in
- * one core's order. (The break no longer renders.) drone_trigger and drone_set run between
- * stretches, never during this. */
-static uint8_t d808_was_active, dn_was_active;
-static float dn_l[256] POOL, dn_r[256] POOL;
 static void drone_job(uint32_t n)
 {
     uint32_t i;
@@ -624,389 +443,128 @@ static void drone_job(uint32_t n)
         drone_render(&dn, dn_l, dn_r, (int)n);
     }
 }
+/* the second core's job (or the first's, with one core): LINE, and with arg bit 9 the drone. It
+ * times itself on the 24 MHz timer, which both cores read. Nothing here is mixed */
 static void core2_job(uint32_t arg)
 {
-    uint32_t n = arg & 0xFFu ? arg & 0xFFu : 256u, i, timed = !(arg & 0x100u), pt = timed ? plat_cycles() : 0;
+    uint32_t n = arg & 0xFFu ? arg & 0xFFu : 256u, t0 = plat_ticks24(), t;
     if (arg & 0x200u) {
         drone_job(n);
-        if (timed) {
-            PROF_ADD(PR_909, pt);
-            pt = plat_cycles();
-        }
-    }
-    d808_was_active = (uint8_t)drum808_active(&d808);
-    if (d808_was_active) {                                /* silent, it does nothing (and is not mixed) */
-        for (i = 0; i < n; i++)
-            t0[i] = t1[i] = t2[i] = tr[i] = 0.0f;
-        drum808_render_st(&d808, t0, tr, t1, t2, (int)n);
+        t = plat_ticks24();
+        st_t[ST_DRONE] = t - t0;
     } else
-        drum808_pan_settle(&d808);
-    if (timed)
-        PROF_ADD(PR_808, pt);
-}
-
-/* a drum machine's mix, from its render (L, R, voice sends; mono, its kit send) */
-__attribute__((noinline)) static void kit_sends(int b, const float *m, uint32_t n)
-{
-    add_glide(rev, m, &mix_glide[b][GL_REV], n);
-    add_glide(dly, m, &mix_glide[b][GL_DLY], n);
-    meter(b, m, mix_level[b], n);
-}
-
-/* Penumbra: the reverb and the delay run a block behind. Each stretch keeps its sends (fx_cur, at
- * its offset in the block) and adds the returns of the same stretch of the block before (fx_prev),
- * which the first core works out while the second renders the 808: time it spent waiting. The
- * returns come 5.8 ms (FX_LEAD) later; the delay reads that much sooner (fxbus_set_lead). */
-#define FX_LEAD 256
-static float fx_send[2][2][256] POOL;           /* [block parity][rev, dly][sample] */
-static float wet_l[256] POOL, wet_r[256] POOL;
-static uint8_t fx_par;                          /* fx_send[fx_par]: this block's */
-static uint32_t sub_off;                        /* this stretch's offset in the block */
-
-/* one stretch: the melodies (and the drone, unless it is the second core's) here while the second
- * core renders the 808; then those are mixed in, in the order one core always used (drone, 808,
- * MEL A, MEL B): the same sums either way */
-static void render_sub(float *out_l, float *out_r, uint32_t n)
-{
-    float *bb[NBASS] = {out_l, out_r};
-    int idle[NBASS], b;
-    uint32_t arg = (n & 0xFFu) | (drone_on2 ? 0x200u : 0u), i, pt;
-    int on2 = plat_cpu2_run(core2_job, arg | 0x100u);
-    for (i = 0; i < n; i++)
-        dry_l[i] = dry_r[i] = rev[i] = dly[i] = 0.0f;
-    if (!(arg & 0x200u)) {
-        PROF_T(p9);
-        drone_job(n);
-        PROF_ADD(PR_909, p9);
-    }
-    for (b = 0; b < NBASS; b++) {
-        PROF_T(pb);
-        idle[b] = mel[b].idle;                            /* idle: the render writes zeros */
-        melody_render(&mel[b], bb[b], (int)n);
-        PROF_ADD(2 + b, pb);
-    }
-    {   /* the last block's returns for this stretch, while the 808 renders */
-        PROF_T(pf);
-        fxbus_wet_st(&fx, fx_send[fx_par ^ 1u][0] + sub_off, fx_send[fx_par ^ 1u][1] + sub_off, wet_l, wet_r, (int)n);
-        PROF_ADD(5, pf);
-    }
-    pt = plat_cycles();
-#if X0X_DEBUG
-    eng_dbg_nsub++;
-    {
-        uint32_t w0 = plat_ticks24();
-        int failed = on2 && plat_cpu2_wait();
-        eng_dbg_wait += plat_ticks24() - w0;
-        if (failed)
-            on2 = 0;
-    }
-    if (!on2)
-#else
-    if (!on2 || plat_cpu2_wait())
-#endif
-        core2_job(arg);                                   /* one core (or the second failed): here */
-    else
-        PROF_ADD(PR_808, pt);                             /* what the first core waited for the second */
-    if (dn_was_active) {   /* the drone, into the mix (L, R), then its sends from both sides and its level and pan */
-        for (i = 0; i < n; i++) {
-            dry_l[i] = dn_l[i];
-            dry_r[i] = dn_r[i];
-            mono[i] = (dn_l[i] + dn_r[i]) * 0.5f;
-        }
-        mix_targets(PART_909, mix_level[PART_909]);
-        scale_glide(dry_l, &mix_glide[PART_909][GL_L], n);
-        scale_glide(dry_r, &mix_glide[PART_909][GL_R], n);
-        kit_sends(PART_909, mono, n);
-    }
-    if (d808_was_active) {
-        mix_targets(PART_808, mix_level[PART_808]);
-        add_glide(dry_l, t0, &mix_glide[PART_808][GL_L], n);
-        add_glide(dry_r, tr, &mix_glide[PART_808][GL_R], n);
-        add_glide(rev, t1, &mix_glide[PART_808][GL_VREV], n);
-        add_glide(dly, t2, &mix_glide[PART_808][GL_VDLY], n);
-        for (i = 0; i < n; i++)
-            t0[i] = (t0[i] + tr[i]) * 0.5f;
-        kit_sends(PART_808, t0, n);
-    }
-    for (b = 0; b < NBASS; b++) {
-        int p = PART_303A + b;
-        if (idle[b])
-            continue;
-        mix_targets(p, mix_level[p]);
-        add_glide(dry_l, bb[b], &mix_glide[p][GL_L], n);
-        add_glide(dry_r, bb[b], &mix_glide[p][GL_R], n);
-        add_glide(rev, bb[b], &mix_glide[p][GL_REV], n);
-        add_glide(dly, bb[b], &mix_glide[p][GL_DLY], n);
-        meter(p, bb[b], mix_level[p], n);
-    }
-    {
-        PROF_T(pf);
-        float *sr = fx_send[fx_par][0] + sub_off, *sd = fx_send[fx_par][1] + sub_off;
-        for (i = 0; i < n; i++) {
-            sr[i] = rev[i];                               /* for the next block */
-            sd[i] = dly[i];
-            out_l[i] = dry_l[i] + wet_l[i];
-            out_r[i] = dry_r[i] + wet_r[i];
-        }
-        fxbus_post_st(&fx, out_l, out_r, (int)n);
-        PROF_ADD(5, pf);
-    }
+        t = t0;
+    line_was_idle = (uint8_t)line.idle;
+    melody_render(&line, line_buf, (int)n);
+    st_t[ST_CORE2] = plat_ticks24() - t0;
+    st_t[ST_LINE] = plat_ticks24() - t;
 }
 
 void engine_render(int32_t *out_lr, uint32_t n)
 {
-    static float out_l[256], out_r[256];
-    uint32_t done = 0, i;
-    float vol = usb_full ? 1.0f : (float)plat_master() / 4096.0f;   /* (FULL: engine_volume) */
-    int p;
+    uint32_t t0 = plat_ticks24(), t, i, k, done, arg;
+    float vol = usb_full ? 1.0f : (float)plat_master() / 4096.0f, pk = 0.0f;
+    int on2;
     if (n > 256u)
         n = 256u;
-    eng_prof_frames += n;
-    if ((mot_was_on && !mot_on) || mot_release_req) {   /* motion off, or its lanes replaced: knobs back */
-        mot_release_req = 0;
-        motion_release(&mot);
-    }
-    mot_was_on = mot_on;
+    for (k = 0; k < ST_N; k++)
+        st_t[k] = 0;
+    /* CTRL: commands, MIDI in, the clock (its events at their sample) */
     guard_apply();
-    {
-        PROF_T(pt);
-        drain();
-        if (mot_on)
-            motion_tick(&mot, n);
-        fxbus_set_bpm(&fx, seq_tempo(&seq));
-        seq_advance(&seq, 0, &SINK);
-        PROF_ADD(7, pt);
+    drain();
+    test_tick(n);
+    tclock_advance(&eng_clock, 0, &CLK_SINK);
+    for (done = 0; done < n; done += k) {
+        k = tclock_until(&eng_clock, n - done);
+        tclock_advance(&eng_clock, k, &CLK_SINK);
     }
-    while (done < n) {
-        uint32_t k = seq_until_event(&seq, n - done);
-        sub_off = done;
-        render_sub(out_l + done, out_r + done, k);
-        {
-            PROF_T(pt);
-            seq_advance(&seq, k, &SINK);
-            PROF_ADD(7, pt);
-        }
-        done += k;
+    fxbus_set_bpm(&fx, tclock_tempo(&eng_clock));
+    t = plat_ticks24();
+    st_t[ST_CTRL] = t - t0;
+    /* core 2 starts; core 1 renders what is its own meanwhile */
+    arg = (n & 0xFFu) | (drone_on2 ? 0x200u : 0u);
+    on2 = plat_cpu2_run(core2_job, arg);
+    if (!(arg & 0x200u)) {
+        drone_job(n);
+        st_t[ST_DRONE] = plat_ticks24() - t;
+        t = plat_ticks24();
     }
-    for (i = n; i < 256u; i++)                            /* (a shorter block: the rest sends nothing) */
-        fx_send[fx_par][0][i] = fx_send[fx_par][1][i] = 0.0f;
-    fx_par ^= 1u;
-    if (mot_playing && !seq.playing)                     /* stopped: every knob back to its own value */
-        motion_release(&mot);
-    mot_playing = seq.playing;
-    {
-        PROF_T(pt);
-        master_process_st(&mst, out_l, out_r, (int)n, vol);
-        PROF_ADD(6, pt);
+    fxbus_wet_st(&fx, fx_send[fx_par ^ 1u][0], fx_send[fx_par ^ 1u][1], wet_l, wet_r, (int)n);
+    st_t[ST_FXWET] = plat_ticks24() - t;
+    t = plat_ticks24();
+    if (!on2 || plat_cpu2_wait())
+        core2_job(arg);                          /* one core (or the second failed): here */
+    else
+        st_t[ST_WAIT] = plat_ticks24() - t;
+    t = plat_ticks24();
+    /* MIX: the voices by their gains into dry and the sends; out = dry + the returns, then the
+     * distortion and the glue compressor */
+    for (i = 0; i < n; i++)
+        out_l[i] = out_r[i] = rev[i] = dly[i] = 0.0f;
+    mix_targets(P_DRONE);
+    mix_targets(P_LINE);
+    if (dn_was_active) {
+        for (i = 0; i < n; i++)
+            mono[i] = (dn_l[i] + dn_r[i]) * 0.5f;
+        add_glide(out_l, dn_l, &mix_glide[P_DRONE][GL_L], n);
+        add_glide(out_r, dn_r, &mix_glide[P_DRONE][GL_R], n);
+        add_glide(rev, mono, &mix_glide[P_DRONE][GL_REV], n);
+        add_glide(dly, mono, &mix_glide[P_DRONE][GL_DLY], n);
+    }
+    if (!line_was_idle) {
+        add_glide(out_l, line_buf, &mix_glide[P_LINE][GL_L], n);
+        add_glide(out_r, line_buf, &mix_glide[P_LINE][GL_R], n);
+        add_glide(rev, line_buf, &mix_glide[P_LINE][GL_REV], n);
+        add_glide(dly, line_buf, &mix_glide[P_LINE][GL_DLY], n);
     }
     {
-        float pk = 0.0f;
+        float *sr = fx_send[fx_par][0], *sd = fx_send[fx_par][1];
         for (i = 0; i < n; i++) {
-            float l = out_l[i], r = out_r[i];            /* (out_scale: NORMAL 2^22, Felucca's; LOUD 2^23) */
-            eng_out_clips += (fm_fabsf(l) > out_lim) + (fm_fabsf(r) > out_lim);
-            l = l > out_lim ? out_lim : l < -out_lim ? -out_lim : l;
-            r = r > out_lim ? out_lim : r < -out_lim ? -out_lim : r;
-            out_lr[2u * i] = (int32_t)(l * out_scale);
-            out_lr[2u * i + 1u] = (int32_t)(r * out_scale);
-            if (i & 1u)
-                eng_scope[eng_scope_w++ & (SCOPE_N - 1u)] = (int16_t)((out_l[i] + out_r[i]) * 16383.5f);
-            pk = fm_maxf(pk, fm_maxf(fm_fabsf(l), fm_fabsf(r)));
+            sr[i] = rev[i];                      /* for the next block */
+            sd[i] = dly[i];
+            out_l[i] += wet_l[i];
+            out_r[i] += wet_r[i];
         }
-        /* Penumbra: how long the output has been silent (under -72 dBFS), for AUTOSAVE: a flash
-         * erase stops the audio, and drones and their reverb ring on with the sequencer stopped */
-        eng_quiet_frames = pk < 2.5e-4f ? (eng_quiet_frames + n > 0x7FFFFFFFu ? 0x7FFFFFFFu : eng_quiet_frames + n) : 0;
+        for (i = n; i < 256u; i++)               /* (a shorter block: the rest sends nothing) */
+            sr[i] = sd[i] = 0.0f;
     }
-    for (p = 0; p < NPARTS; p++) {                      /* meters: peak hold, ~300 ms decay at the UI */
-        uint32_t q = (uint32_t)(fm_minf(part_peak[p], 1.0f) * 32767.0f);
-        if (q > eng_peak[p])
-            eng_peak[p] = (uint16_t)q;
-        part_peak[p] = 0.0f;
+    fx_par ^= 1u;
+    fxbus_post_st(&fx, out_l, out_r, (int)n);
+    st_t[ST_MIX] = plat_ticks24() - t;
+    t = plat_ticks24();
+    /* MASTER, then the codec's scale */
+    master_process_st(&mst, out_l, out_r, (int)n, vol);
+    for (i = 0; i < n; i++) {
+        float l = out_l[i], r = out_r[i];
+        eng_out_clips += (fm_fabsf(l) > out_lim) + (fm_fabsf(r) > out_lim);
+        l = l > out_lim ? out_lim : l < -out_lim ? -out_lim : l;
+        r = r > out_lim ? out_lim : r < -out_lim ? -out_lim : r;
+        out_lr[2u * i] = (int32_t)(l * out_scale);
+        out_lr[2u * i + 1u] = (int32_t)(r * out_scale);
+        pk = fm_maxf(pk, fm_maxf(fm_fabsf(l), fm_fabsf(r)));
     }
-}
-
-/* -------------------------------------------------------------- loops --- */
-/* a user loop's length in bars: 1, 2, 4 or 8, whichever puts its tempo nearest 120 BPM
- * inside 80..180 (breaks are recorded at their own tempo; the player stretches to ours) */
-static uint8_t loop_bars(uint32_t ns, uint32_t rate)
-{
-    float sec = (float)ns / (float)(rate ? rate : 22050u), best = 1e9f;
-    uint8_t bars = 1, b;
-    for (b = 1; b <= 8; b = (uint8_t)(b * 2)) {
-        float bpm = (float)b * 240.0f / sec, d = bpm > 120.0f ? bpm - 120.0f : 120.0f - bpm;
-        if (bpm >= 80.0f && bpm <= 180.0f && d < best) {
-            best = d;
-            bars = b;
-        }
+    eng_quiet_frames = pk < 2.5e-4f ? (eng_quiet_frames + n > 0x7FFFFFFFu ? 0x7FFFFFFFu : eng_quiet_frames + n) : 0;
+    {
+        uint32_t q = (uint32_t)(fm_minf(pk, 1.0f) * 32767.0f);
+        if (q > eng_level)
+            eng_level = (uint16_t)q;
     }
-    return bars;
+    st_t[ST_MASTER] = plat_ticks24() - t;
+    st_t[ST_CORE1] = plat_ticks24() - t0;
+    if (!on2)
+        st_t[ST_CORE2] = 0;                      /* (its job ran on the first core: counted there) */
+    bench_block(n);
 }
 
-#include "x0x_break_bank.h"              /* tools/gen_break_bank.py: the built-in loops */
-
-static const brk_loop_t *brk_builtin(int k)
+void engine_init(void)
 {
-    static brk_loop_t L[2];
-    static int which;
-    brk_loop_t *l = &L[which ^= 1];      /* two: A and B are set one after the other */
-    if (k < 0 || k >= X0X_NBREAKS)
-        return 0;
-    l->adpcm = X0X_BREAKS[k].adpcm;
-    l->nsamples = X0X_BREAKS[k].n;
-    l->rate = X0X_BREAK_RATE;
-    l->bars = X0X_BREAKS[k].bars;
-    return l;
-}
-
-/* the LOOP choices: the built-in bank, then every loop (zone) of the user slots, in order.
- * The list follows uploads: engine_brk_loops() rescans it. */
-#define NLOOPS_MAX (X0X_NBREAKS + PLAT_NSLOTS * PLAT_SLOT_ZONES)
-static const char *loop_names[NLOOPS_MAX];
-static char user_names[PLAT_NSLOTS * PLAT_SLOT_ZONES][8];
-static uint8_t loop_slot[NLOOPS_MAX], loop_zone[NLOOPS_MAX];
-static int nloops;
-
-static void scan_loops(void)
-{
-    int i, k, z, u = 0;
-    nloops = 0;
-    for (i = 0; i < X0X_NBREAKS; i++)
-        loop_names[nloops++] = X0X_BREAKS[i].name;
-    for (k = 0; k < PLAT_NSLOTS; k++) {                 /* yours: BR1, BR2 ... in order, whatever slot */
-        int nz = plat_slot_zones(k);                    /* holds them (the break page packs the list) */
-        for (z = 0; z < nz && z < PLAT_SLOT_ZONES; z++) {
-            char *n = user_names[k * PLAT_SLOT_ZONES + z];
-            int j = 2;
-            u++;
-            n[0] = 'B';
-            n[1] = 'R';
-            if (u >= 10)
-                n[j++] = (char)('0' + u / 10);
-            n[j++] = (char)('0' + u % 10);
-            n[j] = 0;
-            loop_slot[nloops] = (uint8_t)k;
-            loop_zone[nloops] = (uint8_t)z;
-            loop_names[nloops++] = n;
-        }
-    }
-}
-
-int engine_brk_nslots(void)
-{
-    if (!nloops)
-        scan_loops();
-    return nloops;
-}
-const char *const *engine_brk_slot_names(void)
-{
-    if (!nloops)
-        scan_loops();
-    return loop_names;
-}
-
-int engine_brk_slice(void) { return brk.running ? brk.st_slice : -1; }
-
-void engine_brk_state(int *slice, int *bank, int *div, int *running)
-{
-    *slice = brk.st_slice;
-    *bank = brk.st_bank;
-    *div = brk.st_div;
-    *running = brk.running;
-}
-
-/* the loop's outline for the screen: n columns of peak level 0..255 (main loop: decodes the
- * whole loop once, ~20k IMA steps; called when the loop changes, never per frame) */
-static const int16_t ISTEP[89] = {
-    7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 19, 21, 23, 25, 28, 31, 34, 37, 41, 45, 50, 55, 60, 66, 73, 80, 88, 97,
-    107, 118, 130, 143, 157, 173, 190, 209, 230, 253, 279, 307, 337, 371, 408, 449, 494, 544, 598, 658, 724, 796,
-    876, 963, 1060, 1166, 1282, 1411, 1552, 1707, 1878, 2066, 2272, 2499, 2749, 3024, 3327, 3660, 4026, 4428,
-    4871, 5358, 5894, 6484, 7132, 7845, 8630, 9493, 10442, 11487, 12635, 13899, 15289, 16818, 18500, 20350,
-    22385, 24623, 27086, 29794, 32767};
-static const int8_t IIDX[8] = {-1, -1, -1, -1, 2, 4, 6, 8};
-int engine_brk_outline(int which, uint8_t *peaks, int n)
-{
-    const brk_bank_t *bk = &brk.bank[which & 1];
-    uint32_t i, ns = bk->n;
-    int32_t pred = 0, idx = 0, col = 0, pk = 0;
-    uint32_t per;
-    if (!bk->adpcm || !ns || n <= 0)
-        return 0;
-    per = (ns + (uint32_t)n - 1u) / (uint32_t)n;       /* samples per column (32-bit: no __udivdi3) */
-    for (i = 0; i < ns; i++) {
-        uint32_t code = (bk->adpcm[i >> 1] >> ((i & 1u) * 4u)) & 15u;
-        int32_t st = ISTEP[idx], vd = st >> 3, c;
-        if (code & 4u) vd += st;
-        if (code & 2u) vd += st >> 1;
-        if (code & 1u) vd += st >> 2;
-        pred += (code & 8u) ? -vd : vd;
-        pred = pred < -32768 ? -32768 : pred > 32767 ? 32767 : pred;
-        idx += IIDX[code & 7u];
-        idx = idx < 0 ? 0 : idx > 88 ? 88 : idx;
-        c = (int32_t)(i / per);
-        if (c != col) {
-            peaks[col] = (uint8_t)(pk >> 7);
-            col = c;
-            pk = 0;
-        }
-        if ((pred < 0 ? -pred : pred) > pk)
-            pk = pred < 0 ? -pred : pred;
-    }
-    peaks[col] = (uint8_t)(pk >> 7);
-    for (col++; col < n; col++)
-        peaks[col] = 0;
-    return 1;
-}
-float engine_gr_db(void) { return mst.gr_view; }
-void engine_master_format(int i, char *buf) { master_format(&mst, i, buf); }
-
-void engine_brk_loops(void)
-{
-    const brkpart_t *bp = &seq.pat[seq.ppat[TRK_BRK]].brk;
-    brk_loop_t L[2];
-    int w;
-    scan_loops();                                       /* an upload may have changed the user loops */
-    brk_hold = 1;                                       /* the ISR skips the break while we rewrite it */
-    for (w = 0; w < 2; w++) {
-        int slot = w ? bp->slot_b : bp->slot_a;
-        uint32_t ns = 0, rate = 0;
-        char name[9];
-        const uint8_t *d = (slot >= X0X_NBREAKS && slot < nloops)
-                               ? plat_slot(loop_slot[slot], loop_zone[slot], &ns, &rate, name) : 0;
-        if (d) {
-            L[w].adpcm = d;
-            L[w].nsamples = ns;
-            L[w].rate = rate;
-            L[w].bars = loop_bars(ns, rate);
-            breaks_set_loop(&brk, w, &L[w]);
-        } else {
-            breaks_set_loop(&brk, w, brk_builtin(slot < X0X_NBREAKS ? slot : 0));   /* built-in (or an empty user slot: the first) */
-        }
-    }
-    brk_hold = 0;
-}
-
-void engine_init(pattern_t *patterns, song_t *song, lane_t *lanes, const sound_t *base)
-{
-    int p;
-    for (p = 0; p < NPARTS * NDRUM; p++)
-        prob[p / NDRUM][p % NDRUM] = 100;             /* every step plays, until a lane says */
     drone_init(&dn);
     drone_swarm_buffer(&dn, swarm_l, swarm_r);
-    drum808_init(&d808);
-    melody_init(&mel[0]);
-    melody_init(&mel[1]);
-    breaks_init(&brk);
+    melody_init(&line);
     fxbus_init(&fx, dly_buf, DLY_LEN);
     fxbus_reverb_buffers(&fx, rv_buf, rv_ps);
     fxbus_set_lead(&fx, FX_LEAD);
     master_init(&mst);
-    seq_init(&seq, patterns);
-    seq.song = song;
-    motion_init(&mot, lanes);
-    mot.base = mot_base;
-    mot.apply = mot_apply;
-    mot_base_snd = base;
-    for (p = 0; p < NPARTS; p++) {
-        mix_level[p] = 1.0f;
-        mix_rev[p] = mix_dly[p] = 0.0f;
-    }
+    tclock_init(&eng_clock);
+    scene_default();
 }

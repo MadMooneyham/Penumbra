@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* X0X master: bus compressor (+ PUMP), resonant multimode filter, volume, limiter.
+/* The master: bus compressor (+ PUMP), resonant multimode filter, volume, limiter.
  *
  * Compressor: feed-forward, peak detector, gain computed in dB with a 6 dB soft knee
  * (Giannoulis / Massberg / Reiss's "smooth decoupled" design: the gain reduction itself is
@@ -22,7 +22,7 @@ static const float RATIO_V[] = {1.0f, 1.5f, 2.0f, 3.0f, 4.0f, 6.0f, 8.0f, 12.0f,
 static const char *const SRC_N[] = {"909", "808", "BOTH"};
 static const char *const MODE_N[] = {"OFF", "LP", "BP", "HP"};
 static const char *const ONOFF_N[] = {"OFF", "ON"};
-static const x0x_param_t MST_P[MST_NPARAMS] = {
+static const param_t MST_P[MST_NPARAMS] = {
     {"THRESH", 127, 95, 0},           /* -48 .. 0 dB: 95 = -12 dB */
     {"RATIO", 9, 0, RATIO_N},         /* 1:1 = off */
     {"ATTACK", 127, 60, 0},           /* 0.1 .. 100 ms, exponential: 60 = ~2.6 ms */
@@ -35,12 +35,12 @@ static const x0x_param_t MST_P[MST_NPARAMS] = {
     {"CUTOFF", 127, 127, 0},
     {"RESO", 127, 20, 0},
     {"LIMIT", 1, 1, ONOFF_N},
-    {"COMP", 127, 0, 0},              /* X0X: one knob over THRESH, RATIO, MAKEUP (0 = off) */
-    {"FILTER", 127, 64, 0},           /* X0X: one knob over MODE, CUTOFF (64 = off) */
+    {"COMP", 127, 0, 0},              /* one knob over THRESH, RATIO, MAKEUP (0 = off) */
+    {"FILTER", 127, 64, 0},           /* one knob over MODE, CUTOFF (64 = off) */
 };
 
 int master_nparams(void) { return MST_NPARAMS; }
-const x0x_param_t *master_param(int i) { return (i >= 0 && i < MST_NPARAMS) ? &MST_P[i] : 0; }
+const param_t *master_param(int i) { return (i >= 0 && i < MST_NPARAMS) ? &MST_P[i] : 0; }
 
 static float thresh_db(int p) { return -48.0f + 48.0f * (float)p / 127.0f; }
 static float attack_ms(int p) { return 0.1f * fm_exp2f((float)p * (9.966f / 127.0f)); }     /* 0.1 .. 100 */
@@ -450,7 +450,7 @@ void master_format(const master_t *m, int i, char *b)
         return;
     }
     default: {
-        const x0x_param_t *d = &MST_P[i];
+        const param_t *d = &MST_P[i];
         if (d->names) {
             const char *s = d->names[p];
             while ((*b = *s++) != 0)

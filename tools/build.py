@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
-"""Build X0X (a fork of Felucca): the app, the update loader and an installable .fwsc package.
+"""Build Penumbra (a fork of X0X, itself of Felucca): the app, the update loader and an installable .fwsc package.
 
   tools/build.py [--release X.Y[-suffix]]
 
-Outputs in build/: x0x.bin (app), loader/ota.bin (update loader, Felucca's, unchanged),
-x0x.fwsc (package). See BUILDING.md for the toolchain and the SDK.
+Outputs in build/: penumbra.bin (app), loader/ota.bin (update loader, Felucca's, unchanged),
+penumbra.fwsc (package). See BUILDING.md for the toolchain and the SDK.
 
 The JieLi toolchain is Linux x86-64 only. JIELI_TOOLCHAIN points at it; on
 macOS (or with JIELI_DOCKER=1) each tool runs in a linux/amd64 container.
@@ -37,12 +37,12 @@ LOADER_LOAD = 0x01C0A800
 LOADER_NAME = b"usb_hid_ota.bin"    # the file name the SPL looks for
 DOCKER_IMAGE = os.environ.get("JIELI_DOCKER_IMAGE", "debian:bookworm-slim")
 CFLAGS = ["-Os", "-ffunction-sections", "-fno-builtin", "-Wall", "-Wno-unused-function"]
-# X0X: the AC79's single-precision FPU (the SDK's own flags); no fused multiply-add, so the host
+# the AC79's single-precision FPU (the SDK's own flags); no fused multiply-add, so the host
 # build (-ffp-contract=off) computes the same samples
 FPU = ["-mcpu=r3", "-mfprev1", "-ffp-contract=off"]
-# the DSP, the sequencer and the audio engine: separate units at -O2
-O2_UNITS = ["dsp/drone.c", "dsp/drum808.c", "dsp/melody.c", "dsp/breaks.c", "dsp/fxbus.c", "dsp/spacevb.c",
-            "dsp/x0x_tables.c", "dsp/master.c", "seq/sequencer.c", "seq/tb3po.c", "seq/pattern.c", "seq/motion.c", "app/engine.c"]
+# the DSP, the clock and the audio engine: separate units at -O2
+O2_UNITS = ["dsp/drone.c", "dsp/melody.c", "dsp/fxbus.c", "dsp/spacevb.c", "dsp/dsp_tables.c", "dsp/master.c",
+            "seq/clock.c", "app/engine.c"]
 LINE = re.compile(r"^\s*([0-9a-f]+):\s+((?:[0-9a-f]{2} )+)\s*\t(.*)$")
 
 # SDK files of AC79NN_SDK_V1.2.1_2023-12-13 (the tested version)
@@ -121,17 +121,17 @@ def tc(tool, *args):
 
 def tc_all(*cmds):
     # at most 4 at once: a podman machine drops concurrent container connections (ssh EOF)
-    with ThreadPoolExecutor(min(len(cmds), int(os.environ.get("X0X_JOBS", "4")))) as ex:
+    with ThreadPoolExecutor(min(len(cmds), int(os.environ.get("PEN_JOBS", "4")))) as ex:
         return list(ex.map(lambda c: tc(*c), cmds))
 
 
 def generate():
-    """generated headers: the font (Felucca's), the 909's samples and tables, the break bank"""
+    """generated headers: the font (Felucca's), the logo, the effects' tables, the reader's words link"""
     GEN.mkdir(parents=True, exist_ok=True)
     tools = SRC / "tools"
     cmds = [[tools / "gen_font.py", GEN / "felucca_font.h"],
             [tools / "gen_logo.py", GEN / "logo.h"],
-            [tools / "gen_drum_samples.py", GEN / "x0x_drum_samples.h"],
+            [tools / "gen_dsp_tables.py", GEN / "dsp_tables.h"],
             [tools / "gen_words.py", SRC / "firmware" / "words.tsv", SRC / "web" / "words", GEN / "ann_words.h"]]
     procs = [subprocess.Popen([sys.executable, *map(str, c)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                               text=True) for c in cmds]
@@ -142,16 +142,6 @@ def generate():
             failed.append(c[0].name)
     if failed:
         raise SystemExit(f"build: {', '.join(failed)} failed")
-    # the BREAK part's built-in bank: the 909-rendered loops (no recordings), or, opt-in,
-    # one-bar WAVs from X0X_BREAK_BANK (made by tools/import_breaks.py; not in this tree)
-    bank = os.environ.get("X0X_BREAK_BANK")
-    cmd = ([sys.executable, str(tools / "gen_break_bank.py"), bank, str(GEN / "x0x_break_bank.h")] if bank
-           else ["sh", str(tools / "gen_builtin_break.sh"), str(GEN)])
-    r = subprocess.run(cmd, capture_output=True, text=True)
-    sys.stdout.write(r.stdout)
-    if r.returncode:
-        sys.stderr.write(r.stderr)
-        raise SystemExit("build: break bank failed")
 
 
 # ---- update loader
@@ -218,31 +208,31 @@ def build_loader():
 
 def build_app():
     flags = [*CFLAGS, *FPU, "-Ifirmware/hal", "-Ifirmware/src", "-Ibuild/gen"]
-    if VERSION and os.environ.get("X0X_DEBUG") == "1":
-        raise SystemExit("X0X_DEBUG=1 (register peek / poke over USB) is for development builds only")
-    for flag in ("X0X_CDC", "X0X_DEBUG"):
-        v = os.environ.get(flag)    # unset: the default in firmware/src/x0x.c
+    if VERSION and os.environ.get("PEN_DEBUG") == "1":
+        raise SystemExit("PEN_DEBUG=1 (register peek / poke over USB) is for development builds only")
+    for flag in ("PEN_CDC", "PEN_DEBUG"):
+        v = os.environ.get(flag)    # unset: the default in firmware/src/penumbra.c
         if v in ("0", "1"):
             flags.append(f"-D{flag}={v}")
     flags.append(f'-DFELUCCA_ID="{PRODUCT}"')
     if VERSION:
-        flags.append(f'-DX0X_VERSION="{VERSION}"')
+        flags.append(f'-DPEN_VERSION="{VERSION}"')
     o2 = [f if f != "-Os" else "-O2" for f in flags]
     units = [("cc", "-c", FW / "crt0.S", "-o", OUT / "crt0.o"),
              ("cc", "-c", FW / "hal" / "fm1_vec.S", "-o", OUT / "fm1_vec.o"),
              ("cc", "-c", FW / "hal" / "fm1_isr.S", "-o", OUT / "fm1_isr.o"),
              ("cc", "-c", FW / "hal" / "fm1_cpu1.S", "-o", OUT / "fm1_cpu1.o"),
-             ("cc", *flags, "-c", FW / "src" / "x0x.c", "-o", OUT / "x0x.o")]
-    objs = [OUT / "crt0.o", OUT / "fm1_vec.o", OUT / "fm1_isr.o", OUT / "fm1_cpu1.o", OUT / "x0x.o"]
+             ("cc", *flags, "-c", FW / "src" / "penumbra.c", "-o", OUT / "penumbra.o")]
+    objs = [OUT / "crt0.o", OUT / "fm1_vec.o", OUT / "fm1_isr.o", OUT / "fm1_cpu1.o", OUT / "penumbra.o"]
     (OUT / "o2").mkdir(parents=True, exist_ok=True)
     for u in O2_UNITS:
         o = OUT / "o2" / (u.replace("/", "_")[:-2] + ".o")
         units.append(("cc", *o2, "-c", FW / "src" / u, "-o", o))
         objs.append(o)
     tc_all(*units)
-    elf = OUT / "x0x.elf"
+    elf = OUT / "penumbra.elf"
     # unreferenced functions (each in its own section: -ffunction-sections) are dropped: the DSP keeps
-    # mono reference paths for the host tests that the firmware no longer calls
+    # mono reference paths for the host tests that the firmware does not call
     tc("pi32v2/bin/ld", "--gc-sections", "-e", "_start", "-T", FW / "app.ld", *objs, "-o", elf)
     for sect in ("text.bin", "data.bin", "ramtext.bin", "c1text.bin"):
         (OUT / sect).unlink(missing_ok=True)
@@ -253,7 +243,7 @@ def build_app():
                                ("common/bin/objdump", "-t", elf),
                                ("common/bin/objdump", "-d", elf),
                                ("common/bin/objdump", "-d", "-j", ".ram_text", elf))
-    (OUT / "x0x.dis").write_text(dis)
+    (OUT / "penumbra.dis").write_text(dis)
 
     def symv(name):
         return int(re.search(r"^([0-9a-f]+) .*\s" + name + r"$", syms, re.M).group(1), 16)
@@ -271,7 +261,7 @@ def build_app():
             img += b"\xff" * (load - APP_XIP - len(img))
             img += blob
     img += b"\xff" * (-len(img) % 4)
-    (OUT / "x0x.bin").write_bytes(img)
+    (OUT / "penumbra.bin").write_bytes(img)
     return bytes(img), syms, dis, rt
 
 
@@ -297,7 +287,7 @@ def check(img, syms, dis, rt):
                 errors.append(f"reference to ROM address {val:#010x}")
     if len(img) > APP_SLOT:
         errors.append(f"image {len(img)} B exceeds the app slot")
-    # X0X: the FPU is single precision; a soft-double routine in the image means a double crept in
+    # the FPU is single precision; a soft-double routine in the image means a double crept in
     soft = sorted(set(re.findall(r"\s(__(?:add|sub|mul|div|neg|cmp|eq|ne|lt|le|gt|ge|un|extendsf|truncdf|fixdf|fixunsdf|floatsidf|floatunsidf|floatdidf)\w*df\w*)$", syms, re.M)))
     if soft:
         errors.append(f"soft-double routines linked: {soft[:6]} (a double in the code)")
@@ -367,18 +357,17 @@ def main():
     ap.add_argument("--release", metavar="X.Y[.Z]", help="release build: identity FM-1_9XXYYZZ, version string X.Y[.Z]")
     ap.add_argument("--sdk", type=Path, help="JieLi AC79 SDK checkout (default: $AC79_SDK)")
     a = ap.parse_args()
-    name = "x0x.fwsc"
+    name = "penumbra.fwsc"
     if a.release:
         # identity FM-1_9 + major, minor, patch as two digits each (0.10 -> FM-1_9001000). FM-1 is the
-        # model the update tools match on; the number is ours (X0X 0.3..0.9 were FM-1_9XY, one digit
-        # each, which ran out at 0.9 and was also Felucca's own numbering). 12 of the 20 characters a
-        # package's identity holds; digits only after the underscore, as the tools parse it.
+        # model the update tools match on; the number is ours. 12 of the 20 characters a package's
+        # identity holds; digits only after the underscore, as the tools parse it.
         m = re.fullmatch(r"(\d{1,2})\.(\d{1,2})(?:\.(\d{1,2}))?(-[A-Za-z0-9]+)?", a.release)
         if not m:
             raise SystemExit(f"--release {a.release}: use X.Y[.Z][-suffix], up to two digits each")
         PRODUCT = "FM-1_9%02d%02d%02d" % (int(m[1]), int(m[2]), int(m[3] or 0))
         VERSION = a.release.upper() if "BETA" in a.release.upper() else a.release.upper() + " BETA"
-        name = f"x0x-{a.release}.fwsc"
+        name = f"penumbra-{a.release}.fwsc"
     fm1pkg_make.SDK = a.sdk
     for rel, sha in SDK_SHA256.items():          # fail early without the SDK
         if hashlib.sha256(fm1pkg_make.sdk_file(rel)).hexdigest() != sha:
@@ -402,7 +391,7 @@ def main():
         raise SystemExit("build: checks failed")
     pkg = fm1pkg_make.ufw(fm1pkg_make.flash_image(img, fm1pkg_make.KEY), ota, PRODUCT)
     (OUT / name).write_bytes(pkg)
-    print(f"app      {OUT / 'x0x.bin'}  {len(img)} B")
+    print(f"app      {OUT / 'penumbra.bin'}  {len(img)} B")
     print(f"loader   {LDR / 'ota.bin'}  {len(ota)} B")
     print(f"package  {OUT / name}  {len(pkg)} B, identity {PRODUCT}")
     return 0
