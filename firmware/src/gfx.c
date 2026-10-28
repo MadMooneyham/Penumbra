@@ -200,3 +200,58 @@ static void draw_text_box(uint32_t x, uint32_t y, uint32_t w, const felucca_font
     cv_blit(x, y);
     lcd_sync();                     /* one-shots (boot, crash, UBOOT, update) finish here */
 }
+
+/* Penumbra: the boot screen. The Lunar Eclipse Forge mark (tools/gen_logo.py) in moonlight, in an
+ * eclipse's corona: a ring that glows out from its edge into the dark, and a few stars. */
+#include "logo.h"
+#include "dsp/fastmath.h"
+#define C_NIGHT RGB(7, 7, 15)
+static uint16_t mix565(uint16_t a, uint16_t b, uint32_t t)   /* a to b, t 0..255 */
+{
+    uint32_t r = ((a >> 11) * (255u - t) + (b >> 11) * t) / 255u;
+    uint32_t g = (((a >> 5) & 63u) * (255u - t) + ((b >> 5) & 63u) * t) / 255u;
+    uint32_t bl = ((a & 31u) * (255u - t) + (b & 31u) * t) / 255u;
+    return (uint16_t)((r << 11) | (g << 5) | bl);
+}
+
+static void draw_splash(const char *name, const char *sub)
+{
+    static const uint8_t STARS[][2] = {{14, 18}, {206, 10}, {226, 96}, {22, 120}, {58, 54},
+                                       {188, 132}, {120, 4}, {34, 76}, {214, 52}};
+    const uint16_t moon = RGB(226, 224, 236), corona = RGB(255, 150, 70);
+    const int32_t cx = 120, cy = 70, R = 64;
+    int32_t x, y, ox = cx - LOGO_W / 2, oy = cy - LOGO_H / 2;
+    uint32_t k;
+    lcd_fill(0, 0, 240, 240, C_NIGHT);
+    cv_begin(240, 140, C_NIGHT);
+    for (k = 0; k < sizeof STARS / sizeof STARS[0]; k++)
+        cv_pset(STARS[k][0], STARS[k][1], RGB(150, 150, 170));
+    for (y = cy - R - 14; y <= cy + R + 14; y++)      /* the corona: bright at the ring, fading outwards */
+        for (x = cx - R - 14; x <= cx + R + 14; x++) {
+            float d = fm_sqrtf((float)((x - cx) * (x - cx) + (y - cy) * (y - cy))) - (float)R;
+            float a = d < 0.0f ? 1.0f + d * 0.9f : 1.0f - d / 14.0f;
+            if (a > 0.0f && (uint32_t)x < cv_w && (uint32_t)y < cv_h) {
+                uint16_t bg = swap16(cv_px[(uint32_t)y * cv_w + (uint32_t)x]);
+                cv_px[(uint32_t)y * cv_w + (uint32_t)x] = swap16(mix565(bg, corona, (uint32_t)(a * a * 255.0f)));
+            }
+        }
+    for (y = cy - R + 2; y < cy + R - 1; y++)        /* the moon's dark face inside it */
+        for (x = cx - R + 2; x < cx + R - 1; x++)
+            if ((x - cx) * (x - cx) + (y - cy) * (y - cy) < (R - 1) * (R - 1))
+                cv_pset(x, y, C_NIGHT);
+    for (y = 0; y < LOGO_H; y++)                      /* the mark, its edges blended */
+        for (x = 0; x < LOGO_W; x++) {
+            uint32_t a = LOGO_PX[y * ((LOGO_W + 1) / 2) + x / 2];
+            a = (x & 1) ? (a & 15u) : (a >> 4);
+            if (a) {
+                uint32_t i = (uint32_t)(oy + y) * cv_w + (uint32_t)(ox + x);
+                cv_px[i] = swap16(mix565(swap16(cv_px[i]), moon, a * 17u));
+            }
+        }
+    cv_blit(0, 6);
+    cv_begin(240, 60, C_NIGHT);                      /* the names, on the same night */
+    cv_text((240 - text_w(&FONT_M, name)) / 2, 6, &FONT_M, name, RGB(240, 238, 246));
+    cv_text((240 - text_w(&FONT_XS, sub)) / 2, 40, &FONT_XS, sub, RGB(138, 138, 160));
+    cv_blit(0, 160);
+    lcd_sync();
+}

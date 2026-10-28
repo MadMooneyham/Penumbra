@@ -1179,6 +1179,8 @@ int main(int argc, char **argv)
                             proj.pat[p].drum[k].hit[v][w] = r;
                         }
             mark_dirty();
+        } else if (!strcmp(cmd, "splash")) {           /* the FM-1's boot screen (main_fm1.c), for a shot */
+            draw_splash(FW_NAME, "LUNAR ECLIPSE FORGE");
         } else if (!strcmp(cmd, "snapproj")) {
             memcpy(pat_snap, proj.pat, sizeof pat_snap);
         } else if (!strcmp(cmd, "fakecrash")) {

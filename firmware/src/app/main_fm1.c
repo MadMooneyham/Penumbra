@@ -402,8 +402,7 @@ static void fm1_main(void)
     }
     lcd_init();
     palette_set(1);
-    draw_text_box(0, 96, 240, &FONT_M, FW_NAME, C_HI, 1);
-    draw_text_box(0, 134, 240, &FONT_S, "DRONE 808 MELODY", C_GRAY, 1);
+    draw_splash(FW_NAME, "LUNAR ECLIPSE FORGE");
     if (x0x_dbg.magic != DBG_MAGIC) {
         memset(&x0x_dbg, 0, sizeof x0x_dbg);
         x0x_dbg.magic = DBG_MAGIC;
