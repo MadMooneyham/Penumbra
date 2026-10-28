@@ -19,8 +19,8 @@
  *           glue compressor), MASTER (compressor, filter, limiter, the output's scale)
  * The effects and the drone's bus run a block behind (5.8 ms), so each core works while the other
  * does. DRONE CORE says whose the drone voices are: all the first's, all the second's, or SPLIT (the
- * default): the second core takes half the sounding oscillators, which with the bus and LINE beside
- * them balances the first's effects returns. */
+ * default): each block, the share of the sounding voices that has the two cores finish closest
+ * together, from what the blocks before measured (engine.c drone_mask2). */
 #pragma once
 #include <stdint.h>
 #include "../seq/clock.h"

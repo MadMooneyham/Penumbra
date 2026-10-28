@@ -8,6 +8,7 @@
 #include "../dsp/fxbus.h"
 #include "../dsp/master.h"
 #include "../dsp/fastmath.h"
+#include "balance.h"
 
 #define POOL PEN_POOL
 
@@ -166,7 +167,7 @@ float engine_drone_level(int voice)
  * voice), each voice a little off true like a Solar tuned by ear, spread across the field; VOX a soft
  * pad of two saws; all of it into a long shimmering reverb and a worn ping-pong tape delay, dotted
  * quarters */
-static float mix_level[NPARTS] = {1.0f, 0.8f, 1.0f}, mix_rev[NPARTS], mix_dly[NPARTS];
+static float mix_level[NPARTS] = {1.0f, 0.57f, 1.0f}, mix_rev[NPARTS], mix_dly[NPARTS];   /* VOX 3 dB under 0.10's */
 static void scene_default(void)
 {
     static const uint8_t NOTE[DRONE_VOICES] = {24, 31, 36, 39, 48};       /* 0 +7 +12 +15 +24 */
@@ -425,25 +426,60 @@ static uint8_t line_was_idle, vox_was_active, bus_par;
 static uint8_t bus_due, bus_plan;               /* the last block planned voices: its bus runs now, on its plan */
 static uint32_t bus_n;
 
-/* whose each drone voice is this block: bit v set, the second core's. SPLIT gives the second core
- * voices until it holds half the sounding oscillators: with the bus and LINE beside them it then
- * carries about what the first does with its effects returns */
-static uint32_t drone_mask2(void)
+/* SPLIT balances itself: what each core does besides the drone voices, and what one drone
+ * oscillator costs, kept as running averages of the blocks' own timings (24 MHz ticks). Each block's
+ * voices then go where the two cores finish closest together: of every way to share the sounding
+ * voices, the one whose busier core is least busy. The split only changes when another is better by
+ * more than BAL_HYST of the block, so voices do not hop from core to core on noise. Until the first
+ * timings, the second core takes half the oscillators. */
+#define BAL_A 0.0625f                           /* averaging: about 16 blocks (0.1 s) */
+#define BAL_HYST 0.03f
+static float bal_fix1, bal_fix2, bal_osc;       /* core 1's own work, core 2's, a drone oscillator */
+static uint32_t bal_mask, bal_osc1, bal_osc2;   /* the split, and the oscillators each core rendered */
+static uint32_t drone_mask2(uint32_t n)
 {
-    uint32_t m = 0;
-    int v, total = 0, two = 0;
+    uint32_t all = (1u << DRONE_VOICES) - 1u;
+    float cost[DRONE_VOICES];
+    int v, total = 0;
     if (drone_core == DRONE_CORE1)
         return 0;
     if (drone_core == DRONE_CORE2)
-        return (1u << DRONE_VOICES) - 1u;
+        return all;
     for (v = 0; v < DRONE_VOICES; v++)
         total += drone_cost(&dn, v);
-    for (v = 0; v < DRONE_VOICES && 2 * two < total; v++)
-        if (drone_cost(&dn, v)) {
-            two += drone_cost(&dn, v);
-            m |= 1u << v;
-        }
-    return m;
+    if (bal_osc <= 0.0f) {                       /* no timings yet: half the oscillators */
+        uint32_t m = 0;
+        int two = 0;
+        for (v = 0; v < DRONE_VOICES && 2 * two < total; v++)
+            if (drone_cost(&dn, v)) {
+                two += drone_cost(&dn, v);
+                m |= 1u << v;
+            }
+        return bal_mask = m;
+    }
+    for (v = 0; v < DRONE_VOICES; v++)
+        cost[v] = (float)drone_cost(&dn, v) * bal_osc;
+    return bal_mask = balance_pick(bal_fix1, bal_fix2, cost, DRONE_VOICES, bal_mask,
+                                   BAL_HYST * (float)PLAT_TICKS_PER_BLOCK(n));
+}
+static void balance_learn(void)                 /* after a block, from its stages' times */
+{
+    float osc = (float)(bal_osc1 + bal_osc2);
+    bal_fix1 += ((float)(st_t[ST_CTRL] + st_t[ST_FXWET]) - bal_fix1) * BAL_A;
+    bal_fix2 += ((float)(st_t[ST_DRNBUS] + st_t[ST_VOX] + st_t[ST_LINE]) - bal_fix2) * BAL_A;
+    if (osc > 0.0f) {
+        float per = (float)(st_t[ST_DRN1] + st_t[ST_DRN2]) / osc;
+        bal_osc = bal_osc > 0.0f ? bal_osc + (per - bal_osc) * BAL_A : per;
+    }
+}
+static uint32_t mask_osc(uint32_t m)
+{
+    uint32_t o = 0;
+    int v;
+    for (v = 0; v < DRONE_VOICES; v++)
+        if (m >> v & 1u)
+            o += (uint32_t)drone_cost(&dn, v);
+    return o;
 }
 
 /* the second core's job (or the first's, with one core): with arg bit 15 the drone's bus on the last
@@ -508,7 +544,7 @@ void engine_render(int32_t *out_lr, uint32_t n)
     if (drone_active(&dn)) {                     /* before either core's voices */
         planned = 1;
         plan = drone_plan(&dn, (int)n);
-        mask2 = drone_mask2();
+        mask2 = drone_mask2(n);
     }
     t = plat_ticks24();
     st_t[ST_CTRL] = t - t0;
@@ -532,6 +568,8 @@ void engine_render(int32_t *out_lr, uint32_t n)
     else
         st_t[ST_WAIT] = plat_ticks24() - t;
     t = plat_ticks24();
+    bal_osc2 = planned && on2 ? mask_osc(mask2) : 0;   /* (one core: its job's voices ran here, untimed as DRONE 2) */
+    bal_osc1 = planned ? mask_osc(~mask2 & ((1u << DRONE_VOICES) - 1u)) : 0;
     if (planned && mask2)                        /* this block's voices, both shares: the next block's bus */
         for (i = 0; i < n; i++) {
             dl[i] += dn2_l[i];
@@ -606,6 +644,8 @@ void engine_render(int32_t *out_lr, uint32_t n)
     }
     st_t[ST_MASTER] = plat_ticks24() - t;
     st_t[ST_CORE1] = plat_ticks24() - t0;
+    if (on2)
+        balance_learn();                         /* (one core: there is nothing to balance) */
     if (!on2)
         st_t[ST_CORE2] = 0;                      /* (its job ran on the first core: counted there) */
     bench_block(n);

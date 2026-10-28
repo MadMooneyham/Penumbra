@@ -14,9 +14,9 @@ expect testing 1
 wait 2500
 expect drone5 1
 expect guardcount 0
-# SPLIT (the default): both cores render drone voices; the bus (filter, SWARM) runs once on their sum
+# SPLIT (the default): the drone voices go where the cores finish together (here, this computer's
+# timings decide: tests/host/balance_test.c checks the choice with the FM-1's); the bus runs once
 expect bench_avg1 >0
-expect bench_avg2 >0
 expect bench_avg3 >0
 expect bench_peak4 >0
 shot bench.png

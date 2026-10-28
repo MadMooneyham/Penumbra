@@ -28,6 +28,7 @@ run uac sh -c "$CC -O2 -w -Ifirmware/src -Ifirmware/hal -o $OUT/uac_test tests/h
 run trs sh -c "$CC -O2 -w -Ifirmware/src -Ifirmware/hal -o $OUT/trs_test tests/host/trs_test.c && $OUT/trs_test"
 run clock sh -c "$CC $W -o $OUT/clock_test tests/host/clock_test.c firmware/src/seq/clock.c && $OUT/clock_test"
 run drone sh -c "$CC $W -Wno-double-promotion -o $OUT/drone_test tests/host/drone_test.c firmware/src/dsp/drone.c -lm && $OUT/drone_test"
+run balance sh -c "$CC $W -o $OUT/balance_test tests/host/balance_test.c && $OUT/balance_test"
 run vox sh -c "$CC $W -Wno-double-promotion -D_DEFAULT_SOURCE -o $OUT/vox_test tests/host/vox_test.c firmware/src/dsp/vox.c -lm && \
     $OUT/vox_test $OUT/vox_test.wav && python3 tests/click_check.py $OUT/vox_test.wav"
 python3 tools/gen_dsp_tables.py build/gen/dsp_tables.h >/dev/null
