@@ -392,7 +392,12 @@ static void s_brk(void *x, int s16, int bar, float spb, int en)
     breaks_pin(&brk, (int)bp->slice[s16 & 15] - 1);   /* the step's own slice, if it has one */
     breaks_step(&brk, s16, bar, spb, en);
 }
-static void s_brkstop(void *x) { (void)x; breaks_stop(&brk); }
+static void s_brkstop(void *x)            /* the sequencer stopped */
+{
+    (void)x;
+    breaks_stop(&brk);
+    drone_end_swells(&dn);
+}
 static void s_midi(void *x, uint8_t st, uint8_t d1, uint8_t d2)
 {
     uint32_t cin = st >= 0xF0 ? 0x0Fu : (uint32_t)(st >> 4);

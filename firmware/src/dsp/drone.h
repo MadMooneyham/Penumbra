@@ -75,6 +75,7 @@ typedef struct drone drone_t;
 
 void drone_init(drone_t *d);
 void drone_trigger(drone_t *d, int track, float vel);   /* a hit: by the voice's MODE */
+void drone_end_swells(drone_t *d);                       /* STOP: swells fall now (latched voices stay) */
 void drone_all_off(drone_t *d);
 /* adds the part's stereo output into l and r (the caller clears them) */
 void drone_render(drone_t *d, float *l, float *r, int n);

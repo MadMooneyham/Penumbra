@@ -32,7 +32,7 @@ static const char *const PART_S[NPARTS] = {"DRN", "808", "MELA", "MELB", "BRK"};
 /* overlays drawn over the main area */
 enum { O_NONE, O_LIST, O_ASK };
 enum { ACT_NONE, ACT_SAVE, ACT_CLEAR_PART, ACT_CLEAR_PAT, ACT_COPY, ACT_RESET, ACT_ABOUT, ACT_SONG_INS,
-       ACT_SONG_DEL, ACT_SONG_CLR, ACT_PERF, ACT_PERF_TEST };
+       ACT_SONG_DEL, ACT_SONG_CLR, ACT_PERF, ACT_PERF_TEST, ACT_PRESET };   /* ACT_PRESET: arg / row b = the preset */
 
 typedef struct {
     uint8_t view, part, prev_view;
@@ -216,7 +216,10 @@ static const x0x_param_t ACT_P[] = {
     {"", 0, 0, 0}, {"SAVE PROJECT", 0, 0, 0}, {"CLEAR THIS PART", 0, 0, 0}, {"CLEAR PATTERN", 0, 0, 0},
     {"COPY PATTERN", 0, 0, 0}, {"FACTORY RESET", 0, 0, 0}, {"ABOUT " FW_NAME, 0, 0, 0}, {"INSERT BAR", 0, 0, 0},
     {"DELETE BAR", 0, 0, 0}, {"CLEAR SONG", 0, 0, 0}, {"PERFORMANCE", 0, 0, 0}, {"RUN PERF TEST", 0, 0, 0},
+    {"PRESET", 0, 0, 0},
 };
+#define MAX_PRESETS 8
+static x0x_param_t preset_rows[MAX_PRESETS];          /* GLO's PRESET SONGS rows: each preset's name */
 static const x0x_param_t STALLS_P = {"STALLS", 1, 0, ONOFF_N};
 static const x0x_param_t MIDICH_P[NPARTS] = {   /* 0 = OFF (no notes in or out), 1-16 */
     {"909 MIDI CH", 16, 10, 0}, {"808 MIDI CH", 16, 11, 0}, {"303A MIDI CH", 16, 2, 0}, {"303B MIDI CH", 16, 3, 0},
@@ -282,7 +285,13 @@ static const x0x_param_t *pref_desc(pref_t r)
     case R_KEYLED: return &SEQ_P[SQ_KEYLED];
     case R_KEYSOUND: return &SEQ_P[SQ_KEYSOUND];
     case R_AUTOSAVE: return &SEQ_P[SQ_AUTOSAVE];
-    case R_ACT: return &ACT_P[r.a];
+    case R_ACT:
+        if (r.a == ACT_PRESET) {
+            x0x_param_t *d = &preset_rows[r.b % MAX_PRESETS];
+            d->name = preset_name(r.b);
+            return d;
+        }
+        return &ACT_P[r.a];
     case R_SBAR: {
         static x0x_param_t d = {"BAR", 0, 0, 0};
         d.max = (uint8_t)(song()->len < NSONG ? song()->len : NSONG - 1);
@@ -681,7 +690,7 @@ static void pref_value(pref_t r, char *num, char *unit) { pref_value_of(r, pref_
 #define MAXPAGES 14
 /* page groups: whose values a page holds (the SEL list's headers, the header's colour) */
 enum { GR_NONE, GR_TRACK, GR_TMIX, GR_KIT, GR_PAT, GR_SOUND, GR_MORE,
-       GR_MIDI, GR_AUDIO, GR_KEYS, GR_PROJECT, GR_SYSTEM };   /* (the last five: GLO's sections) */
+       GR_MIDI, GR_AUDIO, GR_KEYS, GR_PROJECT, GR_SYSTEM, GR_PRESETS };   /* (the last six: GLO's sections) */
 #define MAXMORE 14
 typedef struct {
     pref_t r[MAXPAGES][4];
@@ -953,6 +962,7 @@ static void hdr_name(int g, char *t)
     case GR_KEYS: put_s(t, "KEYS AND SCREEN"); break;
     case GR_PROJECT: put_s(t, "PROJECT"); break;
     case GR_SYSTEM: put_s(t, "SYSTEM"); break;
+    case GR_PRESETS: put_s(t, "PRESET SONGS"); break;
     default: put_s(put_s(t, PART_N[ui.part]), ": THE SOUND"); break;
     }
 }
@@ -998,6 +1008,9 @@ static void open_list_of_pages(void)
 static void open_global(void)
 {
     ui.list_n = 0;
+    list_rows[ui.list_n++] = PR(R_HDR, GR_PRESETS, 0, 0);
+    for (int k = 0; k < preset_count() && k < MAX_PRESETS; k++)
+        list_add(PR(R_ACT, ACT_PRESET, k, 0));
     list_rows[ui.list_n++] = PR(R_HDR, GR_MIDI, 0, 0);
     list_add(PR(R_CLKOUT, 0, 0, 0));
     list_add(PR(R_NOTEOUT, 0, 0, 0));
@@ -1642,6 +1655,21 @@ static void run_action(int act, int arg)
         ui.outline_ok = 0;
         say("FACTORY SOUND + PATTERNS", 0);
         break;
+    case ACT_PRESET:                                  /* playing, it carries on with P1 at the end of the bar */
+        preset_load(arg);
+        engine_apply_sound(&proj.sound);
+        engine_motion_reset();
+        engine_brk_loops();
+        seq.bpm = (float)proj.set.bpm_x10 / 10.0f;
+        ui.song_sel = 0;
+        seq_chain(&seq, 0, 3);                        /* PLAY loops P1-P4; the SONG screen plays the song */
+        seq_cue(&seq, 0);
+        mark_dirty();
+        undo_start();                                 /* the preset as loaded is where undo stops */
+        ui.outline_ok = 0;
+        put_s(put_s(t, preset_name(arg)), " LOADED");
+        say(t, 0);
+        break;
     case ACT_PERF:
         set_view(V_PERF);
         break;
@@ -2277,7 +2305,11 @@ static void list_enter(void)
         ask(ACT_RESET, 0, "FACTORY RESET?", "SOUND, PATTERNS, SONG");
     else if (r.a == ACT_SONG_CLR)
         ask(ACT_SONG_CLR, 0, "CLEAR THE SONG?", 0);
-    else
+    else if (r.a == ACT_PRESET) {
+        char t[28];
+        put_s(put_s(put_s(t, "LOAD "), preset_name(r.b)), "?");
+        ask(ACT_PRESET, r.b, t, "REPLACES SOUND, PATTERNS, SONG");
+    } else
         run_action(r.a, 0);
 }
 

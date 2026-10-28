@@ -315,6 +315,7 @@ static int ann_wire_send(const uint8_t *p, uint32_t n)
     return 0;
 }
 #include "../firmware/src/app/project.c"
+#include "../firmware/src/app/presets.c"
 #include "../firmware/src/app/ui.c"
 
 /* ---------------------------------------------------------- outputs --- */
@@ -1030,6 +1031,9 @@ int main(int argc, char **argv)
             proj.sound.v[t][v][i] = (uint8_t)val;
             engine_set(t, v, i, val);
             run_ms(1);
+        } else if (!strcmp(cmd, "preset")) {            /* preset N: GLO > PRESET SONGS' N-th, loaded (1-based) */
+            run_action(ACT_PRESET, atoi(a) - 1);
+            run_ms(20);
         } else if (!strcmp(cmd, "master"))
             master = (uint32_t)atoi(a);
         else if (!strcmp(cmd, "slot")) {                /* slot K NAME a.wav [b.wav ...]: one zone each */

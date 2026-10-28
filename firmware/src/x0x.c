@@ -137,6 +137,7 @@ static int ann_wire_send(const uint8_t *p, uint32_t n)   /* never waits: no room
 #include "app/panel.c"
 #include "app/plat_fm1.c"
 #include "app/project.c"
+#include "app/presets.c"
 #include "app/ui.c"
 #include "app/editor.c"
 #include "backup.c"               /* the project to a file and back, over USB (hooks: main_fm1.c) */

@@ -196,6 +196,14 @@ void drone_trigger(drone_t *d, int track, float vel)
     d->ctrl_left = 0;                             /* its pitch now, not at the next control step */
 }
 
+void drone_end_swells(drone_t *d)
+{
+    int i;
+    for (i = 0; i < DRONE_VOICES; i++)
+        if (d->v[i].hold_left > 0)
+            d->v[i].hold_left = 1;                /* out over FALL at the next control step */
+}
+
 void drone_all_off(drone_t *d)
 {
     int i;
