@@ -8,7 +8,7 @@ tap GLO
 expect view 7
 wait 1500
 expect bench 1
-expect bench_avg11 >0
+expect bench_avg10 >0
 tap SEL
 wait 100
 expect testing 1
@@ -19,7 +19,7 @@ expect guardcount 0
 # timings decide: tests/host/balance_test.c checks the choice with the FM-1's); the bus runs once
 expect bench_avg1 >0
 expect bench_avg3 >0
-expect bench_peak4 >0
+expect bench_peak11 >0
 shot bench.png
 tap SEL
 wait 100

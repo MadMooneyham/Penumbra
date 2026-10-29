@@ -137,7 +137,7 @@ static int chord_root(const jrun_t *r)
     int d = p->deg[r->chord % p->n];
     return d > 3 ? d - 7 : d;
 }
-/* a line's note: deg over the chord's root, oct octaves over the register */
+/* a phrase's note: deg over the chord's root, oct octaves over the register */
 static int mel_note(const jrun_t *r, int deg, int oct, int penta)
 {
     const scene_t *s = sc(r);
@@ -208,20 +208,6 @@ static void gen_rank(jr_gen_t *g)
         g->rank[i] = (uint8_t)rk;
     }
 }
-static int chord_tone_near(int d)
-{
-    static const int8_t CT[] = {-7, -5, -3, 0, 2, 4, 7, 9, 11, 14};
-    int i, best = 0, bd = 99;
-    for (i = 0; i < (int)sizeof CT; i++) {
-        int dd = d - CT[i];
-        dd = dd < 0 ? -dd : dd;
-        if (dd < bd) {
-            bd = dd;
-            best = CT[i];
-        }
-    }
-    return best;
-}
 /* GUIDE's held keys: the degrees they stand for, over the chord's root (key w: w - 4 over the register's) */
 static int held_deg(const jrun_t *r, int w) { return w - 4 - chord_root(r) - r->shift; }
 static int guide_pick(const jrun_t *r, int d, uint32_t *rng)
@@ -258,63 +244,44 @@ static void head_for_target(jrun_t *r, loop_t *m)
             break;
         }
 }
-static void gen_line(jrun_t *r)
-{
-    static const int8_t MOVE[] = {-2, -1, -1, 0, 1, 1, 1, 2, -3, 3, 4, -1};
-    jr_gen_t *g = &r->g[LP_LINE];
-    loop_t *m = &g->m;
-    float e = r->out.eff;
-    int i, d, prev = 0;
-    gen_seed(r, LP_LINE);
-    m->len = (uint8_t)(e < 0.35f || rndn(&g->rng, 3) == 0 ? 8 : 16);
-    m->div = (uint8_t)(e < 0.3f ? 4 : e > 0.85f && rndn(&g->rng, 3) == 0 ? 1 : 2);
-    d = rndn(&g->rng, 3) * 2;
-    for (i = 0; i < JR_STEPS; i++) {
-        int strong = (i & 3) == 0, tie;
-        m->step[i] = 0;
-        if (i >= m->len || rndf(&g->rng) > (strong ? 0.9f : 0.6f)) {
-            prev = 0;
-            continue;
-        }
-        d += MOVE[rndn(&g->rng, (int)sizeof MOVE)];
-        if (d < -5)
-            d = -5 + rndn(&g->rng, 3);
-        if (d > 11)
-            d = 11 - rndn(&g->rng, 3);
-        if (strong)
-            d = chord_tone_near(d);
-        d = guide_pick(r, d, &g->rng);
-        tie = prev && rndf(&g->rng) < 0.2f;
-        m->step[i] = (uint8_t)(ST_ON | (tie ? ST_TIE : 0u) | ST_MK(d));
-        prev = 1;
-    }
-    head_for_target(r, m);
-    gen_rank(g);
-}
+/* VOX's phrase: one to three long notes, then the space they ring out into. Eight steps of a bar
+ * (eight bars), or of a half note when the moon is full: a note holds for one to three steps, its
+ * neighbour a small step away; a breath may come before the first. The notes are the chord's tones
+ * and the colours over them (its 7th, 9th, 6th), high up in the shimmer, sometimes an octave lower.
+ * As it fills, the first note comes first: a thin moon plays only it, a full one the whole phrase.
+ * Its rank is the note's place in the phrase x 3 (a note and its held steps share it) */
 static void gen_vox(jrun_t *r)
 {
-    static const int8_t TONE[] = {0, 2, 4, 6, 7, 9, 4, 2, -1, 0};
+    static const int8_t TONE[] = {0, 2, 4, 4, 6, 7, 8, 9, 11};
+    static const int8_t MOVE[] = {-2, -1, -1, 1, 1, 2, 3, -3, 4};
     jr_gen_t *g = &r->g[LP_VOX];
     loop_t *m = &g->m;
-    int i, prev = -1;
+    const float e = r->out.eff;
+    int i, k, d, notes, low, idx = 0;
     gen_seed(r, LP_VOX);
-    m->len = (uint8_t)(rndn(&g->rng, 2) ? 8 : 4);
-    m->div = (uint8_t)(r->out.eff > 0.75f ? 4 : 8);
+    m->len = 8;
+    m->div = (uint8_t)(e > 0.7f && rndn(&g->rng, 3) == 0 ? 8 : 16);
     for (i = 0; i < JR_STEPS; i++) {
         m->step[i] = 0;
-        if (i >= m->len || rndf(&g->rng) > (i ? 0.65f : 0.95f)) {
-            prev = -1;
-            continue;
+        g->rank[i] = 0;
+    }
+    notes = 1 + (rndf(&g->rng) < 0.35f + 0.4f * e) + (rndf(&g->rng) < 0.15f + 0.35f * e);
+    low = rndn(&g->rng, 10) < 3 ? -7 : 0;
+    i = rndn(&g->rng, 4) == 0 ? 1 : 0;
+    d = TONE[rndn(&g->rng, (int)sizeof TONE)];
+    for (k = 0; k < notes && i < m->len; k++, idx++) {
+        int hold = 1 + rndn(&g->rng, 3), h;
+        d = guide_pick(r, d, &g->rng);
+        m->step[i] = (uint8_t)(ST_ON | ST_MK(clampi(d + low, -24, 39)));
+        g->rank[i] = (uint8_t)(idx * 3);
+        for (h = 1; h <= hold && i + h < m->len - 1; h++) {   /* (the last step stays a rest: the space) */
+            m->step[i + h] = (uint8_t)(ST_ON | ST_TIE | ST_MK(clampi(d + low, -24, 39)));
+            g->rank[i + h] = (uint8_t)(idx * 3);
         }
-        if (prev >= 0 && rndf(&g->rng) < 0.35f) {
-            m->step[i] = (uint8_t)(ST_ON | ST_TIE | ST_MK(prev));
-            continue;
-        }
-        prev = guide_pick(r, TONE[rndn(&g->rng, (int)sizeof TONE)], &g->rng);
-        m->step[i] = (uint8_t)(ST_ON | ST_MK(prev));
+        i += h;
+        d = clampi(d + MOVE[rndn(&g->rng, (int)sizeof MOVE)], -3, 11);
     }
     head_for_target(r, m);
-    gen_rank(g);
 }
 /* PULSE's pattern: two bars of 8ths, fuller with the band (the scene's pulse, the moon, DENSITY) */
 static int pulse_band(const jrun_t *r)
@@ -352,15 +319,14 @@ static void gen_pulse(jrun_t *r)
 }
 static void gen(jrun_t *r, int v)
 {
-    if (v == LP_LINE)
-        gen_line(r);
-    else if (v == LP_VOX)
+    if (v == LP_VOX)
         gen_vox(r);
     else
         gen_pulse(r);
 }
 
-/* a change of a loop, small: a note a step or two, a rest filled or made; PULSE: a tick */
+/* a change of a loop, small. VOX: a note (and the steps it holds) a step or two away, so the phrase
+ * keeps its shape and its space; PULSE: a tick */
 static void mutate(loop_t *m, uint32_t *rng, int pulse)
 {
     int t, i;
@@ -374,18 +340,11 @@ static void mutate(loop_t *m, uint32_t *rng, int pulse)
     }
     for (t = 0; t < 8; t++) {
         i = rndn(rng, m->len);
-        if (m->step[i] & ST_ON) {
-            int k = rndn(rng, 4), d = ST_DEG(m->step[i]);
-            if (k == 0 && i)
-                m->step[i] = 0;                  /* a rest */
-            else
-                m->step[i] = (uint8_t)((m->step[i] & ST_ON) | ST_MK(clampi(d + (rndn(rng, 2) ? 1 : -1) * (k == 3 ? 2 : 1), -24, 39)));
-            if (i + 1 < m->len && (m->step[i + 1] & ST_TIE))
-                m->step[i + 1] &= (uint8_t)~ST_TIE;
-            return;
-        }
-        if (i && (m->step[i - 1] & ST_ON)) {     /* a rest filled: a step from the note before */
-            m->step[i] = (uint8_t)(ST_ON | ST_MK(clampi(ST_DEG(m->step[i - 1]) + (rndn(rng, 2) ? 1 : -1), -24, 39)));
+        if ((m->step[i] & ST_ON) && !(m->step[i] & ST_TIE)) {
+            int d = clampi(ST_DEG(m->step[i]) + (rndn(rng, 2) ? 1 : -1) * (rndn(rng, 3) ? 1 : 2), -24, 39), k;
+            m->step[i] = (uint8_t)(ST_ON | ST_MK(d));
+            for (k = i + 1; k < m->len && (m->step[k] & ST_TIE); k++)
+                m->step[k] = (uint8_t)(ST_ON | ST_TIE | ST_MK(d));
             return;
         }
     }
@@ -399,33 +358,6 @@ static int keep_limit(const loop_t *m, float e, float lo, float hi)
 }
 
 /* ------------------------------------------------------------------ playing --- */
-static int play_line(jrun_t *r, const loop_t *m, const uint8_t *rank, uint32_t n, const jr_sink_t *o)
-{
-    uint32_t div = m->div ? m->div : 1u, pos;
-    int lim, note, st;
-    if (n % div || !m->len)
-        return 0;
-    pos = (n / div) % m->len;
-    st = m->step[pos];
-    lim = rank ? keep_limit(m, r->out.eff, 0.15f, 0.8f) : JR_STEPS;
-    if (!(st & ST_ON) || (rank && rank[pos] >= lim)) {
-        if (r->line_note >= 0)
-            o->line_off(o->ctx);
-        r->line_note = -1;
-        r->line_ok = 0;
-        return pos == m->len - 1u;
-    }
-    note = mel_note(r, ST_DEG(st), 0, 1);
-    if ((st & ST_TIE) && r->line_ok && r->line_note >= 0) {
-        if (note != r->line_note)
-            o->line_on(o->ctx, note, 0, 1);
-    } else {
-        o->line_on(o->ctx, note, (pos & 3u) == 0 && r->out.eff > 0.6f, 0);
-    }
-    r->line_note = note;
-    r->line_ok = 1;
-    return pos == m->len - 1u;
-}
 static void vox_quiet(jrun_t *r, const jr_sink_t *o)
 {
     if (r->vox_note >= 0)
@@ -441,15 +373,33 @@ static int play_vox(jrun_t *r, const loop_t *m, const uint8_t *rank, uint32_t n,
         return 0;
     pos = (n / div) % m->len;
     st = m->step[pos];
-    lim = rank ? keep_limit(m, r->out.eff, 0.3f, 0.95f) : JR_STEPS;
+    lim = rank ? keep_limit(m, r->out.eff, 0.15f, 0.8f) : JR_STEPS;
     if (!(st & ST_ON) || (rank && rank[pos] >= lim)) {
         vox_quiet(r, o);
         return pos == m->len - 1u;
     }
-    note = mel_note(r, ST_DEG(st), 1, 0);
+    {   /* GUIDE: a generated note near a held key's is that note, whatever the chord is now */
+        int d = ST_DEG(st);
+        if (rank && r->held) {
+            int w, best = 99;
+            for (w = 0; w < 16; w++)
+                if (r->held >> w & 1u) {
+                    int h = held_deg(r, w), dd = h - d;
+                    for (; dd > 3; dd -= 7)       /* (any octave of it) */
+                        ;
+                    for (; dd < -3; dd += 7)
+                        ;
+                    if ((dd < 0 ? -dd : dd) < (best < 0 ? -best : best))
+                        best = dd;
+                }
+            if (best != 99 && (best < 0 ? -best : best) <= 2)
+                d += best;
+        }
+        note = mel_note(r, d, 1, m->on != LOOP_RECORDED);   /* (what you recorded plays as you played it) */
+    }
     if (!((st & ST_TIE) && r->vox_ok && r->vox_note == note)) {
         vox_quiet(r, o);
-        o->vox_on(o->ctx, note, rank ? 70 + (int)(30.0f * r->out.eff) : 96);
+        o->vox_on(o->ctx, note, rank ? 62 + (int)(26.0f * r->out.eff) : 96);
         r->vox_note = note;
     }
     r->vox_ok = 1;
@@ -488,8 +438,6 @@ static void gen_round(jrun_t *r, int v)
         return;
     }
     mutate(&g->m, &g->rng, v == LP_PULSE);
-    if (v != LP_PULSE && !(g->m.step[0] & ST_ON))
-        g->m.step[0] = (uint8_t)(ST_ON | ST_MK(0));   /* (the downbeat stays: the chord's root) */
 }
 static void loop_round(jrun_t *r, int v)
 {
@@ -506,7 +454,7 @@ void jr_init(jrun_t *r, journey_t *j)
     for (i = 0; i < sizeof *r; i++)
         z[i] = 0;
     r->j = j;
-    r->line_note = r->vox_note = r->rec_held = r->rec_pending = -1;
+    r->vox_note = r->rec_held = r->rec_pending = -1;
     r->target = -128;
     r->intensity = 0.12f;
     r->moon = MOON_WAX;
@@ -539,7 +487,8 @@ void jr_start(jrun_t *r, const jr_sink_t *o)
     r->moon_t = r->moon_len * 0.33f;
     r->intensity = 0.25f;
     r->chord = 0;
-    r->line_ok = r->vox_ok = 0;
+    r->vox_ok = 0;
+    r->hands = 0;
     r->playing = 1;
     jr_tick(r, 0, o);
     regen_all(r);
@@ -550,9 +499,6 @@ void jr_start(jrun_t *r, const jr_sink_t *o)
 
 void jr_stop(jrun_t *r, const jr_sink_t *o)
 {
-    if (r->line_note >= 0)
-        o->line_off(o->ctx);
-    r->line_note = -1;
     vox_quiet(r, o);
     o->drone_release(o->ctx);
     r->playing = 0;
@@ -565,9 +511,6 @@ void jr_restart(jrun_t *r, const jr_sink_t *o)
     for (v = 0; v < JR_LOOPS; v++)
         r->lrng[v] = hash3(r->j->seed, 0x100u + (uint32_t)v, 0);
     if (r->playing) {
-        if (r->line_note >= 0)
-            o->line_off(o->ctx);
-        r->line_note = -1;
         vox_quiet(r, o);
         jr_start(r, o);
         return;
@@ -680,7 +623,7 @@ static void rec_step(jrun_t *r)
         r->rec = 0;
         m->len = JR_STEPS;
         m->div = 1;
-        m->on = 1;
+        m->on = LOOP_RECORDED;
     }
 }
 
@@ -690,6 +633,7 @@ void jr_step(jrun_t *r, uint32_t n, uint32_t step_frames, const jr_sink_t *o)
     int v;
     r->since_step = 0;
     r->step_len = step_frames ? step_frames : r->step_len;
+    r->now_n = n;
     if (!r->playing)
         return;
     if ((n & 15u) == 0u) {                       /* a bar line */
@@ -716,13 +660,12 @@ void jr_step(jrun_t *r, uint32_t n, uint32_t step_frames, const jr_sink_t *o)
         int cap = lp->on, done;
         const loop_t *m = cap ? lp : &r->g[v].m;
         const uint8_t *rank = cap ? 0 : r->g[v].rank;
-        if (v == LP_VOX && !cap && (j->mode == MODE_PLAY || r->rec)) {
+        if (v == LP_VOX && !cap && (r->rec || (j->mode == MODE_PLAY && r->hands && n - r->hand_n < JR_HANDS_STEPS))) {
             if (r->vox_ok || r->vox_note >= 0)
-                vox_quiet(r, o);                 /* PLAY: VOX is the keys' */
+                vox_quiet(r, o);                 /* PLAY: while you play VOX, the generator listens */
             continue;
         }
-        done = v == LP_LINE ? play_line(r, m, rank, n, o) : v == LP_VOX ? play_vox(r, m, rank, n, o)
-                                                                         : play_pulse(r, m, rank, n, o);
+        done = v == LP_VOX ? play_vox(r, m, rank, n, o) : play_pulse(r, m, rank, n, o);
         if (done) {
             if (cap)
                 loop_round(r, v);
@@ -740,9 +683,7 @@ void jr_guide(jrun_t *r, int w, int down)
     if (down) {
         r->held |= 1u << w;
         r->target = (int8_t)w;
-        r->g[LP_LINE].muts = 99;                 /* the next phrase heads there */
-        r->g[LP_VOX].muts = 99;
-        r->g[LP_LINE].rep = r->g[LP_LINE].reps;
+        r->g[LP_VOX].muts = 99;                  /* the next phrase heads there */
         r->g[LP_VOX].rep = r->g[LP_VOX].reps;
     } else {
         r->held &= ~(1u << w);
@@ -760,6 +701,10 @@ void jr_guide(jrun_t *r, int w, int down)
 
 void jr_vox_played(jrun_t *r, int midi, int on)
 {
+    if (on) {                                    /* the hands are on VOX: the generator gives way */
+        r->hands = 1;
+        r->hand_n = r->now_n;
+    }
     if (r->rec != 2)
         return;
     if (on) {
@@ -793,13 +738,12 @@ void jr_capture(jrun_t *r, uint32_t mask)
         int lim;
         if (!(mask >> v & 1u) || (v == LP_VOX && r->j->mode == MODE_PLAY))
             continue;
-        lim = v == LP_LINE ? keep_limit(&g->m, r->out.eff, 0.15f, 0.8f) : v == LP_VOX ? keep_limit(&g->m, r->out.eff, 0.3f, 0.95f)
-                                                                                   : JR_STEPS;
+        lim = v == LP_VOX ? keep_limit(&g->m, r->out.eff, 0.15f, 0.8f) : JR_STEPS;
         for (i = 0; i < JR_STEPS; i++)            /* what is heard: the steps not playing yet are rests */
             lp->step[i] = i < g->m.len && g->rank[i] < lim ? g->m.step[i] : (v == LP_PULSE ? g->m.step[i] & PS_KICK : 0u);
         lp->len = g->m.len ? g->m.len : 16;
         lp->div = g->m.div ? g->m.div : 2;
-        lp->on = 1;
+        lp->on = LOOP_CAPTURED;
     }
 }
 

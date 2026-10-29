@@ -5,15 +5,15 @@ autoplay 0
 wait 300
 tap ENV
 expect view 1
-turn SELECT 3
+turn SELECT 2
 turn K1 -10
-expect voice41 60
+expect voice31 60
 shot voices.png
 tap SAVE
 expect dirty 0
 reboot
 wait 300
-expect voice41 60
+expect voice31 60
 listen
 press PLAY
 wait 900

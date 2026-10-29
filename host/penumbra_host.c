@@ -485,15 +485,11 @@ static int expect(const char *what, const char *val)
         got = eng_jr.mode;
     else if (!strncmp(what, "macro", 5))            /* macroN: 1 DRIFT .. 4 TONE */
         got = eng_jr.macro[(atoi(what + 5) - 1) & 3];
-    else if (!strncmp(what, "loop", 4))             /* loopN: 1 LINE, 2 VOX, 3 PULSE captured */
+    else if (!strncmp(what, "loop", 4))             /* loopN: 1 VOX, 2 PULSE: 0 off, 1 captured, 2 recorded */
         got = eng_jr.loop[(atoi(what + 4) - 1) % JR_LOOPS].on;
     else if (!strcmp(what, "rec"))
         got = engine_jr()->rec;
-    else if (!strcmp(what, "line_notes")) {         /* the generator's LINE notes since the last check */
-        static uint32_t last;
-        got = (int)(eng_line_notes - last);
-        last = eng_line_notes;
-    } else if (!strcmp(what, "vox_notes")) {        /* the journey's VOX notes since the last check */
+    else if (!strcmp(what, "vox_notes")) {          /* the journey's VOX notes since the last check */
         static uint32_t last;
         got = (int)(eng_vox_notes - last);
         last = eng_vox_notes;
@@ -502,7 +498,7 @@ static int expect(const char *what, const char *val)
         got = journey_index();
     else if (!strncmp(what, "slot", 4))             /* slotN: user slot N holds a journey */
         got = journey_slot_used(atoi(what + 4) - 1);
-    else if (!strncmp(what, "voice", 5))            /* voiceVF: voice V (1-5) field F (1-4) */
+    else if (!strncmp(what, "voice", 5))            /* voiceVF: voice V (1 DRONE .. 4 TEXTURE) field F (1-4) */
         got = cfg.voice[(what[5] - '1') % EV_N][(what[6] - '1') % VF_N];
     else if (!strcmp(what, "autoplay"))
         got = cfg.autoplay;
@@ -642,6 +638,43 @@ int main(int argc, char **argv)
         } else if (!strcmp(cmd, "autoplay")) {        /* autoplay 0|1: PLAY AT POWER-ON saved, then power on again */
             cfg.autoplay = (uint8_t)atoi(a);
             settings_save();
+            store_writes = 0;
+            held_btn = held_keys = 0;
+            boot();
+        } else if (!strcmp(cmd, "legacy013")) {       /* 0.13's flash: settings format 2 (LINE's voice second),
+                                                       * the journey playing and user slot 1 as format 1 (three loops) */
+            uint8_t s[56] = {0}, jb[sizeof(journey_t) + sizeof(loop_t)];
+            uint32_t at = __builtin_offsetof(journey_t, loop), k;
+            journey_t j;
+            settings_defaults();
+            memcpy(s, &cfg, 24);
+            ((uint32_t *)s)[1] = 2u;
+            for (k = 0; k < 5u; k++) {                /* DRONE, LINE, VOX, PULSE, TEXTURE */
+                static const uint8_t L[5] = {100, 90, 100, 60, 100};
+                s[24 + k * 4] = L[k];
+                s[25 + k * 4] = 64;
+                s[26 + k * 4] = 50;
+                s[27 + k * 4] = 64;
+            }
+            for (k = 0; k < 8u; k++)
+                s[44 + k] = cfg.fx[k];
+            plat_store_save(OBJ_SET, s, sizeof s);
+            jr_preset(2, &j);
+            j.format = 1;
+            j.size = (uint16_t)sizeof jb;
+            j.mode = MODE_GUIDE;
+            j.loop[LP_VOX].on = 1;
+            j.loop[LP_VOX].step[0] = ST_ON | ST_MK(2);
+            memcpy(jb, &j, at);
+            memset(jb + at, 0, sizeof(loop_t));       /* (LINE's) */
+            memcpy(jb + at + sizeof(loop_t), j.loop, sizeof j.loop);
+            plat_store_save(OBJ_WORK, jb, sizeof jb);
+            {
+                static uint8_t slots[JR_USER * sizeof jb];
+                memset(slots, 0, sizeof slots);
+                memcpy(slots, jb, sizeof jb);
+                plat_store_save(OBJ_USER, slots, sizeof slots);
+            }
             store_writes = 0;
             held_btn = held_keys = 0;
             boot();

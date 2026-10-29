@@ -5,10 +5,12 @@
 
 settings_t cfg;
 
-static const uint8_t VOICE_DEF[EV_N][VF_N] = {{100, 64, 20, 64}, {100, 64, 30, 64}, {100, 64, 80, 64},
-                                              {80, 64, 80, 64}, {100, 64, 70, 64}};   /* PULSE 2 dB down */
+static const uint8_t VOICE_DEF[EV_N][VF_N] = {{100, 64, 20, 64}, {100, 64, 80, 64}, {80, 64, 80, 64},
+                                              {100, 64, 70, 64}};   /* PULSE 2 dB down */
 static const uint8_t FX_DEF[EF_N] = {91, 89, 25, 57, 10, 82, 57, 44};
 #define SET_V1_LEN 24u                           /* format 1's size */
+#define SET_V2_LEN 56u                           /* format 2's: 24, five voices of 4, the FX's 8, 4 spare */
+_Static_assert(sizeof(settings_t) == SET_V2_LEN - VF_N, "format 3 is format 2 without LINE's voice");
 
 static void defaults_after_v1(void)
 {
@@ -39,13 +41,24 @@ void settings_defaults(void)
 
 int settings_load(void)
 {
+    union { settings_t s; uint8_t b[SET_V2_LEN]; } u;
     settings_t s;
-    int n = plat_store_load(OBJ_SET, &s, sizeof s), i, f;
+    int n = plat_store_load(OBJ_SET, u.b, sizeof u.b), i, f;
+    s = u.s;
     if (n == (int)SET_V1_LEN && s.magic == SET_MAGIC && s.format == 1u) {   /* 0.7 .. 0.12: kept, the rest new */
         settings_defaults();
         for (i = 8; i < 17; i++)
-            ((uint8_t *)&cfg)[i] = ((const uint8_t *)&s)[i];
+            ((uint8_t *)&cfg)[i] = u.b[i];
         s = cfg;
+    } else if (n == (int)SET_V2_LEN && s.magic == SET_MAGIC && s.format == 2u) {   /* 0.13: LINE's voice left out */
+        static const uint8_t FROM[EV_N] = {0, 2, 3, 4};   /* (DRONE, LINE, VOX, PULSE, TEXTURE then) */
+        for (i = 0; i < EV_N; i++)
+            for (f = 0; f < VF_N; f++)
+                s.voice[i][f] = u.b[24 + FROM[i] * VF_N + f];
+        for (i = 0; i < EF_N; i++)
+            s.fx[i] = u.b[24 + 5 * VF_N + i];
+        for (i = 0; i < 4; i++)
+            s.rsv2[i] = 0;
     } else if (n != (int)sizeof s || s.magic != SET_MAGIC || s.format != SET_FORMAT) {
         settings_defaults();
         return -1;
@@ -106,16 +119,48 @@ static void journey_sane(journey_t *j)          /* a loaded one: every field in 
         loop_t *l = &j->loop[i];
         l->len = (uint8_t)(l->len < 1 || l->len > JR_STEPS ? JR_STEPS : l->len);
         l->div = (uint8_t)(l->div == 1 || l->div == 2 || l->div == 4 || l->div == 8 ? l->div : 2);
-        l->on = (uint8_t)(l->on != 0);
+        l->on = (uint8_t)(l->on > LOOP_RECORDED ? LOOP_CAPTURED : l->on);
         l->mutate &= 0x7Fu;
     }
 }
 
+/* a 0.13 journey (format 1) had three loops, LINE's first: the rest is as now, so it comes over less
+ * that loop */
+#define JR_V1_SIZE (sizeof(journey_t) + sizeof(loop_t))
+#define JR_LOOPS_AT __builtin_offsetof(journey_t, loop)
+static int journey_from_v1(const uint8_t *src, journey_t *j)
+{
+    uint8_t *d = (uint8_t *)j;
+    uint32_t k;
+    for (k = 0; k < JR_LOOPS_AT; k++)
+        d[k] = src[k];
+    for (k = 0; k < JR_LOOPS * sizeof(loop_t); k++)
+        d[JR_LOOPS_AT + k] = src[JR_LOOPS_AT + sizeof(loop_t) + k];
+    if (j->magic != JR_MAGIC || j->format != 1u || j->size != JR_V1_SIZE)
+        return -1;
+    j->format = JR_FORMAT;
+    j->size = (uint16_t)sizeof *j;
+    return jr_valid(j) ? 0 : -1;
+}
+static uint8_t jr_buf[JR_USER * JR_V1_SIZE] __attribute__((aligned(4))) PEN_POOL;
+
 int journey_load_work(void)
 {
     journey_t j;
-    if (plat_store_load(OBJ_WORK, &j, sizeof j) != (int)sizeof j || !jr_valid(&j))
-        return -1;
+    int n = plat_store_load(OBJ_WORK, jr_buf, JR_V1_SIZE);
+    if (n == (int)JR_V1_SIZE) {
+        if (journey_from_v1(jr_buf, &j) != 0)
+            return -1;
+    } else {
+        uint8_t *d = (uint8_t *)&j;
+        uint32_t k;
+        if (n != (int)sizeof j)
+            return -1;
+        for (k = 0; k < sizeof j; k++)
+            d[k] = jr_buf[k];
+        if (!jr_valid(&j))
+            return -1;
+    }
     journey_sane(&j);
     eng_jr = j;                                   /* (before the audio starts, or between its blocks: bytes) */
     engine_journey_loaded();
@@ -130,10 +175,18 @@ int journey_save_work(void)
 
 int journey_slots_load(void)
 {
-    int i;
-    if (plat_store_load(OBJ_USER, jslot, sizeof jslot) != (int)sizeof jslot) {
-        uint8_t *z = (uint8_t *)jslot;
-        uint32_t k;
+    int i, n = plat_store_load(OBJ_USER, jr_buf, sizeof jr_buf);
+    uint8_t *z = (uint8_t *)jslot;
+    uint32_t k;
+    if (n == (int)sizeof jslot) {
+        for (k = 0; k < sizeof jslot; k++)
+            z[k] = jr_buf[k];
+    } else if (n == (int)sizeof jr_buf) {         /* 0.13's: each converted (an empty slot stays empty) */
+        for (i = 0; i < JR_USER; i++)
+            if (journey_from_v1(jr_buf + (uint32_t)i * JR_V1_SIZE, &jslot[i]) != 0)
+                for (k = 0; k < sizeof(journey_t); k++)
+                    ((uint8_t *)&jslot[i])[k] = 0;
+    } else {
         for (k = 0; k < sizeof jslot; k++)
             z[k] = 0;
         return -1;

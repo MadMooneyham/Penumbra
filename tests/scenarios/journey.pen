@@ -1,4 +1,4 @@
-# PLAY AT POWER-ON: the journey plays by itself. Its drones latch, the moon waxes, LINE writes lines,
+# PLAY AT POWER-ON: the journey plays by itself. Its drones latch, the moon waxes, VOX sings now and then,
 # the wind comes in; with DRIFT up, the director travels to the next scene. Audio in journey.wav.
 wav journey.wav
 wait 2000
@@ -10,7 +10,7 @@ expect drone1 1
 expect moon 1
 shot home.png
 wait 30000
-expect line_notes >10
+expect vox_notes >0
 expect clips 0
 turn K1 40
 expect macro1 127

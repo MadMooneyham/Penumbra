@@ -1,24 +1,28 @@
-# The three modes (ARP). PLAY: the white keys play VOX in the scene's key, the generator leaves VOX to
-# you. GUIDE: the generator plays VOX too, and held keys steer it. DRIFT: a white key is a scene, and the
-# director travels there (the next scene's key comes in at the middle of the travel).
+# The three modes (ARP). PLAY: the white keys play VOX in the scene's key; while they do (and four bars
+# after) the generator's VOX waits, then its sparse phrases come back. GUIDE: held keys steer VOX's
+# phrases. DRIFT: a white key is a scene, and the director travels there (the next scene's key comes
+# in at the middle of the travel).
 wait 1000
 expect mode 0
 expect jr_playing 1
+turn K2 32
+expect vox_notes >-1
 tapkey w0
 wait 100
 expect vox 1
-wait 12000
 expect vox_notes 0
+wait 9000
+expect vox_notes 0
+wait 40000
+expect vox_notes >0
 tap ARP
 expect mode 1
-wait 20000
-expect vox_notes >2
-key w9 down
-key w11 down
-wait 12000
-expect line_notes >5
-key w9 up
-key w11 up
+key w8 down
+key w10 down
+wait 40000
+expect vox_notes >1
+key w8 up
+key w10 up
 tap ARP
 expect mode 2
 tapkey w2

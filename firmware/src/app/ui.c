@@ -8,7 +8,7 @@
  *   VOICES   each voice's LEVEL, TONE, character and SPACE (SELECT: the voice)
  *   SCENE    the journey's scenes, field by field (SELECT: the field, KNOB 1: the scene, 2-4: change
  *            it); SEL stores the moment as a new scene
- *   LOOP     a captured loop's 16 steps (SELECT: LINE, VOX, PULSE; KNOB 1 the step, 2 its note, 3 on
+ *   LOOP     a captured loop's steps (SELECT: VOX, PULSE; KNOB 1 the step, 2 its note, 3 on
  *            or tied, 4 MUTATE); SEL captures or lets go
  *   FX       the reverb and the delay (SELECT: which)
  *   JOURNEY  the 6 presets and 8 user slots: SEL opens one, SAVE stores the one playing in a slot
@@ -225,8 +225,8 @@ static void autosave(void)
 
 /* ============================================================ the journey === */
 static const scene_t *scene_sel(void) { return &eng_jr.scene[ui.ssel % (eng_jr.nscenes ? eng_jr.nscenes : 1)]; }
-static int loops_on(void) { return eng_jr.loop[LP_LINE].on || eng_jr.loop[LP_VOX].on || eng_jr.loop[LP_PULSE].on; }
-static const char *const LOOP_N[JR_LOOPS] = {"LINE", "VOX", "PULSE"};
+static int loops_on(void) { return eng_jr.loop[LP_VOX].on || eng_jr.loop[LP_PULSE].on; }
+static const char *const LOOP_N[JR_LOOPS] = {"VOX", "PULSE"};
 static const char *const MACRO_N[NMACROS] = {"DRIFT", "DENSITY", "SPACE", "TONE"};
 
 /* SCENE's fields */
@@ -504,7 +504,7 @@ static void select_turn(int e)
         ann_say(t, 0, ANN_NOW);
         break;
     case V_VOICES: {
-        static const char *const VN[EV_N] = {"DRONE", "LINE", "VOX", "PULSE", "TEXTURE"};
+        static const char *const VN[EV_N] = {"DRONE", "VOX", "PULSE", "TEXTURE"};
         ui.vsel = (uint8_t)clamp_i(ui.vsel + e, 0, EV_N - 1);
         ann_say(VN[ui.vsel], 0, ANN_NOW);
         break;
@@ -533,7 +533,7 @@ static void select_turn(int e)
     }
 }
 
-static const char *const VCHAR_N[EV_N] = {"DETUNE", "GLIDE", "ATTACK", "DECAY", "SWEEP"};
+static const char *const VCHAR_N[EV_N] = {"DETUNE", "ATTACK", "DECAY", "SWEEP"};
 static const char *const FX_N[EF_N] = {"DECAY", "SIZE", "SHIMMER", "TONE", "TIME", "FEEDBACK", "TONE", "WEAR"};
 static void fx_text(int i, char *b)
 {
@@ -1038,7 +1038,7 @@ static void draw_home(void)
     text_r(213, 112, &FONT_XS, r->playing ? jr_moon_name(r->moon) : "STOPPED", r->playing ? C_GRAY : C_DIM);
     put_s(put_s(b, "MODE "), jr_mode_name(eng_jr.mode));
     cv_text(6, 126, &FONT_XS, b, eng_jr.mode == MODE_PLAY ? C_GRAY : C_AMB);
-    for (v = 0, x = 120; v < JR_LOOPS; v++) {     /* the loops: lit when captured */
+    for (v = 0, x = 150; v < JR_LOOPS; v++) {     /* the loops: lit when captured */
         int on = eng_jr.loop[v].on, recording = v == LP_VOX && r->rec;
         uint16_t c = recording ? ((ui.frame >> 4) & 1u ? C_RED : dim(C_RED, 6)) : on ? C_AMB : C_DIM;
         cv_text(x, 126, &FONT_XS, LOOP_N[v], c);
@@ -1075,12 +1075,12 @@ static void draw_system(void)
         text_c(120, 2 + ROWS_SHOWN * ROW_H, &FONT_XS, "CHANGES AT THE NEXT POWER-ON", C_AMB);
 }
 
-static const char *const VOICE_N[EV_N] = {"DRONE", "LINE", "VOX", "PULSE", "TEXTURE"};
+static const char *const VOICE_N[EV_N] = {"DRONE", "VOX", "PULSE", "TEXTURE"};
 static void draw_voices(void)
 {
     int v;
     for (v = 0; v < EV_N; v++) {
-        int y = 6 + v * 26, sel = v == ui.vsel, lv = cfg.voice[v][VF_LEVEL];
+        int y = 10 + v * 30, sel = v == ui.vsel, lv = cfg.voice[v][VF_LEVEL];
         char b[8];
         if (sel)
             cv_rect(0, y - 2, 240, 24, dim(C_AMB, 3));
@@ -1198,9 +1198,9 @@ static void draw_bench(void)
         cv_text(6, 1, &FONT_XS, b, C_GRAY);
     text_r(146, 1, &FONT_XS, "AVG %", C_DIM);
     text_r(210, 1, &FONT_XS, "PEAK %", C_DIM);
-    cv_rect(6, 12 + ST_CORE1 * 9, 228, 1, C_LINE);   /* the stages above, each core's whole below */
+    cv_rect(6, 13 + ST_CORE1 * 10, 228, 1, C_LINE);  /* the stages above, each core's whole below */
     for (k = 0; k < ST_N; k++) {
-        int total = k >= ST_CORE1, y = 11 + k * 9 + (total ? 3 : 0);
+        int total = k >= ST_CORE1, y = 12 + k * 10 + (total ? 3 : 0);
         uint16_t c = total ? C_HI : C_GRAY;
         cv_text(10, y, &FONT_XS, engine_stage_name(k), c);
         if (!bench_serial || (k == ST_CORE2 && !bench.two_cores)) {

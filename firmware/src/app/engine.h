@@ -4,8 +4,8 @@
  * ever touched by one context (and the second core's job, while the first waits for it).
  *
  * The five voices (docs: "Penumbra: rewrite design"): DRONE (five voices, SWARM; black keys 1-5 latch
- * them, the journey's director sets their chords), LINE (the generator's lines), VOX (four voices: the
- * white keys in PLAY, MIDI notes, the generator in GUIDE and DRIFT), PULSE (a deep kick and a tick:
+ * them, the journey's director sets their chords), VOX (four voices: the white keys in PLAY, MIDI
+ * notes, and the generator's sparse phrases, far back in the shimmer), PULSE (a deep kick and a tick:
  * the generator, black keys 6 and 7) and TEXTURE (the wind), into the shimmer reverb, the tape delay
  * and the master stage. The journey (seq/journey.c) runs in CTRL, its steps on the clock's 16ths, and
  * its scene and the HOME macros set the voices each block (conduct). Every stage of every block is
@@ -14,7 +14,7 @@
  * The render, per block:
  *   core 1: CTRL (commands, MIDI in, the clock and the journey's steps, the drone's control steps)
  *   core 2: DRN BUS (the drone's bus: wind, drive and filter, then SWARM, on the last block's
- *           voices), DRONE 2 (its share of this block's drone voices), VOX, LINE, PULSE, TEXTURE
+ *           voices), DRONE 2 (its share of this block's drone voices), VOX, PULSE, TEXTURE
  *   core 1: DRONE 1 (the rest of the drone voices), FX WET (the reverb and delay returns of the last
  *           block's sends), then WAIT for core 2, OUTPUT (the voices' gains and sends, the distortion
  *           and glue compressor, the master's compressor, filter and limiter, the output's scale)
@@ -36,9 +36,9 @@ extern journey_t eng_jr;
 const jrun_t *engine_jr(void);                 /* (main loop, read only) the director, the generator */
 
 /* the voices, as the VOICES page sets them: LEVEL (100 = as made), TONE (64 = the scene's), their
- * character (DRONE detune, LINE glide, VOX attack, PULSE decay, TEXTURE sweep) and SPACE (their
- * reverb and delay sends, 64 = as made) */
-enum { EV_DRONE, EV_LINE, EV_VOX, EV_PULSE, EV_TEX, EV_N };
+ * character (DRONE detune, VOX attack, PULSE decay, TEXTURE sweep) and SPACE (their reverb and delay
+ * sends, 64 = as made) */
+enum { EV_DRONE, EV_VOX, EV_PULSE, EV_TEX, EV_N };
 enum { VF_LEVEL, VF_TONE, VF_CHAR, VF_SEND, VF_N };
 void engine_voice(int voice, int field, int value);
 /* the effects, as the FX page sets them */
@@ -49,7 +49,7 @@ const char *engine_fx_value_name(int i, int value);   /* a switch's label (the d
 
 /* the benchmark: what each stage cost, in % of the block's real-time budget x 10 (so 1000 = the
  * whole block), averaged over a second and its worst block in that second */
-enum { ST_CTRL, ST_DRN1, ST_DRN2, ST_DRNBUS, ST_VOX, ST_LINE, ST_PULSE, ST_TEX, ST_FXWET, ST_WAIT, ST_OUT,
+enum { ST_CTRL, ST_DRN1, ST_DRN2, ST_DRNBUS, ST_VOX, ST_PULSE, ST_TEX, ST_FXWET, ST_WAIT, ST_OUT,
        ST_CORE1, ST_CORE2, ST_N };
 enum { DRONE_CORE1, DRONE_CORE2, DRONE_SPLIT };
 typedef struct {
@@ -68,7 +68,7 @@ extern volatile uint32_t eng_guard_count;                   /* times it engaged 
 extern volatile uint16_t eng_level;                         /* the output's peak, Q15, held for the UI to fall */
 extern volatile uint32_t eng_steps;                         /* 16ths since PLAY (the clock's), for the screen */
 extern volatile uint32_t eng_kicks;                         /* PULSE's kicks so far (the corona flares on each) */
-extern volatile uint32_t eng_line_notes, eng_vox_notes;     /* the journey's notes so far (stars on HOME) */
+extern volatile uint32_t eng_vox_notes;                     /* the journey's VOX notes so far */
 extern uint32_t eng_out_clips;                              /* output samples past full scale, since power-on */
 
 void engine_init(void);
@@ -88,7 +88,7 @@ void engine_vox_on(int note, int vel);             /* VOX: a note (a white key, 
 void engine_vox_off(int note);
 void engine_pulse(int which, int vel);             /* PULSE_KICK (0) or PULSE_TICK (1), vel 0..127 */
 int engine_vox_sounding(void);                     /* (main loop) a VOX voice sounds */
-void engine_load_test(int on);                     /* every drone latched thick, LINE running: the worst case */
+void engine_load_test(int on);                     /* every voice at its heaviest: the worst case */
 int engine_load_testing(void);
 void engine_out_loud(int on);                      /* 1: the output at the codec's full scale */
 void engine_usb_full(int on);                      /* 1: USB audio at full level, MASTER after it */

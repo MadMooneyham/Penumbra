@@ -10,13 +10,14 @@ phases and their gates are in the document "Penumbra: rewrite design". This tree
 - the platform carried over from X0X and Felucca: boot and crash guards, flash storage, the update path and web
   installer, USB MIDI and audio, MIDI on the TRS jack, the second core, panel calibration, the screen and fonts,
   the screen reader;
-- five voices: DRONE (five voices, SWARM), LINE (a mono line with glide), VOX (a four-voice oscillator synth),
-  PULSE (a deep kick tuned to the key, a soft tick) and TEXTURE (a bed of space wind), into the shimmer reverb,
-  the tape delay and the master stage;
+- four voices: DRONE (five voices, SWARM), VOX (a four-voice oscillator synth, far back in the shimmer), PULSE
+  (a deep kick tuned to the key, a soft tick) and TEXTURE (a bed of space wind), into the shimmer reverb, the
+  tape delay and the master stage. The space between them is part of the sound;
 - journeys: six presets, each a few scenes (key, scale, chords, density, timbre, space, wind, pulse). A director
   moves through the moon's phases (new, waxing, full, waning), travels to the next scene at each new moon and
-  changes the chords every few bars; a generator writes the lines, VOX's phrases and PULSE's pattern from the
-  journey's seed, repeats them and changes them a little;
+  changes the chords every few bars; a generator writes VOX's phrases (one to three long notes over eight bars,
+  then the silence they ring out into) and PULSE's pattern from the journey's seed, repeats them and changes
+  them a little;
 - loops: what the generator plays can be captured and edited as 16 steps, VOX recorded from the keys;
 - storage: the journey playing carries on after a power cut; 8 user journeys;
 - MIDI clock in and out (24 ppqn, START / STOP), followed or sent as SYSTEM sets it;
@@ -29,8 +30,8 @@ It plays at power-on (SYSTEM > PLAY AT POWER-ON). The modes (ARP) say what the w
 
 | Mode | The generator plays | The white keys |
 | --- | --- | --- |
-| PLAY | DRONE, LINE, PULSE, TEXTURE | play VOX in the scene's key and scale |
-| GUIDE | everything, VOX too | held: the notes the lines favour; tapped: where the next phrase heads; low keys pull the register down, high keys up |
+| PLAY | everything; its VOX waits while you play (and four bars after) | play VOX in the scene's key and scale |
+| GUIDE | everything | held: the notes VOX favours; tapped: where the next phrase heads; low keys pull the register down, high keys up |
 | DRIFT | everything | each key is a scene: the journey travels there |
 
 | Control | What it does |
@@ -41,11 +42,11 @@ It plays at power-on (SYSTEM > PLAY AT POWER-ON). The modes (ARP) say what the w
 | ALGO | the tempo |
 | PRESET | the journeys (opens JOURNEY) |
 | PLAY | start and stop, with a fade (MIDI clock out, if on) |
-| REC | loop what plays: GUIDE and DRIFT capture LINE, VOX and PULSE; PLAY records a bar of VOX from the keys, from the next bar line. With loops on: let them all go |
+| REC | loop what plays: GUIDE and DRIFT capture VOX's phrase and PULSE; PLAY records a bar of VOX from the keys, from the next bar line. With loops on: let them all go |
 | ARP | the mode: PLAY, GUIDE, DRIFT |
 | ENV | VOICES: each voice's level, tone, character, space |
 | EDIT | SCENE: the scenes' key, scale, chords and the rest; SEL stores the moment as a new scene |
-| SEQ | LOOP: a loop's 16 steps (KNOB 1 the step, 2 its note, 3 on / tie, 4 MUTATE); SEL captures or lets go |
+| SEQ | LOOP: a loop's steps, VOX or PULSE (KNOB 1 the step, 2 its note, 3 on / tie, 4 MUTATE); SEL captures or lets go |
 | FX | the reverb and the delay |
 | LFO | JOURNEY: SEL opens a preset or a user journey; SAVE stores the one playing in a user slot |
 | GLO | SYSTEM (the settings), then BENCH |

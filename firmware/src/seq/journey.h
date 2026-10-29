@@ -4,21 +4,23 @@
  *
  *   scene      a key and scale, a chord progression and how the drone voices it, how much plays,
  *              the timbre (brightness, swarm), the space, the wind's level and colour, the pulse,
- *              the register of the lines. Up to 8 a journey.
+ *              VOX's register. Up to 8 a journey.
  *   director   moves through the moon's phases, NEW (drones only, nearly) -> WAXING -> FULL (the
  *              densest) -> WANING, each 30 s .. 4 min by the DRIFT macro (0: it stays where it is);
  *              at each NEW it travels to the next scene: everything glides over the phase, the key
  *              and chords change at its middle, in the quiet. The chord moves every 2 .. 8 bars.
- *   generator  writes short motifs from the journey's seed and the scene's scale (LINE; VOX in
- *              GUIDE and DRIFT; PULSE's pattern), repeats them, then changes them a little (a note a
- *              step, a rest) and, after a few changes, writes new ones. Notes are scale degrees over
- *              the chord's root, so a motif follows the chords and the key. The same seed and the same
- *              hands give the same music. How full a motif plays follows the moon and DENSITY.
- *   loops      a captured motif (or VOX recorded from the keys) plays instead of the generator until
+ *   generator  writes from the journey's seed and the scene's scale: VOX's phrases (one to three long
+ *              notes over eight bars, then the space they ring out into) and PULSE's pattern; repeats
+ *              them, then changes them a little (a note a step) and, after a few changes, writes new
+ *              ones. Notes are scale degrees over the chord's root, so a phrase follows the chords and
+ *              the key. The same seed and the same hands give the same music. How much of a phrase
+ *              plays follows the moon and DENSITY: at the new moon, the drones alone.
+ *   loops      a captured phrase (or VOX recorded from the keys) plays instead of the generator until
  *              it is released; MUTATE lets it change a little each time round.
- *   modes      PLAY: the white keys play VOX. GUIDE: held white keys are the notes the lines favour,
- *              a tapped one is where the next phrase heads, low keys pull the register down, high up.
- *              DRIFT: each white key is a scene, and the director travels there.
+ *   modes      PLAY: the white keys play VOX; while they do (and 4 bars after), the generator's VOX
+ *              waits. GUIDE: held white keys are the notes VOX favours, a tapped one is where the next
+ *              phrase heads, low keys pull the register down, high up. DRIFT: each white key is a
+ *              scene, and the director travels there.
  *
  * journey_t is the saved part (under 300 bytes): the main loop writes it, a byte at a time, and the
  * audio ISR reads it (one core: the ISR only interrupts, never overlaps). jrun_t is the ISR's alone.
@@ -33,16 +35,18 @@
 #define JR_USER 8
 #define JR_DRONES 5
 #define JR_MAGIC 0x314A4E50u                    /* "PNJ1" */
-#define JR_FORMAT 1u
+#define JR_FORMAT 2u                            /* 1 (0.13): three loops, LINE's first (settings.c converts it) */
+#define JR_HANDS_STEPS 64u                      /* PLAY: the generator's VOX waits 4 bars after a played note */
 
 enum { SC_IONIAN, SC_DORIAN, SC_PHRYGIAN, SC_LYDIAN, SC_MIXOLYDIAN, SC_AEOLIAN, SC_HARMONIC, NSCALES };
 enum { VC_OPEN, VC_WARM, VC_HIGH, VC_CLUSTER, NVOICINGS };
 enum { MODE_PLAY, MODE_GUIDE, MODE_DRIFT, NMODES };
 enum { MAC_DRIFT, MAC_DENSITY, MAC_SPACE, MAC_TONE, NMACROS };
 enum { MOON_NEW, MOON_WAX, MOON_FULL, MOON_WANE, NMOONS };
-enum { LP_LINE, LP_VOX, LP_PULSE, JR_LOOPS };
+enum { LP_VOX, LP_PULSE, JR_LOOPS };
+enum { LOOP_OFF, LOOP_CAPTURED, LOOP_RECORDED };   /* loop_t.on: recorded plays as played (no pentatonic) */
 
-/* a loop's step. LINE, VOX: ST_ON, ST_TIE (held on from the step before; LINE slides), the degree
+/* a loop's step. VOX: ST_ON, ST_TIE (held on from the step before), the degree
  * over the chord's root (-24 .. +39). PULSE: PS_KICK, PS_TICK, PS_ACC */
 #define ST_ON 0x80u
 #define ST_TIE 0x40u
@@ -58,9 +62,9 @@ typedef struct {
     uint8_t prog;                               /* the chords (jr_prog_name) */
     uint8_t voicing;                            /* VC_*: how the drone's five voices stack each chord */
     uint8_t density, bright, swarm, space, tex, colour, pulse;   /* 0..127 */
-    uint8_t reg;                                /* the lines' octave: 2..6 (4: their root under middle C) */
+    uint8_t reg;                                /* VOX's octave, less one: 2..6 (4: its root an octave over middle C's) */
     uint8_t drones;                             /* the drone voices PLAY latches (bit v) */
-    uint8_t penta;                              /* 1: the lines keep to the scale's pentatonic */
+    uint8_t penta;                              /* 1: VOX's phrases keep to the scale's pentatonic */
     uint8_t rsv[2];
 } scene_t;
 
@@ -68,7 +72,7 @@ typedef struct {
     uint8_t step[JR_STEPS];
     uint8_t len;                                /* 1..16 */
     uint8_t div;                                /* 16ths a step: 1, 2, 4, 8 */
-    uint8_t on;                                 /* captured: it plays instead of the generator */
+    uint8_t on;                                 /* LOOP_*: it plays instead of the generator */
     uint8_t mutate;                             /* 0..127: how much it changes each time round */
 } loop_t;
 
@@ -89,8 +93,6 @@ typedef struct {
     void (*drone_note)(void *ctx, int voice, int midi);
     void (*drone_latch)(void *ctx, uint32_t mask);        /* these voices on (the others as they are) */
     void (*drone_release)(void *ctx);                     /* every voice falls away */
-    void (*line_on)(void *ctx, int midi, int accent, int slide);
-    void (*line_off)(void *ctx);
     void (*vox_on)(void *ctx, int midi, int vel);         /* vel 0..127 */
     void (*vox_off)(void *ctx, int midi);
     void (*pulse)(void *ctx, int which, int vel);         /* 0 kick, 1 tick; vel 0..127 */
@@ -126,8 +128,10 @@ typedef struct {
     int drone[JR_DRONES];                       /* the drone's notes (MIDI) */
     jr_gen_t g[JR_LOOPS];
     uint32_t lrng[JR_LOOPS];                    /* the captured loops' mutations */
-    int line_note, vox_note;                    /* sounding (-1: none) */
-    uint8_t line_ok, vox_ok;                    /* the last step played (a tie after a thinned step plays anew) */
+    int vox_note;                               /* the generator's, sounding (-1: none) */
+    uint8_t vox_ok;                             /* the last step played (a tie after a thinned step plays anew) */
+    uint8_t hands;                              /* a VOX note was played since PLAY */
+    uint32_t hand_n, now_n;                     /* the step it was played in; this step */
     /* GUIDE */
     uint32_t held;                              /* white keys held (bit w) */
     int8_t target, shift;                       /* a tapped key's degree (-128: none); the register's pull */

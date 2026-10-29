@@ -12,7 +12,8 @@
 #define FW_NAME "PENUMBRA"               /* the name on the screen and in the reader's HELLO answer */
 
 #define SET_MAGIC 0x31534E50u            /* "PNS1": X0X's settings ("0X0P") load as defaults */
-#define SET_FORMAT 2u                    /* 1 (0.7 .. 0.12): the first 17 bytes, the rest takes its defaults */
+#define SET_FORMAT 3u                    /* 1 (0.7 .. 0.12): the first 17 bytes, the rest takes its defaults;
+                                          * 2 (0.13): five voices, LINE's second (settings.c converts both) */
 typedef struct {
     uint32_t magic, format;
     uint16_t bpm_x10;                    /* the internal tempo */
