@@ -58,7 +58,7 @@ void jr_sound_default(journey_t *j)
     static const uint8_t SHAPE[JR_VOICES][JR_SHAPE] = {
         {100, 75, 45, 80, 44, 0},                /* DRONE: FILTER, BODY, SWARM, WAVE */
         {100, 64, 80, 90, 64, 20},               /* VOX: BRIGHT, ATTACK, RELEASE, SHIMMER; VIBRATO */
-        {80, 50, 80, 30, 64, 0},                 /* PULSE: DROP, DECAY, CLICK, SPACE (2 dB down) */
+        {80, 50, 80, 30, 64, 90},                /* PULSE: DROP, DECAY, CLICK, SPACE (2 dB down); BLOOM's level */
         {100, 64, 70, 40, 90, 0}};               /* TEXTURE: COLOUR, SWEEP, RATE, WIDTH */
     static const uint8_t DVOICE[JR_DVOICE] = {106, 75, 64, 1};
     int v, f;
@@ -70,6 +70,15 @@ void jr_sound_default(journey_t *j)
             j->dvoice[v][f] = DVOICE[f];
     j->dswell = 0;
     jr_vsound_default(j);
+    jr_bloom_default(j);
+}
+
+void jr_bloom_default(journey_t *j)              /* level 90, LENGTH 64, an octave over, FIFTH 64 */
+{
+    j->shape[2][5] = 90;                         /* (PULSE's SH_HIDE: engine.h) */
+    j->bloom[0] = 64;
+    j->bloom[1] = 1;
+    j->bloom[2] = 64;
 }
 
 /* VOX's sounds (engine.h VS_*): LEVEL, BRIGHT (64: the scene's), ATTACK, RELEASE, SHIMMER (64: as made),

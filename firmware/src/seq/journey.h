@@ -23,9 +23,9 @@
 #define JR_USER 8
 #define JR_DRONES 5
 #define JR_MAGIC 0x314A4E50u                    /* "PNJ1" */
-#define JR_FORMAT 4u                            /* 3 (0.15, 0.16-dev): one VOX sound; 2 (0.14): no sound; 1
-                                                 * (0.13): three loops, LINE's first, no sound (settings.c
-                                                 * converts them all) */
+#define JR_FORMAT 5u                            /* 4 (0.16, 0.17): no BLOOM; 3 (0.15): one VOX sound; 2 (0.14): no
+                                                 * sound; 1 (0.13): three loops, LINE's first, no sound
+                                                 * (settings.c converts them all) */
 #define JR_VSOUNDS 4                            /* VOX's sounds: black keys 8 .. 11 */
 #define JR_VS 16                                /* a VOX sound's bytes (engine.h VS_*) */
 #define JR_DRONE_GAP 3.0f                       /* seconds between the drone's voices moving to a new scene */
@@ -67,7 +67,8 @@ typedef struct {
     uint8_t dvoice[JR_DRONES][JR_DVOICE];
     uint8_t dswell;                             /* the drone voices that come and go (bit v): swelled in now and
                                                  * then, a key plays one; the rest are held */
-    uint8_t rsv2[3];
+    uint8_t bloom[3];                           /* PULSE's BLOOM: LENGTH, HEIGHT (0..2), FIFTH (its level: PULSE's
+                                                 * SH_HIDE) (engine.h BL_*) */
     uint8_t vsound[JR_VSOUNDS][JR_VS];          /* VOX's four sounds (shape[VOX] is unused: these are VOX's) */
     uint8_t vcur;                               /* the one playing */
     uint8_t rsv3[3];
@@ -112,6 +113,7 @@ void jr_preset(int i, journey_t *dst);
 const char *jr_preset_name(int i);
 void jr_sound_default(journey_t *j);             /* the sound as made (a preset's, an old journey's) */
 void jr_vsound_default(journey_t *j);            /* VOX's four sounds as made */
+void jr_bloom_default(journey_t *j);             /* BLOOM as made */
 const char *jr_vsound_name(int i);               /* GLASS, REED, HALO, LOW */
 int jr_valid(const journey_t *j);                /* loaded from flash: is it one */
 

@@ -139,6 +139,10 @@ static void journey_sane(journey_t *j)          /* a loaded one: every field in 
         if (j->dvoice[i][DV_OCT] > 2)
             j->dvoice[i][DV_OCT] = 1;
     j->dswell &= (1u << ENG_DRONES) - 1u;
+    for (i = 0; i < 3; i++)
+        j->bloom[i] &= 0x7Fu;
+    if (j->bloom[BL_HEIGHT] > 2)
+        j->bloom[BL_HEIGHT] = 1;
 }
 
 /* older journeys. A 0.14 one (format 2) is this one up to its sound; a 0.13 one (format 1) had three
@@ -197,6 +201,7 @@ static int journey_from_old(const uint8_t *src, int n, journey_t *j)
         j->format = JR_FORMAT;
         j->size = (uint16_t)sizeof *j;
         vox_from_shape(j);
+        jr_bloom_default(j);
         return jr_valid(j) ? 0 : -1;
     }
     for (k = 0; k < JR_LOOPS_AT; k++)
@@ -215,6 +220,15 @@ static int journey_from_old(const uint8_t *src, int n, journey_t *j)
 }
 static uint8_t jr_buf[JR_USER * sizeof(journey_t)] __attribute__((aligned(4))) PEN_POOL;
 
+/* a 0.16 or 0.17 journey (format 4) is this one less BLOOM (its bytes were spare): BLOOM as made */
+static void journey_from_v4(journey_t *j)
+{
+    if (j->magic == JR_MAGIC && j->format == 4u && j->size == sizeof *j) {
+        jr_bloom_default(j);
+        j->format = JR_FORMAT;
+    }
+}
+
 int journey_load_work(void)
 {
     journey_t j;
@@ -229,6 +243,7 @@ int journey_load_work(void)
             return -1;
         for (k = 0; k < sizeof j; k++)
             d[k] = jr_buf[k];
+        journey_from_v4(&j);
         if (!jr_valid(&j))
             return -1;
     }
@@ -268,6 +283,8 @@ int journey_slots_load(void)
     if (n == (int)sizeof jslot) {
         for (k = 0; k < sizeof jslot; k++)
             z[k] = jr_buf[k];
+        for (i = 0; i < JR_USER; i++)
+            journey_from_v4(&jslot[i]);
     } else if (n == (int)(JR_USER * JR_V1_SIZE) || n == (int)(JR_USER * JR_V2_SIZE) || n == (int)(JR_USER * JR_V3_SIZE)) {
         int one = n / JR_USER;                    /* 0.13's or 0.14's: each converted (an empty slot stays empty) */
         for (i = 0; i < JR_USER; i++)
@@ -333,6 +350,8 @@ void journey_open_preset(int i)
     for (k = 0; k < sizeof j.dvoice; k++)
         (&j.dvoice[0][0])[k] = (&eng_jr.dvoice[0][0])[k];
     j.dswell = eng_jr.dswell;
+    for (k = 0; k < sizeof j.bloom; k++)
+        j.bloom[k] = eng_jr.bloom[k];
     for (k = 0; k < sizeof j.vsound; k++)
         (&j.vsound[0][0])[k] = (&eng_jr.vsound[0][0])[k];
     j.vcur = eng_jr.vcur;

@@ -1,0 +1,50 @@
+# BLOOM, black key 7: pressed, it swells in; held, the knobs shape it (LEVEL, LENGTH, HEIGHT: the root, an
+# octave over, two; FIFTH) and it stays so; PULSE's page reset (SEL twice) puts it back as made. A 0.16 or
+# 0.17 journey (no BLOOM) comes with it as made. No clicks, no clips. Audio in bloom.wav.
+autoplay 0
+wait 300
+wav bloom.wav
+expect bloom0 90
+expect bloom2 1
+key b6 down
+wait 100
+turn K1 -10
+turn K2 10
+turn K3 -1
+turn K4 20
+wait 100
+shot bloom_hold.png
+key b6 up
+expect bloom0 70
+expect bloom1 84
+expect bloom2 0
+expect bloom3 104
+wait 6000
+tapkey b6
+wait 3000
+key b6 down
+turn K3 3
+key b6 up
+expect bloom2 2
+tapkey b6
+wait 12000
+tap ENV
+turn SELECT 4
+tap SEL
+tap SEL
+wait 100
+expect bloom0 90
+expect bloom1 64
+expect bloom2 1
+expect bloom3 64
+wavstop
+expect clips 0
+legacy017
+wait 500
+expect journey 4
+expect vcur 3
+expect bloom0 90
+expect bloom1 64
+expect bloom2 1
+expect slot1 1
+expect jr_playing 0

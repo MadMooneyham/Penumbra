@@ -22,7 +22,7 @@
  *   The looper: REC records (again: it plays; again: a layer over it), PLAY plays or stops it (held:
  *   the last layer undone), REC with PLAY clears it. ARP: FREEZE, the notes held keep sounding.
  * Keys: white VOX in the scene's key; black 1-5 latch the drone voices (when let go; a SWELL voice:
- * played when pressed), 6 PULSE's kick, 7 its BLOOM, 8-11 pick VOX's sound (held: shape it). ALGO: the tempo
+ * played when pressed), 6 PULSE's kick, 7 its BLOOM (held: shape it), 8-11 pick VOX's sound (held: shape it). ALGO: the tempo
  * (SHAPE: the voice's level). PRESET: the next scene, or the one before (on JOURNEY: the list).
  * SELECT on HOME: MORPH, the way to the next scene (or the one before) by hand. Every page but BENCH
  * goes home after 30 s idle.
@@ -53,7 +53,7 @@ static const char *const VIEW_N[NVIEWS] = {"HOME", "SHAPE", "SCENE", "FX", "JOUR
 #define IDLE_HOME_MS 30000u
 #define BACK_S 2.0f                        /* a throw or a bend let go drifts back over this, from all the way */
 
-enum { L_PAGE, L_DRONE, L_VSOUND, L_THROW, L_BEND };   /* what the knobs play: the page's, or a hold's */
+enum { L_PAGE, L_DRONE, L_VSOUND, L_BLOOM, L_THROW, L_BEND };   /* what the knobs play: the page's, or a hold's */
 
 typedef struct {
     uint8_t view;
@@ -73,6 +73,7 @@ typedef struct {
     /* the holds */
     uint8_t dheld, dturned;            /* drone keys held (bit v); a knob moved while they were */
     uint8_t vheld;                     /* VOX's sound keys held (bit s) */
+    uint8_t bheld;                     /* BLOOM's key held */
     uint16_t wheld;                    /* white keys held (bit w) */
     uint32_t used;                     /* buttons held as a hold this press: they do not act when let go */
     float thr[4], bend[4];             /* THROWS 0..127 (PF_SHIMMER..), BENDS -64..64 (PF_BRIGHT..) */
@@ -509,6 +510,8 @@ static int layer(void)
         return L_DRONE;
     if (ui.vheld)
         return L_VSOUND;
+    if (ui.bheld)
+        return L_BLOOM;
     if (ui.btn >> B_FX & 1u)
         return L_THROW;
     if (ui.wheld)
@@ -549,6 +552,27 @@ static void drone_knob(int k, int e)              /* the drone voices held, each
     changed_jr();
     dv_text(first, k, b);
     put_s(put_s(put_s(put_s(put_i(put_s(t, "DRONE "), first + 1), " "), DVF_N[k]), " "), b);
+    say(t, 0);
+}
+/* BLOOM, black key 7 held: its LEVEL, LENGTH, HEIGHT (the root, an octave over, two), FIFTH */
+static const char *const BLM_N[4] = {"LEVEL", "LENGTH", "HEIGHT", "FIFTH"};
+static uint8_t *bloom_ptr(int k) { return k == 0 ? &eng_jr.shape[EV_PULSE][SH_HIDE] : &eng_jr.bloom[k - 1]; }
+static void bloom_text(int k, char *b)
+{
+    int x = *bloom_ptr(k);
+    if (k == 2)
+        put_s(b, x == 0 ? "ROOT" : x == 1 ? "+1 OCT" : "+2 OCT");
+    else
+        put_i(b, x);
+}
+static void bloom_knob(int k, int e)
+{
+    char t[40], b[12];
+    uint8_t *p = bloom_ptr(k);
+    *p = (uint8_t)(k == 2 ? clamp_i(*p + (e > 0 ? 1 : -1), 0, 2) : clamp_i(*p + 2 * e, 0, 127));
+    changed_jr();
+    bloom_text(k, b);
+    put_s(put_s(put_s(put_s(t, "BLOOM "), BLM_N[k]), " "), b);
     say(t, 0);
 }
 static void vsound_knob(int k, int e)             /* a VOX sound key held: that sound */
@@ -699,6 +723,9 @@ static void reset_now(int what)
         if (all || (v == voice && v != EV_VOX))
             for (k = 0; k < SH_N; k++)
                 eng_jr.shape[v][k] = d.shape[v][k];
+    if (all || voice == EV_PULSE)                 /* (PULSE's page: its BLOOM too) */
+        for (k = 0; k < BL_N; k++)
+            eng_jr.bloom[k] = d.bloom[k];
     if (all || voice == EV_DRONE)
         for (v = 0; v < ENG_DRONES; v++)
             for (k = 0; k < DV_N; k++)
@@ -987,6 +1014,8 @@ static void input(void)
                     engine_drone_key(bk);         /* a voice that comes and goes: played, now */
             } else if (bk == ENG_DRONES || bk == ENG_DRONES + 1) {   /* the next two: PULSE's kick and its bloom */
                 engine_pulse(bk - ENG_DRONES, 110);
+                if (bk == ENG_DRONES + 1)
+                    ui.bheld = 1;                 /* (held: the knobs shape it) */
             } else if (bk >= VS_KEY0 && bk < VS_KEY0 + JR_VSOUNDS) {  /* the last four: VOX's sounds */
                 ui.vheld |= (uint8_t)(1u << (bk - VS_KEY0));
                 vsound_pick(bk - VS_KEY0);
@@ -1006,6 +1035,8 @@ static void input(void)
             ui.dturned &= (uint8_t)~(1u << bk);
         } else if ((ku >> i & 1u) && bk >= VS_KEY0 && bk < VS_KEY0 + JR_VSOUNDS) {
             ui.vheld &= (uint8_t)~(1u << (bk - VS_KEY0));
+        } else if ((ku >> i & 1u) && bk == ENG_DRONES + 1) {
+            ui.bheld = 0;
         }
     }
     for (i = 0; i < NB; i++) {                    /* a button acts when let go; held, it says its job */
@@ -1085,6 +1116,7 @@ static void input(void)
             switch (layer()) {
             case L_DRONE: drone_knob(i - EN_K1, e); break;
             case L_VSOUND: vsound_knob(i - EN_K1, e); break;
+            case L_BLOOM: bloom_knob(i - EN_K1, e); break;
             case L_THROW: throw_knob(i - EN_K1, e); break;
             case L_BEND: bend_knob(i - EN_K1, e); break;
             default: knob_turn(i - EN_K1, e); break;
@@ -1699,6 +1731,14 @@ static void draw_knobs(void)
         cv_commit(2, 0, KNOB_Y);
         return;
     }
+    case L_BLOOM:
+        for (k = 0; k < 4; k++) {
+            bloom_text(k, a);
+            cell(k, BLM_N[k], a, C_AMB);
+        }
+        hint("BLOOM", "IT STAYS");
+        cv_commit(2, 0, KNOB_Y);
+        return;
     case L_VSOUND:
         for (k = 0; k < 4; k++) {
             int x = vsound()[VSH_F[k]];

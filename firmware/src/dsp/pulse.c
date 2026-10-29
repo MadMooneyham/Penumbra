@@ -11,7 +11,8 @@ static const param_t PULSE_P[PL_NPARAMS] = {
     [PL_PDECAY] = {"P.Dcy", 127, 64, 0},     [PL_DECAY] = {"Decay", 127, 80, 0},
     [PL_CLICK] = {"Click", 127, 30, 0},      [PL_DRIVE] = {"Drive", 127, 20, 0},
     [PL_LEVEL] = {"Level", 127, 100, 0},     [PL_BLOOM] = {"Bloom", 127, 90, 0},
-    [PL_BLEN] = {"B.Len", 127, 64, 0}};
+    [PL_BLEN] = {"B.Len", 127, 64, 0},       [PL_BHEIGHT] = {"B.Hgt", 2, 1, 0},
+    [PL_BFIFTH] = {"B.5th", 127, 64, 0}};
 
 int pulse_nparams(void) { return PL_NPARAMS; }
 const param_t *pulse_param(int i) { return i >= 0 && i < PL_NPARAMS ? &PULSE_P[i] : 0; }
@@ -50,6 +51,8 @@ void pulse_set(pulse_t *p, int i, int value)
         p->brise_c = one_pole(pot_exp(value, 0.6f, 1.7f));
         p->bfall_c = one_pole(pot_exp(value, 1.0f, 2.2f));
         break;
+    case PL_BHEIGHT: p->bmul = (float)(1 << value); break;                       /* the root, an octave, two */
+    case PL_BFIFTH: p->bfifth = pot01(value) * 0.7f; break;                       /* (64: 0.35, as made) */
     default: break;
     }
 }
@@ -132,7 +135,7 @@ void pulse_render(pulse_t *p, float *l, float *r, float *bl, float *br, int n)
             r[i] += s;
         }
     if (bloom) {                                 /* an octave over the root, 4 cents either side; the fifth over */
-        const float inc = p->base_inc * 2.0f, il = inc * 0.99769f, ir = inc * 1.00231f, i5 = inc * 1.49831f;
+        const float inc = p->base_inc * p->bmul, il = inc * 0.99769f, ir = inc * 1.00231f, i5 = inc * 1.49831f, f5 = p->bfifth;
         const float g = p->bloom * p->level;
         float a = p->bph[0], b = p->bph[1], c = p->bph[2], env = p->benv;
         int rise = p->brise;
@@ -148,7 +151,7 @@ void pulse_render(pulse_t *p, float *l, float *r, float *bl, float *br, int n)
                 env -= env * p->bfall_c;
             }
             e = env * env * g * p->bvel;             /* (squared: it blooms, slowly at first) */
-            s5 = fm_sin_turns(c) * 0.35f;
+            s5 = fm_sin_turns(c) * f5;
             bl[i] += (fm_sin_turns(a) + s5) * e;
             br[i] += (fm_sin_turns(b) + s5) * e;
             a += il;

@@ -376,7 +376,7 @@ static void hand_off(int note)
  * scene. VOX is the colour: the scene's brightness, the shape's, a bend. TONE brightens everything,
  * SPACE scales every send, the wind follows the moon. Each pot is set only when its value moves */
 enum { K_DCUT, K_DRESO, K_SWARM, K_VCUT, K_VATK, K_VREL, K_VVIB, K_PPITCH, K_PDEC, K_PTICK, K_TLVL, K_TCOL,
-       K_TSWEEP, K_TRATE, K_TWIDTH, K_ROOT, K_SHIM, K_FDBK, K_DECAY, K_DIP,
+       K_TSWEEP, K_TRATE, K_TWIDTH, K_ROOT, K_SHIM, K_FDBK, K_DECAY, K_DIP, K_BLVL, K_BLEN, K_BHGT, K_B5TH,
        K_LEVEL, K_DWAVE = K_LEVEL + EV_N, K_DLVL = K_DWAVE + DRONE_VOICES, K_DTONE = K_DLVL + DRONE_VOICES,
        K_DSPREAD = K_DTONE + DRONE_VOICES, K_DOCT = K_DSPREAD + DRONE_VOICES, K_DMODE = K_DOCT + DRONE_VOICES,
        K_VX = K_DMODE + DRONE_VOICES, NK = K_VX + 8 };
@@ -450,6 +450,14 @@ static void conduct(void)
         pulse_set(&pulse, PL_CLICK, sh[EV_PULSE][SH_K3]);
     if (moved(K_ROOT, o->root_midi))
         pulse_root(&pulse, o->root_midi);
+    if (moved(K_BLVL, sh[EV_PULSE][SH_HIDE]))    /* BLOOM */
+        pulse_set(&pulse, PL_BLOOM, sh[EV_PULSE][SH_HIDE]);
+    if (moved(K_BLEN, eng_jr.bloom[BL_LENGTH]))
+        pulse_set(&pulse, PL_BLEN, eng_jr.bloom[BL_LENGTH]);
+    if (moved(K_BHGT, eng_jr.bloom[BL_HEIGHT]))
+        pulse_set(&pulse, PL_BHEIGHT, eng_jr.bloom[BL_HEIGHT]);
+    if (moved(K_B5TH, eng_jr.bloom[BL_FIFTH]))
+        pulse_set(&pulse, PL_BFIFTH, eng_jr.bloom[BL_FIFTH]);
     /* TEXTURE */
     if (moved(K_TLVL, x = clamp127(o->tex * o->fade * 0.85f)))
         texture_set(&tex, TX_LEVEL, x);

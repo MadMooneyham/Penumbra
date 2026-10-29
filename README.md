@@ -68,6 +68,7 @@ Holds: while one is held, the four knobs play something else, on any page.
 | --- | --- | --- |
 | A drone key (black 1-5) | that voice's level, tone, detune, octave; ALGO: HELD (left) or SWELL (right) | it stays as shaped (and the key does not latch) |
 | A VOX sound key (black 8-11) | that sound's brightness, wave, filter, release | it stays as shaped |
+| BLOOM's key (black 7) | its level, length, height (on the root, an octave over, two), fifth | it stays as shaped |
 | FX | throws: shimmer, delay feedback, freeze (the reverb holds), dip (the mix's low-pass) | they drift back over a couple of seconds; SAVE while holding keeps them, until FX is held and turned again |
 | A white key | bend VOX: brightness, vibrato, shimmer, release; ALGO: the pitch of every note sounding (frozen and looped too) | they drift back; SAVE while holding puts them into VOX's sound, and keeps the pitch bent until the next note |
 

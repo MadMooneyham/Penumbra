@@ -47,6 +47,9 @@ const jrun_t *engine_jr(void);                 /* (main loop, read only) the dir
 enum { EV_DRONE, EV_VOX, EV_PULSE, EV_TEX, EV_N };
 enum { SH_LEVEL, SH_K1, SH_K2, SH_K3, SH_K4, SH_HIDE, SH_N };
 enum { DV_LEVEL, DV_TONE, DV_DETUNE, DV_OCT, DV_N };
+/* PULSE's BLOOM, black key 7 held (eng_jr.bloom; its level PULSE's SH_HIDE): LENGTH, HEIGHT (0 the root,
+ * 1 an octave over, 2 two), FIFTH */
+enum { BL_LENGTH, BL_HEIGHT, BL_FIFTH, BL_N };
 _Static_assert(EV_N == JR_VOICES && SH_N == JR_SHAPE && DV_N == JR_DVOICE, "the journey keeps the sound");
 /* VOX's sounds (eng_jr.vsound[vcur]: VOX's row of shape is unused): its SHAPE pages are VOX (BRIGHT,
  * ATTACK, RELEASE, SHIMMER), VOX 2 (WAVE, FILTER: low-pass .. band-pass, RESO, GLIDE) and VOX 3 (DETUNE,

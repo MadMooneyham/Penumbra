@@ -515,6 +515,8 @@ static int expect(const char *what, const char *val)
         got = engine_jr()->dpend;
     else if (!strncmp(what, "fx", 2) && what[2] >= '0' && what[2] <= '7')   /* fxN: the FX page's setting N (engine.h EF_*) */
         got = cfg.fx[what[2] - '0'];
+    else if (!strncmp(what, "bloom", 5))            /* bloomN: BLOOM's 0 level, 1 length, 2 height, 3 fifth */
+        got = what[5] == '0' ? eng_jr.shape[EV_PULSE][SH_HIDE] : eng_jr.bloom[(what[5] - '1') % BL_N];
     else if (!strcmp(what, "sleep"))                /* SLEEP's choice: 0 off, 1 20 min .. */
         got = ui.sleep;
     else if (!strcmp(what, "dswell"))               /* the drone voices that come and go (bit v) */
@@ -731,6 +733,22 @@ int main(int argc, char **argv)
             plat_store_save(OBJ_WORK, &j, n);
             memset(slots, 0, sizeof slots);
             memcpy(slots, &j, n);
+            plat_store_save(OBJ_USER, slots, sizeof slots);
+            store_writes = 0;
+            held_btn = held_keys = 0;
+            boot();
+        } else if (!strcmp(cmd, "legacy017")) {       /* 0.16 / 0.17's flash: the journey playing and user slot 1 as
+                                                       * format 4 (the same size, BLOOM's bytes spare) */
+            static journey_t slots[JR_USER];
+            journey_t j;
+            jr_preset(3, &j);
+            j.format = 4;
+            j.bloom[0] = j.bloom[1] = j.bloom[2] = 0;
+            j.shape[EV_PULSE][SH_HIDE] = 0;
+            j.vcur = 2;
+            plat_store_save(OBJ_WORK, &j, sizeof j);
+            memset(slots, 0, sizeof slots);
+            slots[0] = j;
             plat_store_save(OBJ_USER, slots, sizeof slots);
             store_writes = 0;
             held_btn = held_keys = 0;
