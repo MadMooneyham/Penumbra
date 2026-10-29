@@ -181,9 +181,14 @@ void drone_init(drone_t *d)
     }
     for (k = 0; k < DB_NPARAMS; k++)
         drone_set(d, DRONE_KIT, k, BUS_P[k].def);
+    drone_glide(d, 1.5f);
 }
 
 void drone_set_lite(drone_t *d, int on) { d->lite = on != 0; }
+void drone_glide(drone_t *d, float seconds)
+{
+    d->glide_c = seconds > 0.0f ? 1.0f - fm_expf(-(float)DRONE_CTRL / (seconds * SR)) : 1.0f;
+}
 
 /* ----------------------------------------------------------------- notes --- */
 void drone_trigger(drone_t *d, int track, float vel)
@@ -344,10 +349,21 @@ static void control(drone_t *d)
             v->on = 0;
             v->amp_tgt = 0.0f;
         }
-        if (!voice_live(v))
+        if (!voice_live(v)) {
+            v->glide_on = 0;                      /* silent: the next note starts on its pitch */
             continue;
+        }
         base = (float)(21 + d->bus[DB_ROOT]) + (float)(v->pot[DN_NOTE] - 24) +
-               ((float)v->pot[DN_FINE] - 64.0f) * (1.0f / 64.0f) + d->lfo_now * d->lfo_pitch * 0.01f;
+               ((float)v->pot[DN_FINE] - 64.0f) * (1.0f / 64.0f);
+        if (!v->glide_on) {
+            v->pitch = base;
+            v->glide_on = 1;
+        } else if (v->pitch != base) {            /* a new note (the director's chords): slide to it */
+            v->pitch += (base - v->pitch) * d->glide_c;
+            if (fm_fabsf(base - v->pitch) < 1e-4f)
+                v->pitch = base;
+        }
+        base = v->pitch + d->lfo_now * d->lfo_pitch * 0.01f;
         for (k = 0; k < NOSC[v->pot[DN_STACK]]; k++) {
             float dr, cents;
             v->drift_ph[k][0] += v->drift_inc[k][0];

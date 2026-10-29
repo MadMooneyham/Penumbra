@@ -81,6 +81,8 @@ typedef struct {
     float pan_l, pan_r;
     int32_t on;                           /* HOLD: latched on; SWELL: in the swell */
     int32_t hold_left;                    /* SWELL: samples until the release */
+    float pitch;                          /* the note it sounds, sliding to a new NOTE (drone_glide) */
+    int32_t glide_on;                     /* 0: silent, the next note starts on its pitch */
 } drone_voice_t;
 
 struct drone {
@@ -100,6 +102,7 @@ struct drone {
     uint32_t bus_rng;                     /* the wind's (drone_bus): the two may run on different cores */
     int32_t lite;                         /* overload guard: two oscillators a voice */
     float lite_g;                         /* the oscillators past the second: 1 sounding, 0 gone (glides, ~80 ms) */
+    float glide_c;                        /* a sounding voice's slide to a new NOTE, a control step */
     int32_t ctrl_left;                    /* samples to the next control step */
     drone_swarm_t sw;
     drone_seg_t seg[2][DRONE_SEGS];       /* two planned blocks: the bus may run on the last while the next is planned */
@@ -129,6 +132,7 @@ void drone_bus_filter(drone_t *d, int p, float *l, float *r);
 void drone_bus_swarm(drone_t *d, int p, float *l, float *r);
 int drone_active(const drone_t *d);
 void drone_set_lite(drone_t *d, int on);
+void drone_glide(drone_t *d, float seconds);              /* a sounding voice's slide to a new NOTE (1.5 s) */
 int drone_nparams(int track);
 const param_t *drone_param(int track, int i);
 const char *drone_track_name(int track);

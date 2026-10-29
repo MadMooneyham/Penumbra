@@ -4,31 +4,57 @@ A generative space-drone instrument for the M-VAVE FM-1, by Lunar Eclipse Forge:
 journey across space and time, and you steer it. The sound it aims for is the ELTA Solar 42's: thick, slowly
 beating drones, oscillator lines that wander in key, deep soft pulses, a long wash of delay and shimmer.
 
-Penumbra is being rewritten from its first, X0X-based version (kept at the tag `penumbra-0.6-shelved`). The
-design, its phases and their gates are in the document "Penumbra: rewrite design". This tree is phase 1, the clean
-base:
+Penumbra is a rewrite of its first, X0X-based version (kept at the tag `penumbra-0.6-shelved`). The design, its
+phases and their gates are in the document "Penumbra: rewrite design". This tree has phases 1 to 5:
 
 - the platform carried over from X0X and Felucca: boot and crash guards, flash storage, the update path and web
   installer, USB MIDI and audio, MIDI on the TRS jack, the second core, panel calibration, the screen and fonts,
   the screen reader;
-- the sound code that works: five drone voices with SWARM, VOX (a four-voice oscillator synth), the melody voice (LINE until the generator plays it), the shimmer
-  reverb, the tape delay, the master stage;
+- five voices: DRONE (five voices, SWARM), LINE (a mono line with glide), VOX (a four-voice oscillator synth),
+  PULSE (a deep kick tuned to the key, a soft tick) and TEXTURE (a bed of space wind), into the shimmer reverb,
+  the tape delay and the master stage;
+- journeys: six presets, each a few scenes (key, scale, chords, density, timbre, space, wind, pulse). A director
+  moves through the moon's phases (new, waxing, full, waning), travels to the next scene at each new moon and
+  changes the chords every few bars; a generator writes the lines, VOX's phrases and PULSE's pattern from the
+  journey's seed, repeats them and changes them a little;
+- loops: what the generator plays can be captured and edited as 16 steps, VOX recorded from the keys;
+- storage: the journey playing carries on after a power cut; 8 user journeys;
 - MIDI clock in and out (24 ppqn, START / STOP), followed or sent as SYSTEM sets it;
 - the benchmark: BENCH shows each stage of the render, average and worst block of the last second, as a share
   of the real-time budget, per core; SEL runs the load test (the voices at their heaviest).
 
-## Playing it (phase 1)
+## Playing it
+
+It plays at power-on (SYSTEM > PLAY AT POWER-ON). The modes (ARP) say what the white keys do:
+
+| Mode | The generator plays | The white keys |
+| --- | --- | --- |
+| PLAY | DRONE, LINE, PULSE, TEXTURE | play VOX in the scene's key and scale |
+| GUIDE | everything, VOX too | held: the notes the lines favour; tapped: where the next phrase heads; low keys pull the register down, high keys up |
+| DRIFT | everything | each key is a scene: the journey travels there |
 
 | Control | What it does |
 | --- | --- |
-| Black keys 1-5 | latch the five drone voices (an A minor drone) |
-| Black keys 6, 7 | PULSE: a deep kick tuned to the key, a soft tick (while the clock runs, a placeholder pattern plays them) |
-| White keys | play VOX in A minor, four voices; OCT- / OCT+ move them |
-| PLAY | start and stop the clock (MIDI clock out, if on) |
-| KNOB 1 on HOME | the tempo |
+| Black keys 1-5 | latch the drone voices (the journey sets their chords) |
+| Black keys 6, 7 | PULSE's kick and tick, by hand |
+| KNOBS 1-4 on HOME | DRIFT (how fast the journey moves; 0 holds it still), DENSITY (how much plays), SPACE (reverb and delay together), TONE (brightness) |
+| ALGO | the tempo |
+| PRESET | the journeys (opens JOURNEY) |
+| PLAY | start and stop, with a fade (MIDI clock out, if on) |
+| REC | loop what plays: GUIDE and DRIFT capture LINE, VOX and PULSE; PLAY records a bar of VOX from the keys, from the next bar line. With loops on: let them all go |
+| ARP | the mode: PLAY, GUIDE, DRIFT |
+| ENV | VOICES: each voice's level, tone, character, space |
+| EDIT | SCENE: the scenes' key, scale, chords and the rest; SEL stores the moment as a new scene |
+| SEQ | LOOP: a loop's 16 steps (KNOB 1 the step, 2 its note, 3 on / tie, 4 MUTATE); SEL captures or lets go |
+| FX | the reverb and the delay |
+| LFO | JOURNEY: SEL opens a preset or a user journey; SAVE stores the one playing in a user slot |
 | GLO | SYSTEM (the settings), then BENCH |
 | HOME | back to the corona |
-| SAVE | save the settings now (they save by themselves once the sound is quiet) |
+| SAVE | save now (it saves by itself once the sound is quiet, so after STOP) |
+| OCT- / OCT+ | the white keys' octave |
+| Any button held | says what it does, and does nothing else |
 | OCT- + OCT+ held 5 s | the chip's update mode |
+
+Pages go back to HOME after 30 s untouched (not BENCH).
 
 Building and testing: BUILDING.md. Licences and credits: LICENSING.md.

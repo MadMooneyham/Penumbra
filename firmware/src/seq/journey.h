@@ -1,0 +1,172 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+/* Penumbra's journeys (docs: "Penumbra: rewrite design", generative model): what plays when nobody
+ * plays it, and how you steer it.
+ *
+ *   scene      a key and scale, a chord progression and how the drone voices it, how much plays,
+ *              the timbre (brightness, swarm), the space, the wind's level and colour, the pulse,
+ *              the register of the lines. Up to 8 a journey.
+ *   director   moves through the moon's phases, NEW (drones only, nearly) -> WAXING -> FULL (the
+ *              densest) -> WANING, each 30 s .. 4 min by the DRIFT macro (0: it stays where it is);
+ *              at each NEW it travels to the next scene: everything glides over the phase, the key
+ *              and chords change at its middle, in the quiet. The chord moves every 2 .. 8 bars.
+ *   generator  writes short motifs from the journey's seed and the scene's scale (LINE; VOX in
+ *              GUIDE and DRIFT; PULSE's pattern), repeats them, then changes them a little (a note a
+ *              step, a rest) and, after a few changes, writes new ones. Notes are scale degrees over
+ *              the chord's root, so a motif follows the chords and the key. The same seed and the same
+ *              hands give the same music. How full a motif plays follows the moon and DENSITY.
+ *   loops      a captured motif (or VOX recorded from the keys) plays instead of the generator until
+ *              it is released; MUTATE lets it change a little each time round.
+ *   modes      PLAY: the white keys play VOX. GUIDE: held white keys are the notes the lines favour,
+ *              a tapped one is where the next phrase heads, low keys pull the register down, high up.
+ *              DRIFT: each white key is a scene, and the director travels there.
+ *
+ * journey_t is the saved part (under 300 bytes): the main loop writes it, a byte at a time, and the
+ * audio ISR reads it (one core: the ISR only interrupts, never overlaps). jrun_t is the ISR's alone.
+ * Everything that sounds goes out through a jr_sink_t; nothing here knows the voices. */
+#pragma once
+#include <stdint.h>
+
+#define JR_SCENES 8
+#define JR_STEPS 16
+#define JR_NAME 12
+#define JR_PRESETS 6
+#define JR_USER 8
+#define JR_DRONES 5
+#define JR_MAGIC 0x314A4E50u                    /* "PNJ1" */
+#define JR_FORMAT 1u
+
+enum { SC_IONIAN, SC_DORIAN, SC_PHRYGIAN, SC_LYDIAN, SC_MIXOLYDIAN, SC_AEOLIAN, SC_HARMONIC, NSCALES };
+enum { VC_OPEN, VC_WARM, VC_HIGH, VC_CLUSTER, NVOICINGS };
+enum { MODE_PLAY, MODE_GUIDE, MODE_DRIFT, NMODES };
+enum { MAC_DRIFT, MAC_DENSITY, MAC_SPACE, MAC_TONE, NMACROS };
+enum { MOON_NEW, MOON_WAX, MOON_FULL, MOON_WANE, NMOONS };
+enum { LP_LINE, LP_VOX, LP_PULSE, JR_LOOPS };
+
+/* a loop's step. LINE, VOX: ST_ON, ST_TIE (held on from the step before; LINE slides), the degree
+ * over the chord's root (-24 .. +39). PULSE: PS_KICK, PS_TICK, PS_ACC */
+#define ST_ON 0x80u
+#define ST_TIE 0x40u
+#define ST_DEG(s) ((int)((s) & 0x3Fu) - 24)
+#define ST_MK(deg) ((uint8_t)(((deg) + 24) & 0x3F))
+#define PS_KICK 1u
+#define PS_TICK 2u
+#define PS_ACC 4u
+
+typedef struct {
+    uint8_t root;                               /* pitch class: 0 C .. 11 B */
+    uint8_t scale;                              /* SC_* */
+    uint8_t prog;                               /* the chords (jr_prog_name) */
+    uint8_t voicing;                            /* VC_*: how the drone's five voices stack each chord */
+    uint8_t density, bright, swarm, space, tex, colour, pulse;   /* 0..127 */
+    uint8_t reg;                                /* the lines' octave: 2..6 (4: their root under middle C) */
+    uint8_t drones;                             /* the drone voices PLAY latches (bit v) */
+    uint8_t penta;                              /* 1: the lines keep to the scale's pentatonic */
+    uint8_t rsv[2];
+} scene_t;
+
+typedef struct {
+    uint8_t step[JR_STEPS];
+    uint8_t len;                                /* 1..16 */
+    uint8_t div;                                /* 16ths a step: 1, 2, 4, 8 */
+    uint8_t on;                                 /* captured: it plays instead of the generator */
+    uint8_t mutate;                             /* 0..127: how much it changes each time round */
+} loop_t;
+
+typedef struct {
+    uint32_t magic;
+    uint16_t format, size;
+    char name[JR_NAME];
+    uint32_t seed;
+    uint8_t nscenes, mode, at;                  /* at: the scene it is in (saved: it carries on there) */
+    uint8_t macro[NMACROS];
+    uint8_t rsv;
+    scene_t scene[JR_SCENES];
+    loop_t loop[JR_LOOPS];
+} journey_t;
+
+typedef struct {
+    void *ctx;
+    void (*drone_note)(void *ctx, int voice, int midi);
+    void (*drone_latch)(void *ctx, uint32_t mask);        /* these voices on (the others as they are) */
+    void (*drone_release)(void *ctx);                     /* every voice falls away */
+    void (*line_on)(void *ctx, int midi, int accent, int slide);
+    void (*line_off)(void *ctx);
+    void (*vox_on)(void *ctx, int midi, int vel);         /* vel 0..127 */
+    void (*vox_off)(void *ctx, int midi);
+    void (*pulse)(void *ctx, int which, int vel);         /* 0 kick, 1 tick; vel 0..127 */
+} jr_sink_t;
+
+/* the scene as it sounds now, gliding while the director travels (0..127), and the moon */
+typedef struct {
+    float density, bright, swarm, space, tex, colour, pulse;
+    float intensity;                            /* the moon's: 0.12 NEW .. 1 FULL */
+    float eff;                                  /* how much plays: intensity x scene density x DENSITY */
+    int root_midi;                              /* the key's root in octave 1 (24..35): PULSE's tuning */
+    float fade;                                 /* 0..1: PLAY fades in, STOP out */
+} jr_out_t;
+
+typedef struct {
+    loop_t m;                                   /* the motif */
+    uint8_t rank[JR_STEPS];                     /* the order its steps join as it fills (0: first) */
+    uint32_t rng;
+    uint8_t rep, reps, muts, band;
+    uint32_t count;                             /* motifs written: each one's seed */
+} jr_gen_t;
+
+typedef struct {
+    journey_t *j;
+    uint8_t playing;
+    uint8_t cur, from, dest, travelling, switched;
+    float xf, travel_s;
+    uint8_t moon;
+    float moon_t, moon_len;
+    float intensity;
+    uint8_t chord;
+    uint32_t bar;
+    int drone[JR_DRONES];                       /* the drone's notes (MIDI) */
+    jr_gen_t g[JR_LOOPS];
+    uint32_t lrng[JR_LOOPS];                    /* the captured loops' mutations */
+    int line_note, vox_note;                    /* sounding (-1: none) */
+    uint8_t line_ok, vox_ok;                    /* the last step played (a tie after a thinned step plays anew) */
+    /* GUIDE */
+    uint32_t held;                              /* white keys held (bit w) */
+    int8_t target, shift;                       /* a tapped key's degree (-128: none); the register's pull */
+    /* VOX recorded from the keys (PLAY): 1 armed (from the next bar), 2 recording */
+    uint8_t rec, rec_pos;
+    int rec_held, rec_pending;
+    uint32_t since_step, step_len;
+    float macro_s[NMACROS];
+    uint32_t sig;                               /* the scene's key, scale, chords and voicing: an edit retunes */
+    jr_out_t out;
+} jrun_t;
+
+/* the journeys in the firmware */
+void jr_preset(int i, journey_t *dst);
+const char *jr_preset_name(int i);
+void jr_blank(journey_t *j);                     /* the first preset, named NEW (the power-on journey) */
+int jr_valid(const journey_t *j);                /* loaded from flash: is it one */
+
+/* the music's tables, for the UI */
+const char *jr_scale_name(int s);
+const char *jr_root_name(int pc);
+const char *jr_prog_name(int p);
+int jr_nprogs(void);
+const char *jr_voicing_name(int v);
+const char *jr_moon_name(int m);
+const char *jr_mode_name(int m);
+
+/* audio ISR */
+void jr_init(jrun_t *r, journey_t *j);
+void jr_restart(jrun_t *r, const jr_sink_t *o);  /* a journey loaded: from its scene, as if PLAY started */
+void jr_start(jrun_t *r, const jr_sink_t *o);
+void jr_stop(jrun_t *r, const jr_sink_t *o);
+void jr_tick(jrun_t *r, uint32_t frames, const jr_sink_t *o);   /* each block: the director, the glides */
+void jr_step(jrun_t *r, uint32_t n, uint32_t step_frames, const jr_sink_t *o);   /* each 16th (n since PLAY) */
+void jr_travel(jrun_t *r, int scene);             /* DRIFT's keys, the SCENE page: go there */
+void jr_guide(jrun_t *r, int w, int down);        /* GUIDE: a white key (0..15) */
+int jr_key_note(const jrun_t *r, int w, int oct); /* PLAY: a white key's note in the scene's key */
+void jr_vox_played(jrun_t *r, int midi, int on);  /* a VOX note from the keys or MIDI (recording) */
+void jr_record(jrun_t *r);                        /* arm VOX's recording (again: stop it) */
+void jr_capture(jrun_t *r, uint32_t mask);        /* the generator's motifs (bit LP_*) become loops */
+void jr_release(jrun_t *r, uint32_t mask);
+void jr_scene_now(const jrun_t *r, scene_t *s);   /* the moment, as a scene (SCENE: store) */

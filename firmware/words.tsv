@@ -25,3 +25,19 @@ EXT	external clock
 AVG %	average percent
 PEAK %	peak percent
 SEL	S E L
+TEXTURE	texture
+REC	record
+HARM MINOR	harmonic minor
+I	one
+II	two
+III	three
+IV	four
+V	five
+VI	six
+VII	seven
+C#	C sharp
+D#	D sharp
+F#	F sharp
+G#	G sharp
+A#	A sharp
+STILL	still

@@ -1,0 +1,29 @@
+# VOICES (ENV): each voice's LEVEL, TONE, character and SPACE, kept with the settings. PULSE's level
+# down (the kick sits under the drone); held, a button says what it does and does nothing else; an idle
+# page goes home after 30 s.
+autoplay 0
+wait 300
+tap ENV
+expect view 1
+turn SELECT 3
+turn K1 -10
+expect voice41 60
+shot voices.png
+tap SAVE
+expect dirty 0
+reboot
+wait 300
+expect voice41 60
+listen
+press PLAY
+wait 900
+release PLAY
+wait 100
+said START, STOP
+expect playing 0
+tap FX
+expect view 4
+turn K1 3
+shot fx.png
+wait 31000
+expect view 0

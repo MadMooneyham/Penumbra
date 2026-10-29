@@ -1,5 +1,6 @@
 # The white keys play VOX in A minor, four voices: a chord, a fifth note taking a voice, OCT moving the
 # keys; MIDI notes on channel 1 too (channel 2 not). Released, it and its echoes fall away
+autoplay 0
 wait 300
 expect vox 0
 wav vox.wav

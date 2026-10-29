@@ -288,6 +288,7 @@ static void fm1_main(void)
     engine_init();
     settings_load();                                /* (nothing saved yet, or another firmware's: the defaults) */
     settings_apply();
+    journey_load_work();                            /* the journey that was playing (else ECLIPSE) */
     if (plat_cpu2_barred() && !cfg.one_core) {      /* it crashed (or was given up) with two cores: one from now on */
         cfg.one_core = 1;
         settings_save();                            /* written now, on one core, not in the session that crashed;
@@ -315,6 +316,7 @@ static void fm1_main(void)
     fm1_delay_ms(300);
     lcd_fill(0, 0, 240, 240, C_BG);
     ui_init();
+    ui_start();                                     /* PLAY AT POWER-ON */
     for (;;) {
         fm1_wdt_feed();
         usb_retry(fm1_ms);

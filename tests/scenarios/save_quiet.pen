@@ -1,4 +1,5 @@
 # A setting changed under a sounding drone waits (an erase would interrupt it); SAVE saves at once
+autoplay 0
 wait 300
 tapkey b0
 wait 2000

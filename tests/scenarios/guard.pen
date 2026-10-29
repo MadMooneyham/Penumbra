@@ -1,5 +1,6 @@
 # The overload guard thins the drones past 92% and gives them back after 3 s under 65%, by a fade (no
 # click: guard.wav, checked by ear and by tests/click_check.py)
+autoplay 0
 wait 300
 tapkey b0
 tapkey b1

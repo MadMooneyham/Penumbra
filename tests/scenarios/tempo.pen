@@ -1,7 +1,8 @@
-# HOME's KNOB 1 is the tempo; it is saved and the clock follows it. The save waits for the output to
+# ALGO is the tempo; it is saved and the clock follows it. The save waits for the output to
 # fall quiet (PULSE's kicks ring a few seconds after STOP)
+autoplay 0
 wait 300
-turn K1 30
+turn ALGO 30
 expect set_bpm 120
 tap PLAY
 wait 2000
@@ -10,7 +11,7 @@ expect clocks_out <102
 tap PLAY
 wait 3000
 expect dirty 1
-wait 9000
+wait 35000
 expect dirty 0
 reboot
 wait 300

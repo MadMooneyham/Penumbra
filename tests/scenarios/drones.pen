@@ -1,5 +1,6 @@
 # The black keys latch the drone voices (HOLD): a tap on, a tap off, the voice falling away (FALL: seconds).
 # Sound, no clips, and silence once both have fallen
+autoplay 0
 wait 300
 wav drones.wav
 tapkey b0

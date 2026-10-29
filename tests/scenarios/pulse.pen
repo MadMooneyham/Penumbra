@@ -1,5 +1,7 @@
-# PULSE: black key 6 hits the kick, 7 the tick; while the clock runs (90 BPM) the kick plays beats 1
-# and 3 and the tick the off-beats; over latched drones, no clicks, no clips. STOP: the pattern stops
+# PULSE: black key 6 hits the kick, 7 the tick. Playing, the generator plays it as the scene asks:
+# ECLIPSE's first scene has none; PERIGEE's pulses (more with DENSITY up), over its drones, no clicks,
+# no clips. STOP: it stops
+autoplay 0
 wait 300
 wav pulse.wav
 tapkey b5
@@ -9,16 +11,24 @@ tapkey b6
 wait 600
 expect kicks 1
 expect peak_db_min -30
-tapkey b0
-tapkey b2
-wait 1500
 tap PLAY
-wait 5300
-expect kicks >4
-expect kicks <8
+wait 8000
+expect kicks 1
+tap PLAY
+wait 3000
+tap LFO
+turn SELECT 4
+tap SEL
+expect journey 5
+tap HOME
+turn K2 32
+expect macro2 127
+tap PLAY
+wait 16000
+expect kicks >5
 shot pulse.png
 tap PLAY
-wait 2000
-expect kicks <8
+wait 3000
+expect kicks <40
 wavstop
 expect clips 0

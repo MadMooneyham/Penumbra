@@ -1,0 +1,31 @@
+# PLAY AT POWER-ON: the journey plays by itself. Its drones latch, the moon waxes, LINE writes lines,
+# the wind comes in; with DRIFT up, the director travels to the next scene. Audio in journey.wav.
+wav journey.wav
+wait 2000
+expect playing 1
+expect jr_playing 1
+expect journey 1
+expect scene 1
+expect drone1 1
+expect moon 1
+shot home.png
+wait 30000
+expect line_notes >10
+expect clips 0
+turn K1 40
+expect macro1 127
+wait 70000
+expect travelling 1
+wait 40000
+expect scene 2
+expect travelling 0
+shot travelled.png
+tap PLAY
+wait 200
+expect playing 0
+expect jr_playing 0
+wait 12000
+expect drone1 0
+wavstop
+expect clips 0
+expect guardcount 0

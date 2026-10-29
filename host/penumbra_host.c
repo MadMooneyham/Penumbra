@@ -21,7 +21,8 @@
  *   shot FILE.png                save the screen
  *   leds                         print the lit buttons and keys
  *   expect WHAT VALUE            check state: exit 1 on mismatch; VALUE "<N" / ">N" is a bound
- *   reboot                       re-run boot from the simulated flash (persistence)
+ *   reboot | powercut            re-run boot from the simulated flash (persistence)
+ *   autoplay 0|1                 PLAY AT POWER-ON saved, then boot again (scenarios that start in silence)
  *   listen | where               a screen reader listens (HELLO, again every 2 s) | asks for the screen
  *   said TEXT | said_none        some SAY since the last check has TEXT in it | nothing was said
  */
@@ -108,9 +109,9 @@ void plat_midi_out(uint32_t pkt)
 }
 
 /* flash: one buffer per object, kept across a simulated reboot */
-#define NOBJ 8
+#define NOBJ 16
 static uint8_t store[NOBJ][PLAT_STORE_MAX];
-static int store_len[NOBJ] = {-1, -1, -1, -1, -1, -1, -1, -1};
+static int store_len[NOBJ] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
 static uint32_t store_writes;
 int plat_store_load(uint32_t obj, void *dst, uint32_t max)
 {
@@ -124,7 +125,7 @@ int plat_store_load(uint32_t obj, void *dst, uint32_t max)
 }
 int plat_store_save(uint32_t obj, const void *src, uint32_t len)
 {
-    if ((obj != OBJ_SET && obj != OBJ_PANEL) || len > PLAT_STORE_MAX)
+    if ((obj != OBJ_SET && obj != OBJ_PANEL && obj != OBJ_WORK && obj != OBJ_USER) || len > PLAT_STORE_MAX)
         return -1;
     memcpy(store[obj], src, len);
     store_len[obj] = (int)len;
@@ -328,10 +329,12 @@ static void boot(void)
     engine_init();
     settings_load();
     settings_apply();
+    journey_load_work();
     plat_cpu2_set(!cfg.one_core);
     lcd_fill(0, 0, 240, 240, C_BG);
     ui_init();
     ui.btn = ui.keys = 0;
+    ui_start();
 }
 
 static void run_ms(uint32_t ms)
@@ -411,6 +414,15 @@ static int key_of(const char *s)
     return atoi(s);
 }
 
+static int journey_index(void)
+{
+    int i;
+    for (i = 0; i < JR_PRESETS; i++)
+        if (!strcmp(eng_jr.name, jr_preset_name(i)))
+            return i + 1;
+    return 0;
+}
+
 static int expect(const char *what, const char *val)
 {
     int got;
@@ -459,6 +471,41 @@ static int expect(const char *what, const char *val)
         got = cfg.midi_ch;
     else if (!strcmp(what, "set_bpm"))
         got = cfg.bpm_x10 / 10;
+    else if (!strcmp(what, "jr_playing"))           /* the journey: playing */
+        got = engine_jr()->playing;
+    else if (!strcmp(what, "scene"))                /* the scene it is in, 1.. */
+        got = engine_jr()->cur + 1;
+    else if (!strcmp(what, "nscenes"))
+        got = eng_jr.nscenes;
+    else if (!strcmp(what, "travelling"))
+        got = engine_jr()->travelling;
+    else if (!strcmp(what, "moon"))                 /* 0 NEW, 1 WAXING, 2 FULL, 3 WANING */
+        got = engine_jr()->moon;
+    else if (!strcmp(what, "mode"))                 /* 0 PLAY, 1 GUIDE, 2 DRIFT */
+        got = eng_jr.mode;
+    else if (!strncmp(what, "macro", 5))            /* macroN: 1 DRIFT .. 4 TONE */
+        got = eng_jr.macro[(atoi(what + 5) - 1) & 3];
+    else if (!strncmp(what, "loop", 4))             /* loopN: 1 LINE, 2 VOX, 3 PULSE captured */
+        got = eng_jr.loop[(atoi(what + 4) - 1) % JR_LOOPS].on;
+    else if (!strcmp(what, "rec"))
+        got = engine_jr()->rec;
+    else if (!strcmp(what, "line_notes")) {         /* the generator's LINE notes since the last check */
+        static uint32_t last;
+        got = (int)(eng_line_notes - last);
+        last = eng_line_notes;
+    } else if (!strcmp(what, "vox_notes")) {        /* the journey's VOX notes since the last check */
+        static uint32_t last;
+        got = (int)(eng_vox_notes - last);
+        last = eng_vox_notes;
+    }
+    else if (!strcmp(what, "journey"))              /* the journey playing: 1..6 a preset (by name), 0 another */
+        got = journey_index();
+    else if (!strncmp(what, "slot", 4))             /* slotN: user slot N holds a journey */
+        got = journey_slot_used(atoi(what + 4) - 1);
+    else if (!strncmp(what, "voice", 5))            /* voiceVF: voice V (1-5) field F (1-4) */
+        got = cfg.voice[(what[5] - '1') % EV_N][(what[6] - '1') % VF_N];
+    else if (!strcmp(what, "autoplay"))
+        got = cfg.autoplay;
     else if (!strcmp(what, "bench")) {               /* the benchmark has published (a second rendered) */
         got = engine_bench(&b) != 0;
     } else if (!strncmp(what, "bench_peak", 10) || !strncmp(what, "bench_avg", 9)) {   /* bench_avgK: stage K's, x 10 */
@@ -590,6 +637,15 @@ int main(int argc, char **argv)
         } else if (!strcmp(cmd, "expect"))
             fails += expect(a, b);
         else if (!strcmp(cmd, "reboot")) {
+            held_btn = held_keys = 0;
+            boot();
+        } else if (!strcmp(cmd, "autoplay")) {        /* autoplay 0|1: PLAY AT POWER-ON saved, then power on again */
+            cfg.autoplay = (uint8_t)atoi(a);
+            settings_save();
+            store_writes = 0;
+            held_btn = held_keys = 0;
+            boot();
+        } else if (!strcmp(cmd, "powercut")) {        /* the power goes: nothing more is saved; then on again */
             held_btn = held_keys = 0;
             boot();
         } else if (!strcmp(cmd, "listen")) {

@@ -1,4 +1,5 @@
 # An external clock takes over (tempo measured, START and STOP followed) and gives up 0.5 s after it ends
+autoplay 0
 wait 300
 midi FA
 clockin 120 3000

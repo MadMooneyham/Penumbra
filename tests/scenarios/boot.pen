@@ -1,4 +1,5 @@
 # Power-on: HOME (the corona), stopped, silent, the five drone keys dim and nothing lit but HOME
+autoplay 0
 wait 600
 expect view 0
 expect playing 0

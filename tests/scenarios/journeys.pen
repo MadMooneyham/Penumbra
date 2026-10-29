@@ -1,0 +1,30 @@
+# JOURNEY (LFO, or the PRESET encoder): the six presets and eight user slots. SEL opens one; SAVE on a
+# user slot stores the one playing there; they survive a power cut.
+autoplay 0
+wait 300
+tap LFO
+expect view 5
+turn SELECT 2
+tap SEL
+expect journey 3
+tap SAVE
+expect slot1 0
+turn PRESET 4
+tap SAVE
+expect slot1 1
+shot journey.png
+turn SELECT -6
+tap SEL
+expect journey 1
+reboot
+wait 300
+expect slot1 1
+expect journey 1
+tap LFO
+turn SELECT 6
+tap SEL
+expect journey 0
+expect nscenes 3
+turn SELECT 1
+tap SEL
+expect journey 0

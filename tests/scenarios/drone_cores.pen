@@ -1,5 +1,6 @@
 # DRONE CORE: the drone sounds the same whoever renders its voices. Each way records the same latch and
 # the same length; tests/host/drone_test.c checks the split sums to the sample
+autoplay 0
 wait 300
 tap GLO
 turn SELECT 4

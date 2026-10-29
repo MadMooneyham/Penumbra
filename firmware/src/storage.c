@@ -18,8 +18,8 @@
 #define ST_PAYLOAD_MAX (ST_SECTOR - ST_PAYLOAD_OFF)
 
 /* flash map (plat.h OBJ_*): the settings at 0xFC000 (FL_GLOB), the panel calibration at 0xDC000
- * (Felucca's user-preset area). X0X's sound, patterns and song (0x97000..0x9EFFF) and motion (0xDE000)
- * are free for journeys. Nothing above 0xDFFFF: 0xE0000.. is the update loader's staging area. */
+ * (Felucca's user-preset area), the journey playing at 0x97000 and the user journeys at 0x99000 (X0X's
+ * sound and patterns were there). Nothing above 0xDFFFF: 0xE0000.. is the update loader's staging area. */
 typedef struct {
     uint32_t magic;
     uint16_t type, slot;
@@ -53,6 +53,10 @@ static uint32_t st_sector(uint32_t obj, uint32_t copy)  /* flash offset of copy 
         return 0xFC000u + copy * ST_SECTOR;
     if (obj == OBJ_PANEL)
         return 0xDC000u + copy * ST_SECTOR;
+    if (obj == OBJ_WORK)
+        return 0x97000u + copy * ST_SECTOR;
+    if (obj == OBJ_USER)
+        return 0x99000u + copy * ST_SECTOR;
     return ST_NONE;
 }
 

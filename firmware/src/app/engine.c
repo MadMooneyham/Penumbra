@@ -6,6 +6,7 @@
 #include "../dsp/melody.h"
 #include "../dsp/vox.h"
 #include "../dsp/pulse.h"
+#include "../dsp/texture.h"
 #include "../dsp/fxbus.h"
 #include "../dsp/master.h"
 #include "../dsp/fastmath.h"
@@ -20,10 +21,14 @@ volatile uint32_t eng_steps;
 uint32_t eng_out_clips;
 
 static drone_t dn POOL;
-static melody_t line POOL;                       /* LINE, for now the kept melody voice (the load test plays it) */
+static melody_t line POOL;                       /* LINE: the kept melody voice, set softer (scene_default) */
 static vox_t vox POOL;
 static pulse_t pulse POOL;
+static texture_t tex POOL;
 volatile uint32_t eng_kicks;
+journey_t eng_jr;
+static jrun_t jr;
+const jrun_t *engine_jr(void) { return &jr; }
 static fxbus_t fx POOL;
 static master_t mst;
 #define DLY_LEN 66150                            /* 1.5 s */
@@ -36,7 +41,7 @@ _Static_assert(ENG_DRONES == DRONE_VOICES, "engine.h names the drone voices");
 _Static_assert(PLAT_TICKS_PER_BLOCK(256) == 139319u, "the block's budget in 24 MHz ticks");
 
 /* the voices' places in the mix */
-enum { P_DRONE, P_VOX, P_LINE, P_PULSE, NPARTS };
+enum { P_DRONE, P_VOX, P_LINE, P_PULSE, P_TEX, NPARTS };
 
 /* ------------------------------------------------------------ benchmark --- */
 /* each stage's 24 MHz ticks this block; summed over a second (acc), then published (pub) for the
@@ -50,7 +55,7 @@ static struct {
 static bench_t pub;
 static volatile uint32_t pub_serial;
 static const char *const ST_NAME[ST_N] = {"CTRL", "DRONE 1", "DRONE 2", "DRN BUS", "VOX", "LINE", "PULSE",
-                                          "FX WET", "WAIT", "OUTPUT", "CORE 1", "CORE 2"};
+                                          "TEXTURE", "FX WET", "WAIT", "OUTPUT", "CORE 1", "CORE 2"};
 const char *engine_stage_name(int st) { return st >= 0 && st < ST_N ? ST_NAME[st] : ""; }
 
 uint32_t engine_bench(bench_t *out)
@@ -136,7 +141,8 @@ static void guard_apply(void)
 
 /* ------------------------------------------------------- command queue --- */
 /* uint32 commands, single producer (main loop) / single consumer (audio ISR): type:4 | a:8 | b:8 | c:12 */
-enum { C_DRONE_KEY, C_VOX_ON, C_VOX_OFF, C_TEST, C_MIDI_CH, C_PULSE };
+enum { C_DRONE_KEY, C_VOX_ON, C_VOX_OFF, C_TEST, C_MIDI_CH, C_PULSE, C_WHITE, C_LOOPS, C_TRAVEL, C_LOADED,
+       C_VOICE, C_FX };
 #define CQ 256u
 static uint32_t cq[CQ];
 static volatile uint32_t cq_w, cq_r;
@@ -159,6 +165,12 @@ void engine_load_test(int on) { cq_put(C_TEST, (uint32_t)(on != 0), 0, 0); }
 int engine_load_testing(void) { return testing; }
 void engine_midi_ch(int ch) { cq_put(C_MIDI_CH, (uint32_t)ch, 0, 0); }
 void engine_pulse(int which, int vel) { cq_put(C_PULSE, (uint32_t)which, 0, (uint32_t)vel); }
+void engine_white_key(int w, int down, int oct) { cq_put(C_WHITE, (uint32_t)w, (uint32_t)(down != 0), (uint32_t)(oct + 8)); }
+void engine_loops(int op, uint32_t mask) { cq_put(C_LOOPS, (uint32_t)op, mask, 0); }
+void engine_travel(int scene) { cq_put(C_TRAVEL, (uint32_t)scene, 0, 0); }
+void engine_journey_loaded(void) { cq_put(C_LOADED, 0, 0, 0); }
+void engine_voice(int voice, int field, int value) { cq_put(C_VOICE, (uint32_t)voice, (uint32_t)field, (uint32_t)value); }
+void engine_fx(int i, int value) { cq_put(C_FX, (uint32_t)i, 0, (uint32_t)value); }
 static void hit(int which, float vel)            /* (ISR) a PULSE hit; the kicks are counted for the screen */
 {
     pulse_hit(&pulse, which, vel);
@@ -177,7 +189,39 @@ float engine_drone_level(int voice)
  * voice), each voice a little off true like a Solar tuned by ear, spread across the field; VOX a soft
  * pad of two saws; all of it into a long shimmering reverb and a worn ping-pong tape delay, dotted
  * quarters */
-static float mix_level[NPARTS] = {1.0f, 0.57f, 1.0f, 0.9f}, mix_rev[NPARTS], mix_dly[NPARTS];   /* VOX 3 dB under 0.10's */
+static const float MIX_BASE[NPARTS] = {1.0f, 0.57f, 0.8f, 0.9f, 1.0f};   /* VOX 3 dB under 0.10's */
+static float mix_level[NPARTS] = {1.0f, 0.57f, 0.8f, 0.9f, 1.0f}, mix_rev[NPARTS], mix_dly[NPARTS];
+static float rev_base[NPARTS], dly_base[NPARTS], space_k = 1.0f;
+
+/* the VOICES page's settings and the FX page's (settings.c keeps them; they come here as commands) */
+static uint8_t voice_set[EV_N][VF_N] = {{100, 64, 20, 64}, {100, 64, 30, 64}, {100, 64, 80, 64}, {80, 64, 80, 64},
+                                        {100, 64, 70, 64}};
+static const uint8_t EF_PARAM[EF_N] = {FX_RV_DECAY, FXX_RV_SIZE, FXX_RV_SHIMMER, FX_RV_TONE, FX_DL_TIME, FX_DL_FDBK,
+                                       FX_DL_TONE, FX_DL_WEAR};
+static const uint8_t EF_EXT[EF_N] = {0, 1, 1, 0, 0, 0, 0, 0};
+static uint8_t fx_set[EF_N] = {91, 89, 25, 57, 10, 82, 57, 44};
+int engine_fx_max(int i) { return i == EF_DL_TIME ? fxbus_param(FX_DL_TIME)->max : 127; }
+const char *engine_fx_value_name(int i, int value)
+{
+    const param_t *p = i == EF_DL_TIME ? fxbus_param(FX_DL_TIME) : 0;
+    return p && p->names && value >= 0 && value <= p->max ? p->names[value] : 0;
+}
+static void fx_apply(int i)
+{
+    if (i < 0 || i >= EF_N)
+        return;
+    if (EF_EXT[i])
+        fxbus_ext_set(&fx, EF_PARAM[i], fx_set[i]);
+    else
+        fxbus_set(&fx, EF_PARAM[i], fx_set[i]);
+}
+static void voice_level(int v)                   /* LEVEL into the mix: 100 is as made, the square law */
+{
+    static const uint8_t PART[EV_N] = {P_DRONE, P_LINE, P_VOX, P_PULSE, P_TEX};
+    float l = (float)voice_set[v][VF_LEVEL] * (1.0f / 100.0f);
+    mix_level[PART[v]] = MIX_BASE[PART[v]] * l * l;
+}
+
 static void scene_default(void)
 {
     static const uint8_t NOTE[DRONE_VOICES] = {24, 31, 36, 39, 48};       /* 0 +7 +12 +15 +24 */
@@ -196,29 +240,145 @@ static void scene_default(void)
         drone_set(&dn, DRONE_KIT, i, drone_param(DRONE_KIT, i)->def);
     for (i = 0; i < MEL_NPARAMS; i++)
         melody_set(&line, i, melody_param(i)->def);
+    melody_set(&line, MEL_CUTOFF, 72);           /* LINE: softer and rounder than the prototype's lead */
+    melody_set(&line, MEL_RESO, 30);
+    melody_set(&line, MEL_ENVMOD, 40);
+    melody_set(&line, MEL_ATTACK, 40);
+    melody_set(&line, MEL_SUSTAIN, 60);
+    melody_set(&line, MEL_RELEASE, 96);
+    melody_set(&line, MEL_WAVE, 18);
+    melody_set(&line, MEL_SUB, 15);
+    melody_set(&line, MEL_VIB, 18);
     for (i = 0; i < VX_NPARAMS; i++)
         vox_set(&vox, i, vox_param(i)->def);
     for (i = 0; i < PL_NPARAMS; i++)
         pulse_set(&pulse, i, pulse_param(i)->def);
     pulse_root(&pulse, 33);                      /* the kick on the drone's root, A1 */
+    for (i = 0; i < TX_NPARAMS; i++)
+        texture_set(&tex, i, texture_param(i)->def);
     for (i = 0; i < fxbus_nparams(); i++)
         fxbus_set(&fx, i, fxbus_param(i)->def);
     for (i = 0; i < fxbus_ext_nparams(); i++)
         fxbus_ext_set(&fx, i, fxbus_ext_param(i)->def);
     fxbus_set(&fx, FX_VOLUME, 127);              /* unity */
     fxbus_set(&fx, FX_DL_TYPE, 1);               /* tape */
-    fxbus_set(&fx, FX_DL_TIME, 10);              /* 1/4. */
-    fxbus_set(&fx, FX_DL_FDBK, 82);
-    fxbus_set(&fx, FX_DL_TONE, 57);
-    fxbus_set(&fx, FX_DL_WEAR, 44);
     fxbus_set(&fx, FX_DL_PING, 1);
+    for (i = 0; i < EF_N; i++)                   /* (1/4. delay, long and worn: the FX page's) */
+        fx_apply(i);
     for (v = 0; v < NPARTS; v++) {
-        mix_rev[v] = 64.0f / 127.0f;
-        mix_dly[v] = 41.0f / 127.0f;
+        rev_base[v] = 64.0f / 127.0f;
+        dly_base[v] = 41.0f / 127.0f;
     }
-    mix_rev[P_VOX] = 80.0f / 127.0f;             /* VOX further back, in the shimmer */
-    mix_rev[P_PULSE] = 12.0f / 127.0f;           /* the kick dry and close, a breath of room; no echo */
-    mix_dly[P_PULSE] = 0.0f;
+    rev_base[P_VOX] = 80.0f / 127.0f;            /* VOX further back, in the shimmer */
+    rev_base[P_PULSE] = 12.0f / 127.0f;          /* the kick dry and close, a breath of room; no echo */
+    dly_base[P_PULSE] = 0.0f;
+    rev_base[P_TEX] = 70.0f / 127.0f;            /* the wind far off */
+    dly_base[P_TEX] = 20.0f / 127.0f;
+    for (v = 0; v < NPARTS; v++) {
+        mix_rev[v] = rev_base[v];
+        mix_dly[v] = dly_base[v];
+    }
+    for (v = 0; v < EV_N; v++)
+        voice_level(v);
+}
+
+/* ------------------------------------------------------------- the journey --- */
+/* what the journey plays goes out to the voices here (audio ISR) */
+static void hit(int which, float vel);
+static void js_drone_note(void *x, int v, int midi) { (void)x; drone_set(&dn, v, DN_NOTE, midi - 9); }   /* (ROOT A1: NOTE 24 = 33) */
+static void js_drone_latch(void *x, uint32_t m)
+{
+    int v;
+    (void)x;
+    for (v = 0; v < DRONE_VOICES; v++)
+        if ((m >> v & 1u) && !dn.v[v].on)
+            drone_trigger(&dn, v, 1.0f);
+}
+static void js_drone_release(void *x)
+{
+    int v;
+    (void)x;
+    for (v = 0; v < DRONE_VOICES; v++)
+        if (dn.v[v].on)
+            drone_trigger(&dn, v, 1.0f);         /* (latched: the key again lets it fall) */
+}
+volatile uint32_t eng_line_notes, eng_vox_notes;
+static void js_line_on(void *x, int midi, int acc, int slide)
+{
+    (void)x;
+    melody_note_on(&line, midi, acc, slide);
+    eng_line_notes++;
+}
+static void js_line_off(void *x) { (void)x; melody_note_off(&line); }
+static void js_vox_on(void *x, int midi, int vel)
+{
+    (void)x;
+    vox_note_on(&vox, midi, (float)vel * (1.0f / 127.0f));
+    eng_vox_notes++;
+}
+static void js_vox_off(void *x, int midi) { (void)x; vox_note_off(&vox, midi); }
+static void js_pulse(void *x, int which, int vel) { (void)x; hit(which, (float)vel * (1.0f / 127.0f)); }
+static const jr_sink_t JSINK = {0, js_drone_note, js_drone_latch, js_drone_release, js_line_on, js_line_off,
+                                js_vox_on, js_vox_off, js_pulse};
+
+/* the scene and the HOME macros into the voices, each block: TONE brightens everything (with each
+ * voice's own TONE), SPACE scales every send, the wind follows the moon. Each pot is set only when
+ * its value moves */
+static int16_t cache[16];
+enum { K_DCUT, K_SWARM, K_VCUT, K_LCUT, K_TLVL, K_TCOL, K_ROOT, K_SPREAD, K_GLIDE, K_VATK, K_PDEC, K_TSWEEP, NK };
+static int moved(int k, int v)
+{
+    if (cache[k] == v)
+        return 0;
+    cache[k] = (int16_t)v;
+    return 1;
+}
+static int clamp127(float x) { return x < 0.0f ? 0 : x > 127.0f ? 127 : (int)(x + 0.5f); }
+static void conduct(void)
+{
+    const jr_out_t *o = &jr.out;
+    const float tone = jr.macro_s[MAC_TONE] - 64.0f, bright = o->bright + tone;
+    int v, x;
+    if (moved(K_DCUT, x = clamp127(28.0f + bright * 0.66f + (float)(voice_set[EV_DRONE][VF_TONE] - 64))))
+        drone_set(&dn, DRONE_KIT, DB_CUTOFF, x);
+    if (moved(K_SWARM, x = clamp127(o->swarm)))
+        drone_set(&dn, DRONE_KIT, DB_SWARM, x);
+    if (moved(K_VCUT, x = clamp127(30.0f + bright * 0.47f + (float)(voice_set[EV_VOX][VF_TONE] - 64))))
+        vox_set(&vox, VX_CUTOFF, x);
+    if (moved(K_LCUT, x = clamp127(42.0f + bright * 0.47f + (float)(voice_set[EV_LINE][VF_TONE] - 64))))
+        melody_set(&line, MEL_CUTOFF, x);
+    if (moved(K_TLVL, x = clamp127(o->tex * o->fade * (0.6f + 0.4f * o->intensity))))
+        texture_set(&tex, TX_LEVEL, x);
+    if (moved(K_TCOL, x = clamp127(o->colour + tone * 0.5f + (float)(voice_set[EV_TEX][VF_TONE] - 64))))
+        texture_set(&tex, TX_COLOUR, x);
+    if (moved(K_ROOT, o->root_midi))
+        pulse_root(&pulse, o->root_midi);
+    if (moved(K_SPREAD, x = voice_set[EV_DRONE][VF_CHAR]))
+        for (v = 0; v < DRONE_VOICES; v++)
+            drone_set(&dn, v, DN_SPREAD, v == 4 ? x + 10 : x);
+    if (moved(K_GLIDE, x = voice_set[EV_LINE][VF_CHAR]))
+        melody_set(&line, MEL_GLIDE, x);
+    if (moved(K_VATK, x = voice_set[EV_VOX][VF_CHAR]))
+        vox_set(&vox, VX_ATTACK, x);
+    if (moved(K_PDEC, x = voice_set[EV_PULSE][VF_CHAR]))
+        pulse_set(&pulse, PL_DECAY, x);
+    if (moved(K_TSWEEP, x = voice_set[EV_TEX][VF_CHAR]))
+        texture_set(&tex, TX_SWEEP, x);
+    {   /* SPACE: the scene's x the macro, 64 x 64 as made; each voice's own send on top */
+        static const uint8_t EV_OF[NPARTS] = {EV_DRONE, EV_VOX, EV_LINE, EV_PULSE, EV_TEX};
+        space_k = fm_clampf(o->space * jr.macro_s[MAC_SPACE] * (1.0f / (80.0f * 64.0f)), 0.0f, 1.8f);
+        for (v = 0; v < NPARTS; v++) {
+            float s = space_k * (float)voice_set[EV_OF[v]][VF_SEND] * (1.0f / 64.0f);
+            mix_rev[v] = fm_minf(rev_base[v] * s, 1.0f);
+            mix_dly[v] = fm_minf(dly_base[v] * s, 1.0f);
+        }
+    }
+}
+static void conduct_reset(void)
+{
+    int k;
+    for (k = 0; k < 16; k++)
+        cache[k] = -1;
 }
 
 /* the load test: the heaviest the voices get. Every drone voice latched on its thickest stack
@@ -246,15 +406,22 @@ static void test_set(int on)
         drone_set(&dn, DRONE_KIT, DB_SWARM, 127);
         drone_set(&dn, DRONE_KIT, DB_WIND, 64);
         fxbus_ext_set(&fx, FXX_RV_SHIMMER, 127);
+        texture_set(&tex, TX_LEVEL, 127);
+        if (jr.playing) {                        /* the journey waits (the test plays its own) */
+            jr.line_note = jr.vox_note = -1;
+            jr.line_ok = jr.vox_ok = 0;
+        }
         test_left = test_i = 0;
         guard_enabled = 0;
     } else {
         scene_default();
+        conduct_reset();
         for (v = 0; v < DRONE_VOICES; v++)
             if (dn.v[v].on != (int32_t)((test_latched >> v) & 1u))
                 drone_trigger(&dn, v, 1.0f);
         melody_note_off(&line);
         vox_all_off(&vox);
+        jr_restart(&jr, &JSINK);                 /* the drone back in the journey's chord */
         guard_enabled = 1;
     }
     testing = (uint8_t)on;
@@ -290,23 +457,24 @@ static void clk_midi(void *x, uint8_t st)
     (void)x;
     plat_midi_out(0x0Fu | ((uint32_t)st << 8));
 }
-/* PULSE while the clock runs, until the generator plays it (design phase 3): the kick on beats 1 and
- * 3, the tick on the off-beats, quietly */
+/* the clock's 16ths are the journey's steps: PLAY (here, or a START from outside) starts it on the
+ * downbeat, STOP lets it fall away */
 static void clk_step(void *x, uint32_t n)
 {
     (void)x;
     eng_steps = n + 1u;
     if (testing)
         return;                                  /* (the load test plays its own) */
-    if ((n & 7u) == 0u)
-        hit(PULSE_KICK, (n & 15u) ? 0.85f : 1.0f);
-    else if ((n & 3u) == 2u)
-        hit(PULSE_TICK, 0.6f);
+    if (!jr.playing)
+        jr_start(&jr, &JSINK);
+    jr_step(&jr, n, (uint32_t)(44100.0f * 15.0f / fm_maxf(tclock_tempo(&eng_clock), 20.0f)), &JSINK);
 }
 static void clk_stopped(void *x)
 {
     (void)x;
     drone_end_swells(&dn);
+    if (jr.playing)
+        jr_stop(&jr, &JSINK);
 }
 static const tclock_sink_t CLK_SINK = {0, clk_midi, clk_step, clk_stopped};
 
@@ -325,10 +493,43 @@ static void midi_in(uint32_t pkt)
         return;
     if (ty == 0x90 && d2 == 0)
         ty = 0x80;
-    if (ty == 0x90)
+    if (ty == 0x90) {
         vox_note_on(&vox, d1, (float)d2 * (1.0f / 127.0f));
-    else if (ty == 0x80)
+        jr_vox_played(&jr, d1, 1);
+    } else if (ty == 0x80) {
         vox_note_off(&vox, d1);
+        jr_vox_played(&jr, d1, 0);
+    }
+}
+
+/* a white key, by the journey's mode: PLAY plays VOX in the scene's key, GUIDE steers the lines,
+ * DRIFT picks the scene to travel to. A key let go ends the note it started, whatever the mode is now */
+static int16_t white_note[16] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+static void white_key(int w, int down, int oct)
+{
+    if (w < 0 || w > 15)
+        return;
+    if (!down) {
+        if (white_note[w] >= 0) {
+            vox_note_off(&vox, white_note[w]);
+            jr_vox_played(&jr, white_note[w], 0);
+            white_note[w] = -1;
+        }
+        jr_guide(&jr, w, 0);
+        return;
+    }
+    if (eng_jr.mode == MODE_GUIDE) {
+        jr_guide(&jr, w, 1);
+    } else if (eng_jr.mode == MODE_DRIFT) {
+        jr_travel(&jr, w);
+    } else {
+        int note = jr_key_note(&jr, w, oct);
+        if (white_note[w] >= 0)
+            vox_note_off(&vox, white_note[w]);
+        white_note[w] = (int16_t)note;
+        vox_note_on(&vox, note, 100.0f / 127.0f);
+        jr_vox_played(&jr, note, 1);
+    }
 }
 
 static void drain(void)
@@ -351,6 +552,28 @@ static void drain(void)
             hit((int)a, (float)(c & 127u) * (1.0f / 127.0f));
         else if (type == C_MIDI_CH)
             midi_ch = (uint8_t)(a <= 16u ? a : 0u);
+        else if (type == C_WHITE)
+            white_key((int)a, (int)b, (int)(c & 0xFFFu) - 8);
+        else if (type == C_LOOPS) {
+            if (a == LOOP_CAPTURE)
+                jr_capture(&jr, b);
+            else if (a == LOOP_RELEASE)
+                jr_release(&jr, b);
+            else
+                jr_record(&jr);
+        } else if (type == C_TRAVEL)
+            jr_travel(&jr, (int)a);
+        else if (type == C_LOADED) {
+            jr_restart(&jr, &JSINK);
+            conduct_reset();
+        } else if (type == C_VOICE && a < EV_N && b < VF_N) {
+            voice_set[a][b] = (uint8_t)((c & 0xFFFu) > 127u ? 127u : (c & 0xFFFu));
+            voice_level((int)a);
+        } else if (type == C_FX && a < EF_N) {
+            fx_set[a] = (uint8_t)((c & 0xFFFu) > 127u ? 127u : (c & 0xFFFu));
+            if (!testing)
+                fx_apply((int)a);
+        }
     }
     cq_r = r;
     while (guard-- && plat_midi_in(&pkt))
@@ -426,7 +649,8 @@ __attribute__((noinline)) static void add_glide(float *dst, const float *src, gl
 }
 enum { GL_L, GL_R, GL_REV, GL_DLY, GL_N };
 static glide_t mix_glide[NPARTS][GL_N] = {{{-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}}, {{-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}},
-                                          {{-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}}, {{-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}}};
+                                          {{-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}}, {{-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}},
+                                          {{-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}}};
 static void mix_targets(int p)
 {
     glide_set(&mix_glide[p][GL_L], mix_level[p]);
@@ -451,7 +675,8 @@ static float dn2_l[256] POOL, dn2_r[256] POOL;
 static float line_buf[256] POOL, mono[256] POOL, vox_l[256] POOL, vox_r[256] POOL;
 static float out_l[256] POOL, out_r[256] POOL, rev[256] POOL, dly[256] POOL;
 static uint8_t line_was_idle, vox_was_active, pulse_was_active, bus_par;
-static float pulse_l[256] POOL, pulse_r[256] POOL;
+static float pulse_l[256] POOL, pulse_r[256] POOL, tex_l[256] POOL, tex_r[256] POOL;
+static uint8_t tex_was_active;
 static uint8_t bus_due, bus_plan;               /* the last block planned voices: its bus runs now, on its plan */
 static uint32_t bus_n;
 
@@ -495,7 +720,7 @@ static void balance_learn(void)                 /* after a block, from its stage
 {
     float osc = (float)(bal_osc1 + bal_osc2);
     bal_fix1 += ((float)(st_t[ST_CTRL] + st_t[ST_FXWET]) - bal_fix1) * BAL_A;
-    bal_fix2 += ((float)(st_t[ST_DRNBUS] + st_t[ST_VOX] + st_t[ST_LINE] + st_t[ST_PULSE]) - bal_fix2) * BAL_A;
+    bal_fix2 += ((float)(st_t[ST_DRNBUS] + st_t[ST_VOX] + st_t[ST_LINE] + st_t[ST_PULSE] + st_t[ST_TEX]) - bal_fix2) * BAL_A;
     if (osc > 0.0f) {
         float per = (float)(st_t[ST_DRN1] + st_t[ST_DRN2]) / osc;
         bal_osc = bal_osc > 0.0f ? bal_osc + (per - bal_osc) * BAL_A : per;
@@ -555,6 +780,14 @@ static void core2_job(uint32_t arg)
         pulse_render(&pulse, pulse_l, pulse_r, (int)n);
         st_t[ST_PULSE] = plat_ticks24() - t;
     }
+    t = plat_ticks24();
+    tex_was_active = (uint8_t)texture_active(&tex);
+    if (tex_was_active) {
+        for (i = 0; i < n; i++)
+            tex_l[i] = tex_r[i] = 0.0f;
+        texture_render(&tex, tex_l, tex_r, (int)n);
+        st_t[ST_TEX] = plat_ticks24() - t;
+    }
     st_t[ST_CORE2] = plat_ticks24() - t0;
 }
 
@@ -578,6 +811,10 @@ void engine_render(int32_t *out_lr, uint32_t n)
         tclock_advance(&eng_clock, k, &CLK_SINK);
     }
     fxbus_set_bpm(&fx, tclock_tempo(&eng_clock));
+    if (!testing) {                              /* the director, then the scene into the voices */
+        jr_tick(&jr, n, &JSINK);
+        conduct();
+    }
     if (drone_active(&dn)) {                     /* before either core's voices */
         planned = 1;
         plan = drone_plan(&dn, (int)n);
@@ -620,6 +857,7 @@ void engine_render(int32_t *out_lr, uint32_t n)
     mix_targets(P_VOX);
     mix_targets(P_LINE);
     mix_targets(P_PULSE);
+    mix_targets(P_TEX);
     if (bus_due) {                               /* the drone: the last block's voices, through the bus */
         const float *bl = dbus[bus_par ^ 1u][0], *br = dbus[bus_par ^ 1u][1];
         uint32_t m = bus_n < n ? bus_n : n;      /* (the device's blocks are all 256: equal) */
@@ -644,6 +882,14 @@ void engine_render(int32_t *out_lr, uint32_t n)
         add_glide(out_l, pulse_l, &mix_glide[P_PULSE][GL_L], n);
         add_glide(out_r, pulse_r, &mix_glide[P_PULSE][GL_R], n);
         add_glide(rev, mono, &mix_glide[P_PULSE][GL_REV], n);
+    }
+    if (tex_was_active) {
+        for (i = 0; i < n; i++)
+            mono[i] = (tex_l[i] + tex_r[i]) * 0.5f;
+        add_glide(out_l, tex_l, &mix_glide[P_TEX][GL_L], n);
+        add_glide(out_r, tex_r, &mix_glide[P_TEX][GL_R], n);
+        add_glide(rev, mono, &mix_glide[P_TEX][GL_REV], n);
+        add_glide(dly, mono, &mix_glide[P_TEX][GL_DLY], n);
     }
     if (!line_was_idle) {
         add_glide(out_l, line_buf, &mix_glide[P_LINE][GL_L], n);
@@ -701,10 +947,15 @@ void engine_init(void)
     melody_init(&line);
     vox_init(&vox);
     pulse_init(&pulse);
+    texture_init(&tex);
     fxbus_init(&fx, dly_buf, DLY_LEN);
     fxbus_reverb_buffers(&fx, rv_buf, rv_ps);
     fxbus_set_lead(&fx, FX_LEAD);
     master_init(&mst);
     tclock_init(&eng_clock);
     scene_default();
+    conduct_reset();
+    jr_preset(0, &eng_jr);                       /* (until settings.c loads the saved one: journey_load_work) */
+    jr_init(&jr, &eng_jr);
+    jr_restart(&jr, &JSINK);                     /* the drone in its key */
 }

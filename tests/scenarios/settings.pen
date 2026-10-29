@@ -1,8 +1,9 @@
 # SYSTEM: SELECT picks a row, a knob changes it; it saves by itself once the output is quiet, and a
 # reboot keeps it. MIDI CLOCK OUT off: PLAY sends nothing
+autoplay 0
 wait 300
 tap GLO
-expect view 1
+expect view 6
 turn K1 1
 expect set_clk_out 0
 expect dirty 1

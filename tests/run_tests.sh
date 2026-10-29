@@ -33,6 +33,9 @@ run pulse sh -c "$CC $W -Wno-double-promotion -o $OUT/pulse_test tests/host/puls
     $OUT/pulse_test $OUT/pulse_test.wav && python3 tests/click_check.py $OUT/pulse_test.wav"
 run vox sh -c "$CC $W -Wno-double-promotion -D_DEFAULT_SOURCE -o $OUT/vox_test tests/host/vox_test.c firmware/src/dsp/vox.c -lm && \
     $OUT/vox_test $OUT/vox_test.wav && python3 tests/click_check.py $OUT/vox_test.wav"
+run texture sh -c "$CC $W -Wno-double-promotion -o $OUT/texture_test tests/host/texture_test.c firmware/src/dsp/texture.c -lm && \
+    $OUT/texture_test $OUT/texture_test.wav && python3 tests/click_check.py $OUT/texture_test.wav"
+run journey sh -c "$CC $W -o $OUT/journey_test tests/host/journey_test.c firmware/src/seq/journey.c && $OUT/journey_test"
 python3 tools/gen_dsp_tables.py build/gen/dsp_tables.h >/dev/null
 run stereo sh -c "$CC -O2 -ffp-contract=off -w -Ifirmware/src/dsp -Ifirmware/src -Ibuild/gen -o $OUT/stereo_test tests/host/stereo_test.c firmware/src/dsp/master.c firmware/src/dsp/fxbus.c firmware/src/dsp/spacevb.c firmware/src/dsp/dsp_tables.c -lm && $OUT/stereo_test"
 run master sh -c "$CC $W -Wno-double-promotion -o $OUT/master_test tests/host/master_test.c firmware/src/dsp/master.c -lm && $OUT/master_test"
@@ -61,6 +64,13 @@ done
 [ -f build/scenarios/drones/drones.wav ] && run drone-clicks python3 tests/click_check.py build/scenarios/drones/drones.wav
 [ -f build/scenarios/vox/vox.wav ] && run vox-clicks python3 tests/click_check.py build/scenarios/vox/vox.wav
 [ -f build/scenarios/pulse/pulse.wav ] && run pulse-clicks python3 tests/click_check.py build/scenarios/pulse/pulse.wav
+[ -f build/scenarios/journey/journey.wav ] && run journey-clicks python3 tests/click_check.py build/scenarios/journey/journey.wav
+# the long run (design: each preset 30 minutes, no clips, clicks or stuck notes): LONG=1 tests/run_tests.sh
+if [ "${LONG:-0}" = 1 ]; then
+    for p in 1 2 3 4 5 6; do
+        run "longrun-$p" sh tests/longrun.sh "$p"
+    done
+fi
 for w in split core1 core2; do   # each way the drone's voices are shared: smooth (no seam where the shares meet)
     [ -f build/scenarios/drone_cores/$w.wav ] && run "drone-$w-clicks" python3 tests/click_check.py build/scenarios/drone_cores/$w.wav
 done

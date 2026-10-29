@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* MELODY: the Solar-style lead voice of the browser prototype (drone-proto/drone.html); in the
- * rewrite it stands in for LINE until phase 2 (note on with accent and slide, note off).
+/* MELODY: the Solar-style lead voice of the browser prototype (drone-proto/drone.html), Penumbra's
+ * LINE: the wandering lines and arpeggios the generator writes (note on with accent and slide,
+ * note off). The engine sets it softer than its defaults (engine.c scene_default).
  *
  * One mono voice: a saw <-> square oscillator with a sub-octave square, glide, vibrato and a
  * ring modulator, through a saturating low-pass SVF swept by an ADSR, out through the same

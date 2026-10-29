@@ -1,4 +1,5 @@
 # PLAY runs the internal clock: START, 24 clocks a quarter at the tempo (90), the 16ths counted; STOP
+autoplay 0
 wait 300
 tap PLAY
 wait 2000

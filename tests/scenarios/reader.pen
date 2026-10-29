@@ -1,4 +1,5 @@
 # A screen reader hears what changes and, asked, the whole screen
+autoplay 0
 wait 300
 listen
 wait 100
