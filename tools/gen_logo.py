@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Render the Lunar Eclipse Forge logo (assets/logo.jpg, dark on light) to a C header: cropped to the
 mark, coverage 0..15, rows top to bottom, 2 pixels per byte (high nibble first), as the font's glyphs.
-Two sizes: LOGO_* (100 px tall) for the boot screen (gfx.c draw_splash), LOGO_S* (72) for HOME's
-corona (ui.c draw_corona_home).
+Three sizes: LOGO_* (100 px tall) for the boot screen (gfx.c draw_splash), LOGO_S* (72) for HOME's
+corona (ui.c draw_corona), LOGO_T* (16) for every page's header (ui.c draw_header).
 """
 import sys
 from pathlib import Path
@@ -11,7 +11,7 @@ from pathlib import Path
 from PIL import Image, ImageOps
 
 SRC = Path(__file__).resolve().parents[1] / "assets" / "logo.jpg"
-SIZES = (("LOGO", 100), ("LOGO_S", 72))
+SIZES = (("LOGO", 100), ("LOGO_S", 72), ("LOGO_T", 16))
 
 
 def bitmap(im, name, h):

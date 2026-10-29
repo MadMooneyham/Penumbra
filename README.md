@@ -20,8 +20,10 @@ phases and their gates are in the document "Penumbra: rewrite design". This tree
 - the drone is the backbone: a pedal held through the whole scene. A new scene moves only the notes it must,
   one voice at a time, a few seconds apart, sliding slowly; each preset keeps its drone's root from scene to
   scene. A drone voice can come and go instead (SWELL);
-- the looper: VOX's notes, on the clock, in layers;
-- storage: the journey playing carries on after a power cut;
+- the looper: VOX's notes and PULSE's hits, on the clock, in layers; it follows the scene (its notes are the
+  key's degrees), plays at half or double speed, and is saved;
+- storage: the journey playing and its loop carry on after a power cut;
+- SLEEP: in 20 to 90 minutes it lets everything go;
 - MIDI clock in and out (24 ppqn, START / STOP), followed or sent as SYSTEM sets it;
 - the benchmark: BENCH shows each stage of the render, average and worst block of the last second, as a share
   of the real-time budget, per core; SEL runs the load test (the voices at their heaviest).
@@ -44,14 +46,14 @@ The clock starts at power-on and the scene's drones swell in (SYSTEM > PLAY AT P
 | ALGO | the tempo (on SHAPE: the voice's level) |
 | SEQ | the clock: start and stop, with a fade (MIDI clock out, if on) |
 | REC | the looper: record (the clock starts if it is not); again: it plays (its length the nearest beat); again: a layer over it; again: kept |
-| PLAY | the loop: stop, or play from its start; held: undo the last layer |
+| PLAY | the loop: stop, or play from its start; held and let go: undo the last layer; held, ALGO: half speed, as played, double |
 | REC with PLAY | clear the loop |
 | ARP | FREEZE: the notes held keep sounding when let go; again: they ring out (and what is held now freezes) |
 | ENV | SHAPE (ENV again: the next page): DRONE filter, body, swarm, wave; VOX bright, attack, release, shimmer; VOX 2 wave, filter, reso, glide; VOX 3 detune, B octave, B mix, envelope; PULSE drop, decay, tick, space; TEXTURE colour, sweep, rate, width. VOX's pages shape the sound playing |
 | EDIT | SCENE: the scenes' key, scale, drone root, voicing and the rest; SEL stores the moment as a new scene |
 | FX | the reverb and the delay |
 | LFO | JOURNEY: SEL opens a preset or a user journey; SAVE stores the one playing in a user slot |
-| GLO | SYSTEM (the settings), then BENCH |
+| GLO | SYSTEM (the settings: among them BEND RANGE, 2 to 12 semitones, and SLEEP), then BENCH |
 | HOME | back to the corona |
 | SAVE | save now (it saves by itself once the sound is quiet, so after STOP); in a hold: keep what the knobs did |
 | OCT- / OCT+ | the white keys' octave |
@@ -67,13 +69,20 @@ Holds: while one is held, the four knobs play something else, on any page.
 | A drone key (black 1-5) | that voice's level, tone, detune, octave; ALGO: HELD (left) or SWELL (right) | it stays as shaped (and the key does not latch) |
 | A VOX sound key (black 8-11) | that sound's brightness, wave, filter, release | it stays as shaped |
 | FX | throws: shimmer, delay feedback, freeze (the reverb holds), dip (the mix's low-pass) | they drift back over a couple of seconds; SAVE while holding keeps them, until FX is held and turned again |
-| A white key | bend VOX: brightness, vibrato, shimmer, release | they drift back; SAVE while holding puts them into VOX's sound |
+| A white key | bend VOX: brightness, vibrato, shimmer, release; ALGO: the pitch of every note sounding (frozen and looped too) | they drift back; SAVE while holding puts them into VOX's sound, and keeps the pitch bent until the next note |
 
 A drone voice is HELD (its key latches it; the journey holds it on the pedal) or SWELL: it comes and goes,
 swelled in every few bars while the clock runs, and its key plays it, a swell in and out each press. Each
 voice is set apart; the choice is saved with the journey.
 
-The loop is VOX's notes, played back through VOX as they were played (up to 16 bars, 8 layers); it is not saved.
+The loop is VOX's notes and PULSE's hits, played back as they were played (up to 16 bars, 8 layers). Its notes
+are kept as degrees of the scene's key, so in a new scene (or MORPH) it plays the same tune in that key. It is
+saved with the journey playing (not in the user slots), and plays again when the clock starts. MIDI pitch bend
+in bends VOX like ALGO does.
+
+SLEEP (SYSTEM, this session only): three minutes before the end the loop stops and FREEZE lets go, then a
+drone voice falls away every 30 s, top first, and at the end the clock stops.
+
 Opening a preset keeps the sound you have; a user journey brings its own.
 
 Building and testing: BUILDING.md. Licences and credits: LICENSING.md.

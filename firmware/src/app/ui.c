@@ -1212,6 +1212,17 @@ static float turns(float y, float x)
 }
 
 /* ------------------------------------------------------------------ header --- */
+static void header_logo(uint16_t c)               /* the mark, small, at the header's left: on every page */
+{
+    int x, y;
+    for (y = 0; y < LOGO_T_H; y++)
+        for (x = 0; x < LOGO_T_W; x++) {
+            uint32_t a = LOGO_T_PX[y * ((LOGO_T_W + 1) / 2) + x / 2];
+            a = (x & 1) ? (a & 15u) : (a >> 4);
+            if (a)
+                px_blend(3 + x, 1 + y, c, a + (a == 15u));
+        }
+}
 static void draw_header(void)
 {
     char b[16];
@@ -1220,13 +1231,14 @@ static void draw_header(void)
     if (ui.msg_until && (int32_t)(ui.msg_until - plat_ms()) > 0) {   /* what was just done */
         cv_rect(0, 0, 240, HDR_H - 1, dim(C_AMB, 4));
         cv_rect(0, HDR_H - 1, 240, 1, C_AMB);
-        text_c(120, vc(&FONT_B, 0, HDR_H - 1), &FONT_B, ui.msg, C_WHITE);
+        header_logo(C_WHITE);
+        text_c(122, vc(&FONT_B, 0, HDR_H - 1), &FONT_B, ui.msg, C_WHITE);
         cv_commit(0, 0, 0);
         return;
     }
     ui.msg_until = 0;
-    dot(6, 9, 3, C_AMB);
-    cv_text(14, vc(&FONT_B, 1, 17), &FONT_B, ui.view == V_HOME ? eng_jr.name : VIEW_N[ui.view], C_HI);
+    header_logo(RGB(226, 224, 236));              /* (in moonlight, as on HOME) */
+    cv_text(8 + LOGO_T_W, vc(&FONT_B, 1, 17), &FONT_B, ui.view == V_HOME ? eng_jr.name : VIEW_N[ui.view], C_HI);
     if (ui.dirty)
         dot(132, 9, 2, C_AMB);                    /* not saved yet */
     {   /* following an external clock, the measured tempo wanders a little: the display averages it
