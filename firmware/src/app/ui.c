@@ -5,8 +5,9 @@
  *            the music, a bead on the rim for each drone voice, a star for each note you play. Under
  *            it the scene, the looper, FREEZE. KNOBS 1-4: the macros DRONE (its filter and body), VOX
  *            (its brightness), SPACE, TONE.
- *   SHAPE    a voice's sound, four knobs each, ALGO its level (ENV again, or SELECT: the next voice):
- *            DRONE filter, body, swarm, wave; VOX bright, attack, release, shimmer; PULSE drop, decay,
+ *   SHAPE    a voice's sound, four knobs each, ALGO its level (ENV again, or SELECT: the next page):
+ *            DRONE filter, body, swarm, wave; VOX (the sound playing) bright, attack, release, shimmer;
+ *            VOX 2 wave, filter, reso, glide; VOX 3 detune, B octave, B mix, env; PULSE drop, decay,
  *            tick, space; TEXTURE colour, sweep, rate, width. Saved with the journey
  *   SCENE    the journey's scenes, field by field (SELECT: the field, KNOB 1: the scene, 2-4: change
  *            it); SEL stores the moment as a new scene
@@ -21,8 +22,10 @@
  *   The looper: REC records (again: it plays; again: a layer over it), PLAY plays or stops it (held:
  *   the last layer undone), REC with PLAY clears it. ARP: FREEZE, the notes held keep sounding.
  * Keys: white VOX in the scene's key; black 1-5 latch the drone voices (when let go; a SWELL voice:
- * played when pressed), 6 and 7 hit PULSE. ALGO: the tempo (SHAPE: the voice's level). PRESET: the
- * next scene, or the one before (on JOURNEY: the list). Every page but BENCH goes home after 30 s idle.
+ * played when pressed), 6 and 7 hit PULSE, 8-11 pick VOX's sound (held: shape it). ALGO: the tempo
+ * (SHAPE: the voice's level). PRESET: the next scene, or the one before (on JOURNEY: the list).
+ * SELECT on HOME: MORPH, the way to the next scene (or the one before) by hand. Every page but BENCH
+ * goes home after 30 s idle.
  *
  * Holds: the knobs play something else while one is held, on any page.
  *   a drone key   that voice's LEVEL, TONE, DETUNE, OCTAVE, ALGO HELD or SWELL; it stays (the key
@@ -697,6 +700,18 @@ static void select_turn(int e)
 {
     char t[40], v[24];
     switch (ui.view) {
+    case V_HOME: {                                /* MORPH: by hand toward the next scene, or the one before */
+        const jrun_t *r = engine_jr();
+        int n = eng_jr.nscenes ? eng_jr.nscenes : 1;
+        if (n < 2 || r->travelling) {
+            warn(n < 2 ? "ONE SCENE: NOWHERE TO GO" : "ON THE WAY: WAIT", 0);
+            break;
+        }
+        engine_morph(e);
+        if (r->mamt <= 0.0f)                      /* (setting out) */
+            say_n("MORPH TO SCENE ", wrap_i(r->cur + (e > 0 ? 1 : -1), n) + 1);
+        break;
+    }
     case V_SYSTEM:
         ui.row = (uint8_t)clamp_i(ui.row + e, 0, NROWS - 1);
         row_text(ui.row, v);
@@ -1244,10 +1259,17 @@ static void draw_home(void)
     char b[40], *q;
     int x;
     draw_corona();
-    q = scene_line(b, r->cur);
+    q = scene_line(b, r->mamt > 0.0f ? r->mbase : r->cur);
     if (r->travelling)                            /* on the way to the next */
         put_i(put_s(q, "  > "), r->dest + 1);
+    else if (r->mamt > 0.0f)                      /* MORPH: how far to the next, by hand */
+        put_i(put_s(q, "  ~ "), r->mto + 1);
     cv_text(6, 112, &FONT_XS, b, C_HI);
+    if (r->mamt > 0.0f) {
+        int w = text_w(&FONT_XS, b) + 10;
+        cv_rect(w, 117, 40, 2, C_LINE);
+        cv_rect(w, 117, (int)(r->mamt * 40.0f), 2, C_AMB);
+    }
     text_r(234, 112, &FONT_XS, eng_clock.playing ? "PLAYING" : "STOPPED", eng_clock.playing ? C_GRAY : C_DIM);
     {   /* the looper: what it does, its layers, where it is in the loop */
         int rec = l->state == LS_REC || l->state == LS_DUB;
@@ -1506,8 +1528,7 @@ static void draw_knobs(void)
             cell(k, MACRO_N[k], a, C_HI);
         }
         put_sgn(put_s(a, "OCTAVE "), ui.oct);
-        hint("PRESET: SCENE",
-             a);
+        hint("PRESET: SCENE  SELECT: MORPH", a);
         break;
     case V_SHAPE:
         for (k = 0; k < 4; k++) {

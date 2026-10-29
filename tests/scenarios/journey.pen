@@ -32,6 +32,17 @@ turn PRESET -1
 wait 13000
 expect scene 4
 expect dnote1 33
+turn SELECT 10
+wait 100
+expect scene 4
+shot morph.png
+turn SELECT 8
+wait 100
+expect scene 1
+turn SELECT 14
+wait 6000
+expect scene 1
+expect dnote1 33
 tap SEQ
 wait 200
 expect playing 0

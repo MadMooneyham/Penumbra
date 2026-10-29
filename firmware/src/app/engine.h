@@ -102,6 +102,7 @@ const looper_t *engine_looper_state(void);         /* (main loop, read only) */
 void engine_freeze(void);                          /* the notes held keep sounding (again: they let go) */
 int engine_frozen(void);                           /* (main loop) notes frozen */
 void engine_travel(int scene);                     /* the scene glides there */
+void engine_morph(int detents);                    /* MORPH: toward the next scene (+), the one before (-) */
 void engine_journey_loaded(void);                  /* eng_jr is a new journey: start it from its scene */
 void engine_drone_key(int voice);                  /* a black key: the voice by its MODE (HOLD: latch) */
 int engine_drone_on(int voice);                    /* (main loop) the voice is on: latched, or in its swell */

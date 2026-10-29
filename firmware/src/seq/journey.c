@@ -271,7 +271,7 @@ void jr_init(jrun_t *r, journey_t *j)
     for (i = 0; i < NMACROS; i++)
         r->macro_s[i] = (float)j->macro[i];
     r->srng = hash3(j->seed, 0x200u, 0);
-    r->cur = r->from = r->dest = (uint8_t)(j->at % nsc(j));
+    r->cur = r->from = r->dest = r->mbase = r->mto = (uint8_t)(j->at % nsc(j));
     jr_tick(r, 0, 0);
 }
 
@@ -295,9 +295,9 @@ void jr_stop(jrun_t *r, const jr_sink_t *o)
 
 void jr_restart(jrun_t *r, const jr_sink_t *o)
 {
-    r->cur = r->from = r->dest = (uint8_t)(r->j->at % nsc(r->j));
+    r->cur = r->from = r->dest = r->mbase = r->mto = (uint8_t)(r->j->at % nsc(r->j));
     r->travelling = 0;
-    r->xf = 0.0f;
+    r->xf = r->mamt = 0.0f;
     r->srng = hash3(r->j->seed, 0x200u, 0);
     if (r->playing) {
         jr_start(r, o);
@@ -316,6 +316,33 @@ void jr_travel(jrun_t *r, int scene)
     r->xf = 0.0f;
     r->switched = 0;
     r->travelling = 1;
+    r->mamt = 0.0f;                              /* (a MORPH under way: let go, the glide takes over) */
+    r->mbase = r->mto = r->cur;
+}
+
+void jr_morph(jrun_t *r, int detents)
+{
+    int n = nsc(r->j), dir;
+    if (!detents || n < 2 || r->travelling)
+        return;
+    if (r->mamt <= 0.0f) {                       /* setting out: this way */
+        r->mbase = r->cur;
+        r->mto = (uint8_t)((r->cur + (detents > 0 ? 1 : n - 1)) % n);
+    }
+    dir = r->mto == (r->mbase + 1) % n ? 1 : -1;
+    if (n == 2)                                  /* (two scenes: either way is the other) */
+        dir = detents > 0 ? 1 : -1;
+    r->mamt += (float)(detents * dir) * (1.0f / JR_MORPH_STEPS);
+    if (r->mamt <= 0.0f) {
+        r->mamt = 0.0f;
+        r->mto = r->mbase;
+    }
+    if (r->mamt >= 1.0f) {                       /* there */
+        r->mamt = 0.0f;
+        r->mbase = r->mto;
+    }
+    r->cur = r->mamt >= 0.5f ? r->mto : r->mbase;   /* (the key: past the middle, the new one's) */
+    r->j->at = r->cur;
 }
 
 static float lerp_u8(uint8_t a, uint8_t b, float t) { return (float)a + ((float)b - (float)a) * t; }
@@ -339,7 +366,7 @@ void jr_tick(jrun_t *r, uint32_t frames, const jr_sink_t *o)
         }
         if (r->xf >= 1.0f) {
             r->travelling = 0;
-            r->from = r->cur;
+            r->from = r->mbase = r->mto = r->cur;
             r->xf = 0.0f;
         }
     }
@@ -348,9 +375,18 @@ void jr_tick(jrun_t *r, uint32_t frames, const jr_sink_t *o)
             drone_to_scene(r, 0, o);
         drone_moves(r, dt, o);
     }
-    a = &j->scene[(r->travelling ? r->from : r->cur) % nsc(j)];
-    b = &j->scene[(r->travelling ? r->dest : r->cur) % nsc(j)];
-    t = r->travelling ? r->xf * r->xf * (3.0f - 2.0f * r->xf) : 0.0f;
+    if (r->travelling) {
+        a = &j->scene[r->from % nsc(j)];
+        b = &j->scene[r->dest % nsc(j)];
+        t = r->xf * r->xf * (3.0f - 2.0f * r->xf);
+    } else if (r->mamt > 0.0f) {                 /* MORPH: as far as the hand has it */
+        a = &j->scene[r->mbase % nsc(j)];
+        b = &j->scene[r->mto % nsc(j)];
+        t = r->mamt;
+    } else {
+        a = b = &j->scene[r->cur % nsc(j)];
+        t = 0.0f;
+    }
     r->out.bright = lerp_u8(a->bright, b->bright, t);
     r->out.space = lerp_u8(a->space, b->space, t);
     r->out.tex = lerp_u8(a->tex, b->tex, t);

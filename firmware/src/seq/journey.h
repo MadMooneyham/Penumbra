@@ -100,6 +100,9 @@ typedef struct {
     uint8_t swell_wait[JR_DRONES];              /* the swelling voices: bars to the next */
     uint32_t srng;
     float macro_s[NMACROS];
+    /* MORPH: the way to the next scene (or the one before) by hand: mbase .. mto, mamt of the way */
+    uint8_t mbase, mto;
+    float mamt;
     uint32_t sig;                               /* the scene's key, scale, pedal and voicing: a change moves the drone */
     jr_out_t out;
 } jrun_t;
@@ -125,5 +128,9 @@ void jr_stop(jrun_t *r, const jr_sink_t *o);     /* it stops: they fall away */
 void jr_tick(jrun_t *r, uint32_t frames, const jr_sink_t *o);   /* each block: the glides, the drone's moves */
 void jr_step(jrun_t *r, uint32_t n, const jr_sink_t *o);        /* each 16th (n since PLAY): the swells */
 void jr_travel(jrun_t *r, int scene);             /* PRESET: go there */
+/* MORPH (SELECT on HOME): detents toward the next scene (+) or the one before (-), JR_MORPH_STEPS the
+ * way; past the middle its key, all the way: there (and the next turn heads on). Back: back */
+#define JR_MORPH_STEPS 32
+void jr_morph(jrun_t *r, int detents);
 int jr_key_note(const jrun_t *r, int w, int oct); /* a white key's note in the scene's key */
 void jr_scene_now(const jrun_t *r, scene_t *s);   /* the moment, as a scene (SCENE: store) */

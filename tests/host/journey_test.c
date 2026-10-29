@@ -107,6 +107,25 @@ int main(void)
         play_steps(steps / 2u);
         CHECK(R.cur == 2 && !R.travelling, "there in JR_TRAVEL_S");
     }
+    {   /* MORPH: by hand, the key past the middle, back is back, all the way is there */
+        int k;
+        start(0);
+        for (k = 0; k < JR_MORPH_STEPS / 2 - 1; k++)
+            jr_morph(&R, 1);
+        play_steps(16);
+        CHECK(R.cur == 0 && R.mamt > 0.4f && R.mto == 1, "MORPH: on the way to the next, the key still this one's");
+        jr_morph(&R, 1);
+        play_steps(16);
+        CHECK(R.cur == 1, "MORPH: past the middle, the next one's key");
+        jr_morph(&R, -2);
+        play_steps(16);
+        CHECK(R.cur == 0 && R.mamt > 0.0f, "MORPH back: this one's again");
+        jr_morph(&R, JR_MORPH_STEPS);
+        play_steps(16u * 12u);
+        CHECK(R.cur == 1 && R.mamt == 0.0f && R.mbase == 1 && S.out_key == 0, "MORPH all the way: there, the drone in its key");
+        jr_morph(&R, -1);
+        CHECK(R.mto == 0 && R.mbase == 1, "and the next turn heads on (here: back to the first)");
+    }
     {   /* a drone voice that comes and goes: not latched, swelled in now and then */
         uint32_t bars;
         jr_preset(0, &J);
