@@ -678,6 +678,48 @@ static int keep_hold(void)
     return 0;
 }
 
+/* ------------------------------------------------------------------ SLEEP --- */
+/* the last three minutes: the loop stops and what is frozen lets go; then every 30 s a drone voice falls
+ * away, the top first, into the reverb; at the end the clock stops (and it all fades) */
+#define SLEEP_LAST_MS 180000u
+static int sleep_left_ms(void) { return (int)(ui.sleep_at - plat_ms()); }
+static void sleep_tick(void)
+{
+    int left, v;
+    if (!ui.sleep)
+        return;
+    left = sleep_left_ms();
+    if (left <= 0) {
+        if (eng_clock.playing)
+            tclock_stop(&eng_clock);
+        ui.sleep = 0;
+        say("GOOD NIGHT", 0);
+        return;
+    }
+    if (left > (int)SLEEP_LAST_MS)
+        return;
+    if (ui.sleep_step == 0) {
+        const looper_t *l = engine_looper_state();
+        if (l->state == LS_PLAY || l->state == LS_DUB || l->state == LS_REC)
+            engine_looper(LOOPER_PLAY);           /* (recording: it closes and plays; the next step stops it) */
+        if (engine_frozen())
+            engine_freeze();
+        say("SLEEP: LETTING GO", 0);
+        ui.sleep_step = 1;
+        return;
+    }
+    if (ui.sleep_step == 1 && engine_looper_state()->state == LS_PLAY)
+        engine_looper(LOOPER_PLAY);
+    if (left <= (int)SLEEP_LAST_MS - 30000 * (int)ui.sleep_step) {   /* a drone voice, every 30 s */
+        ui.sleep_step++;
+        for (v = ENG_DRONES - 1; v >= 0; v--)
+            if (engine_drone_on(v) && !(eng_jr.dswell >> v & 1u)) {
+                engine_drone_key(v);
+                break;
+            }
+    }
+}
+
 /* ================================================================== input === */
 static void set_view(int v)
 {
@@ -1349,7 +1391,13 @@ static void draw_home(void)
         cv_rect(w, 117, 40, 2, C_LINE);
         cv_rect(w, 117, (int)(r->mamt * 40.0f), 2, C_AMB);
     }
-    text_r(234, 112, &FONT_XS, eng_clock.playing ? "PLAYING" : "STOPPED", eng_clock.playing ? C_GRAY : C_DIM);
+    if (ui.sleep) {                               /* SLEEP: the minutes left */
+        char s[16];
+        put_s(put_i(put_s(s, "SLEEP "), (sleep_left_ms() + 59999) / 60000), "M");
+        text_r(234, 112, &FONT_XS, s, sleep_left_ms() <= (int)SLEEP_LAST_MS ? C_AMB : C_GRAY);
+    } else {
+        text_r(234, 112, &FONT_XS, eng_clock.playing ? "PLAYING" : "STOPPED", eng_clock.playing ? C_GRAY : C_DIM);
+    }
     {   /* the looper: what it does, its layers, where it is in the loop */
         int rec = l->state == LS_REC || l->state == LS_DUB;
         uint16_t c = rec ? ((ui.frame >> 4) & 1u ? C_RED : dim(C_RED, 8)) : l->state == LS_PLAY ? C_AMB
@@ -1781,6 +1829,9 @@ void ui_init(void)
     }
     ui.view = V_HOME;
     ui.sdest = -1;
+    ui.dirty = 0;                                 /* (the device starts from nothing; the simulator's reboot too) */
+    ui.row = 0;
+    ui.sleep = 0;
     ui.lp_edits = engine_looper_state()->edits;
     ui.touch_t = plat_ms();
     for (i = 0; i < 3; i++)
@@ -1798,6 +1849,7 @@ void ui_frame(void)
 {
     input();
     perf_tick();
+    sleep_tick();
     if (engine_looper_state()->edits != ui.lp_edits) {   /* the loop changed: it is saved with the rest */
         ui.lp_edits = engine_looper_state()->edits;
         changed_as(D_LOOP);

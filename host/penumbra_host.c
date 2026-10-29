@@ -513,6 +513,8 @@ static int expect(const char *what, const char *val)
         got = engine_jr()->drone[(atoi(what + 5) - 1) % ENG_DRONES];
     else if (!strcmp(what, "dmoving"))              /* the drone voices still to move to the scene's */
         got = engine_jr()->dpend;
+    else if (!strcmp(what, "sleep"))                /* SLEEP's choice: 0 off, 1 20 min .. */
+        got = ui.sleep;
     else if (!strcmp(what, "dswell"))               /* the drone voices that come and go (bit v) */
         got = eng_jr.dswell;
     else if (!strcmp(what, "autoplay"))

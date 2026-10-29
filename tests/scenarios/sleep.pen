@@ -1,0 +1,33 @@
+# SLEEP (SYSTEM): in 20 minutes it lets everything go. The last three: the loop stops, then the drone
+# voices fall away one by one; at the end the clock stops. Not saved: a power-on has no SLEEP.
+wait 2000
+expect playing 1
+expect drone1 1
+tap REC
+key w2 down
+wait 600
+key w2 up
+wait 1400
+tap REC
+wait 100
+expect looper 2
+tap GLO
+turn SELECT 9
+tap SEL
+wait 100
+expect sleep 1
+tap HOME
+shot sleep.png
+wait 1000000
+expect looper 2
+expect drone1 1
+wait 30000
+expect looper 4
+wait 170000
+expect drone1 0
+expect playing 0
+expect sleep 0
+reboot
+wait 300
+expect sleep 0
+expect clips 0
