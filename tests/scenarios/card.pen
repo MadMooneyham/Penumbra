@@ -1,0 +1,24 @@
+# The hub card's picture (assets/card.png, 240 x 240): HOME while it plays, the drone in, a loop going,
+# VOX's stars out. Also: it plays like that without a click.
+wait 3000
+tapkey b3
+tap REC
+key w4 down
+wait 700
+key w4 up
+key w7 down
+wait 900
+key w7 up
+key w2 down
+wait 700
+key w2 up
+wait 300
+tap REC
+wait 2500
+tapkey w9
+wait 150
+tapkey w11
+wait 150
+shot card.png
+expect looper 2
+expect clips 0

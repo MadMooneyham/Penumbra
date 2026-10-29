@@ -1,4 +1,5 @@
 build/
+fm1_open_src/
 .DS_Store
 __pycache__/
 *.o

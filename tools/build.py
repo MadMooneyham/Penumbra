@@ -53,7 +53,7 @@ SDK_SHA256 = {
     "cfg/eq_cfg_hw.bin": "41167491bffed4651750719c973d2758adeb9021a5670d02d6a53c85ed80ea7d",
 }
 
-PRODUCT = "FM-1_900"                # package identity; release builds are FM-1_9XXYYZZ (see main)
+PRODUCT = "FM-1_730"                # package identity: Penumbra's own (73); release builds FM-1_73XXYYZZ (see main)
 VERSION = None                      # FELUCCA_VERSION for release builds (default: firmware/src/ui.c)
 
 
@@ -355,19 +355,21 @@ def mmio_check():
 def main():
     global PRODUCT, VERSION
     ap = argparse.ArgumentParser()
-    ap.add_argument("--release", metavar="X.Y[.Z]", help="release build: identity FM-1_9XXYYZZ, version string X.Y[.Z]")
+    ap.add_argument("--release", metavar="X.Y[.Z]", help="release build: identity FM-1_73XXYYZZ, version string X.Y[.Z]")
     ap.add_argument("--sdk", type=Path, help="JieLi AC79 SDK checkout (default: $AC79_SDK)")
     a = ap.parse_args()
     name = "penumbra.fwsc"
     if a.release:
-        # identity FM-1_9 + major, minor, patch as two digits each (0.10 -> FM-1_9001000). FM-1 is the
-        # model the update tools match on; the number is ours. 12 of the 20 characters a package's
-        # identity holds; digits only after the underscore, as the tools parse it.
+        # identity FM-1_73 + major, minor, patch as two digits each (1.0 -> FM-1_73010000). FM-1 is the
+        # model the update tools match on; 73 is Penumbra's (free on thefirmwarehub.com, which takes 3 to 8
+        # digits; 0.x betas were X0X's FM-1_9...). Digits only after the underscore, as the tools parse it.
         m = re.fullmatch(r"(\d{1,2})\.(\d{1,2})(?:\.(\d{1,2}))?(-[A-Za-z0-9]+)?", a.release)
         if not m:
             raise SystemExit(f"--release {a.release}: use X.Y[.Z][-suffix], up to two digits each")
-        PRODUCT = "FM-1_9%02d%02d%02d" % (int(m[1]), int(m[2]), int(m[3] or 0))
-        VERSION = a.release.upper() if "BETA" in a.release.upper() else a.release.upper() + " BETA"
+        PRODUCT = "FM-1_73%02d%02d%02d" % (int(m[1]), int(m[2]), int(m[3] or 0))
+        VERSION = a.release.upper()                  # (a 0.x without a suffix says BETA: it is one)
+        if int(m[1]) == 0 and not m[4]:
+            VERSION += " BETA"
         name = f"penumbra-{a.release}.fwsc"
     fm1pkg_make.SDK = a.sdk
     for rel, sha in SDK_SHA256.items():          # fail early without the SDK

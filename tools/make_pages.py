@@ -10,9 +10,8 @@
 
   tools/make_pages.py build/penumbra-0.7-beta.fwsc 0.7-beta OUT_DIR
 
-The package must be a release build (./build.sh --release X.Y-beta): its identity, FM-1_9XXYYZZ, is what the
-installer checks the download against and what the FM-1 reports after the install. The manual and the
-"what's new" page come back with the 1.0 release (design phase 6)."""
+The package must be a release build (./build.sh --release X.Y): its identity, FM-1_73XXYYZZ (0.x betas:
+FM-1_9XXYYZZ), is what the installer checks the download against and what the FM-1 reports after the install."""
 import html
 import json
 import re
@@ -44,9 +43,10 @@ LANDING = """<!doctype html>
 <body>
 <main>
 <h1>Penumbra</h1>
-<p class="sub">A generative space-drone instrument for the M-VAVE FM-1, by Lunar Eclipse Forge. __VERSION__</p>
-<p>This is a development build: drones on the black keys, a melody voice on the white keys, the shimmer
-reverb and tape delay, MIDI clock in and out, and a benchmark (GLO, then GLO again).</p>
+<p class="sub">A space-drone instrument for the M-VAVE FM-1, by Lunar Eclipse Forge. __VERSION__</p>
+<p>A deep five-voice drone held on a pedal, VOX far back in the shimmer, a looper that follows the scene,
+and holds that let you play the sound itself: throws, bends, freeze, morph. Switch it on and the drone
+swells in; you play over it.</p>
 <p><a class="go" href="install/">Install __VERSION__</a> &nbsp; <a href="firmware/__PKG__">download the package</a></p>
 <p class="small">To go back to the official firmware, the installer can write it, or use M-VAVE's updater, M-UPGRADE,
 from <a href="https://www.m-vave.com/download">m-vave.com/download</a>. M-VAVE and FM-1 are trademarks of their owners.</p>
@@ -60,8 +60,8 @@ def main(pkg, version, out):
     pkg, out = Path(pkg), Path(out)
     raw = pkg.read_bytes()
     product = product_of(raw)
-    if not re.fullmatch(r"FM-1_9\d{6}", product):
-        raise SystemExit(f"{pkg}: identity {product!r}: make a release build (./build.sh --release X.Y-beta)")
+    if not re.fullmatch(r"FM-1_73\d{6}|FM-1_9\d{6}", product):
+        raise SystemExit(f"{pkg}: identity {product!r}: make a release build (./build.sh --release X.Y)")
     if b"FELUCCA-LOADER-1" not in raw:
         raise SystemExit(f"{pkg}: no update loader in it")
     name = f"penumbra-{re.sub(r'[^A-Za-z0-9.-]', '-', version)}.fwsc"

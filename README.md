@@ -5,6 +5,10 @@ you play over it, loop it, shape it and move it from place to place. The sound i
 42's: thick, slowly beating drones, an oscillator voice far back in the shimmer, deep soft pulses, a long wash
 of delay. The space between the sounds is part of the sound.
 
+Version 1.0, identity `FM-1_73010000` (release builds are `FM-1_73XXYYZZ`). Install it from a release's
+`.fwsc` with the web installer (Chrome or Edge), or from thefirmwarehub.com once it is listed; the package
+carries the update loader, so you can always leave it again. What is new: RELEASE-1.0.md.
+
 Penumbra is a rewrite of its first, X0X-based version (kept at the tag `penumbra-0.6-shelved`). The design, its
 phases and their gates are in the document "Penumbra: rewrite design". This tree has:
 
