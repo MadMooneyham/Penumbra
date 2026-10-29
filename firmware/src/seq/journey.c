@@ -58,7 +58,7 @@ void jr_sound_default(journey_t *j)
     static const uint8_t SHAPE[JR_VOICES][JR_SHAPE] = {
         {100, 75, 45, 80, 44, 0},                /* DRONE: FILTER, BODY, SWARM, WAVE */
         {100, 64, 80, 90, 64, 20},               /* VOX: BRIGHT, ATTACK, RELEASE, SHIMMER; VIBRATO */
-        {80, 50, 80, 40, 64, 0},                 /* PULSE: DROP, DECAY, TICK, SPACE (2 dB down) */
+        {80, 50, 80, 30, 64, 0},                 /* PULSE: DROP, DECAY, CLICK, SPACE (2 dB down) */
         {100, 64, 70, 40, 90, 0}};               /* TEXTURE: COLOUR, SWEEP, RATE, WIDTH */
     static const uint8_t DVOICE[JR_DVOICE] = {106, 75, 64, 1};
     int v, f;

@@ -10,8 +10,8 @@ static const param_t PULSE_P[PL_NPARAMS] = {
     [PL_TUNE] = {"Tune", 24, 12, 0},         [PL_PITCH] = {"Pitch", 127, 50, 0},
     [PL_PDECAY] = {"P.Dcy", 127, 64, 0},     [PL_DECAY] = {"Decay", 127, 80, 0},
     [PL_CLICK] = {"Click", 127, 30, 0},      [PL_DRIVE] = {"Drive", 127, 20, 0},
-    [PL_LEVEL] = {"Level", 127, 100, 0},     [PL_TICK] = {"Tick", 127, 40, 0},
-    [PL_TDECAY] = {"T.Dcy", 127, 50, 0}};
+    [PL_LEVEL] = {"Level", 127, 100, 0},     [PL_BLOOM] = {"Bloom", 127, 90, 0},
+    [PL_BLEN] = {"B.Len", 127, 64, 0}};
 
 int pulse_nparams(void) { return PL_NPARAMS; }
 const param_t *pulse_param(int i) { return i >= 0 && i < PL_NPARAMS ? &PULSE_P[i] : 0; }
@@ -45,8 +45,11 @@ void pulse_set(pulse_t *p, int i, int value)
         p->drive_n = 1.0f / fm_tanhf(p->drive);
         break;
     case PL_LEVEL: p->level = pot01(value) * pot01(value) * 1.6129f; break;      /* 100 = unity */
-    case PL_TICK: p->tick = pot01(value) * 0.25f; break;
-    case PL_TDECAY: p->tdec_c = one_pole(pot_exp(value, 0.005f, 4.0f)); break;   /* 5 .. 80 ms */
+    case PL_BLOOM: p->bloom = pot01(value) * pot01(value) * 0.45f; break;
+    case PL_BLEN:                                                                  /* in 1 .. 4 s, out 3 .. 14 s */
+        p->brise_c = one_pole(pot_exp(value, 0.6f, 1.7f));
+        p->bfall_c = one_pole(pot_exp(value, 1.0f, 2.2f));
+        break;
     default: break;
     }
 }
@@ -73,9 +76,9 @@ void pulse_root(pulse_t *p, int midi_note)
 void pulse_hit(pulse_t *p, int which, float vel)
 {
     vel = vel < 0.0f ? 0.0f : vel > 1.0f ? 1.0f : vel;
-    if (which == PULSE_TICK) {
-        p->tenv = 1.0f;
-        p->tvel = vel;
+    if (which == PULSE_BLOOM) {                  /* (from where it is: a bloom over a bloom grows) */
+        p->bvel = vel > p->bvel || p->benv < 0.05f ? vel : p->bvel;
+        p->brise = 1;
         return;
     }
     p->vel = vel;                                /* the phase carries on: no click on a sounding kick */
@@ -87,7 +90,8 @@ void pulse_hit(pulse_t *p, int which, float vel)
 
 /* idle: 70 dB down (about -80 dBFS out, under any tail) */
 #define PL_QUIET 3e-4f
-int pulse_active(const pulse_t *p) { return p->amp > PL_QUIET || p->rise || p->cenv > PL_QUIET || p->tenv > PL_QUIET; }
+int pulse_blooming(const pulse_t *p) { return p->brise || p->benv > PL_QUIET; }
+int pulse_active(const pulse_t *p) { return p->amp > PL_QUIET || p->rise || p->cenv > PL_QUIET || pulse_blooming(p); }
 
 static float noise(uint32_t *s)
 {
@@ -99,11 +103,11 @@ static float noise(uint32_t *s)
     return (float)(int32_t)x * (1.0f / 2147483648.0f);
 }
 
-void pulse_render(pulse_t *p, float *l, float *r, int n)
+void pulse_render(pulse_t *p, float *l, float *r, float *bl, float *br, int n)
 {
     const float out = p->level * 0.5f, dn = p->drive_n, drv = p->drive;
-    float ph = p->ph, penv = p->penv, amp = p->amp, cenv = p->cenv, clp = p->clp, tenv = p->tenv, thp = p->thp;
-    const int kick = amp > PL_QUIET || p->rise || cenv > PL_QUIET, tick = tenv > PL_QUIET;
+    float ph = p->ph, penv = p->penv, amp = p->amp, cenv = p->cenv, clp = p->clp;
+    const int kick = amp > PL_QUIET || p->rise || cenv > PL_QUIET, bloom = pulse_blooming(p);
     int i;
     if (kick)
         for (i = 0; i < n; i++) {
@@ -127,20 +131,42 @@ void pulse_render(pulse_t *p, float *l, float *r, int n)
             l[i] += s;
             r[i] += s;
         }
-    if (tick)
+    if (bloom) {                                 /* an octave over the root, 4 cents either side; the fifth over */
+        const float inc = p->base_inc * 2.0f, il = inc * 0.99769f, ir = inc * 1.00231f, i5 = inc * 1.49831f;
+        const float g = p->bloom * p->level;
+        float a = p->bph[0], b = p->bph[1], c = p->bph[2], env = p->benv;
+        int rise = p->brise;
         for (i = 0; i < n; i++) {
-            float x = noise(&p->rng), h;
-            thp += 0.2f * (x - thp);                 /* the tick: what is over ~1.5 kHz of the noise */
-            h = (x - thp) * tenv * p->tick * p->tvel;
-            tenv -= tenv * p->tdec_c;
-            l[i] += h * 0.8f;
-            r[i] += h;
+            float s5, e;
+            if (rise) {                              /* toward past the top, so it gets there */
+                env += (1.15f - env) * p->brise_c;
+                if (env >= 1.0f) {
+                    env = 1.0f;
+                    rise = 0;
+                }
+            } else {
+                env -= env * p->bfall_c;
+            }
+            e = env * env * g * p->bvel;             /* (squared: it blooms, slowly at first) */
+            s5 = fm_sin_turns(c) * 0.35f;
+            bl[i] += (fm_sin_turns(a) + s5) * e;
+            br[i] += (fm_sin_turns(b) + s5) * e;
+            a += il;
+            if (a >= 1.0f) a -= 1.0f;
+            b += ir;
+            if (b >= 1.0f) b -= 1.0f;
+            c += i5;
+            if (c >= 1.0f) c -= 1.0f;
         }
+        p->bph[0] = a;
+        p->bph[1] = b;
+        p->bph[2] = c;
+        p->benv = fm_flush(env);
+        p->brise = rise;
+    }
     p->ph = ph;
     p->penv = fm_flush(penv);
     p->amp = fm_flush(amp);
     p->cenv = fm_flush(cenv);
     p->clp = fm_flush(clp);
-    p->tenv = fm_flush(tenv);
-    p->thp = fm_flush(thp);
 }

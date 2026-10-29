@@ -8,7 +8,7 @@
  *   SHAPE    a voice's sound, four knobs each, ALGO its level (ENV again, or SELECT: the next page):
  *            DRONE filter, body, swarm, wave; VOX (the sound playing) bright, attack, release, shimmer;
  *            VOX 2 wave, filter, reso, glide; VOX 3 detune, B octave, B mix, env; PULSE drop, decay,
- *            tick, space; TEXTURE colour, sweep, rate, width. Saved with the journey
+ *            click, space; TEXTURE colour, sweep, rate, width. Saved with the journey
  *   SCENE    the journey's scenes, field by field (SELECT: the field, KNOB 1: the scene, 2-4: change
  *            it); SEL stores the moment as a new scene
  *   FX       the reverb and the delay (SELECT: which)
@@ -22,7 +22,7 @@
  *   The looper: REC records (again: it plays; again: a layer over it), PLAY plays or stops it (held:
  *   the last layer undone), REC with PLAY clears it. ARP: FREEZE, the notes held keep sounding.
  * Keys: white VOX in the scene's key; black 1-5 latch the drone voices (when let go; a SWELL voice:
- * played when pressed), 6 and 7 hit PULSE, 8-11 pick VOX's sound (held: shape it). ALGO: the tempo
+ * played when pressed), 6 PULSE's kick, 7 its BLOOM, 8-11 pick VOX's sound (held: shape it). ALGO: the tempo
  * (SHAPE: the voice's level). PRESET: the next scene, or the one before (on JOURNEY: the list).
  * SELECT on HOME: MORPH, the way to the next scene (or the one before) by hand. Every page but BENCH
  * goes home after 30 s idle.
@@ -458,7 +458,7 @@ static const spage_t PAGE[NPG] = {
     {EV_VOX, "VOX", {"BRIGHT", "ATTACK", "RELEASE", "SHIMMER"}, {VS_BRIGHT, VS_ATTACK, VS_RELEASE, VS_SHIMMER}, 0x9},
     {EV_VOX, "VOX 2", {"WAVE", "FILTER", "RESO", "GLIDE"}, {VS_WAVE, VS_FILTER, VS_RESO, VS_GLIDE}, 0},
     {EV_VOX, "VOX 3", {"DETUNE", "B OCT", "B MIX", "ENV"}, {VS_DETUNE, VS_BOCT, VS_BMIX, VS_ENV}, 0},
-    {EV_PULSE, "PULSE", {"DROP", "DECAY", "TICK", "SPACE"}, {SH_K1, SH_K2, SH_K3, SH_K4}, 0x8},
+    {EV_PULSE, "PULSE", {"DROP", "DECAY", "CLICK", "SPACE"}, {SH_K1, SH_K2, SH_K3, SH_K4}, 0x8},
     {EV_TEX, "TEXTURE", {"COLOUR", "SWEEP", "RATE", "WIDTH"}, {SH_K1, SH_K2, SH_K3, SH_K4}, 0x1}};
 static uint8_t *vsound(void) { return eng_jr.vsound[eng_jr.vcur % JR_VSOUNDS]; }
 static uint8_t *pg_ptr(int pg, int k)             /* k: a knob, or -1 the level */
@@ -985,7 +985,7 @@ static void input(void)
                 ui.dheld |= (uint8_t)(1u << bk);  /* (held: it latches when let go, unless the knobs shaped it) */
                 if (eng_jr.dswell >> bk & 1u)
                     engine_drone_key(bk);         /* a voice that comes and goes: played, now */
-            } else if (bk == ENG_DRONES || bk == ENG_DRONES + 1) {   /* the next two: PULSE's kick and tick */
+            } else if (bk == ENG_DRONES || bk == ENG_DRONES + 1) {   /* the next two: PULSE's kick and its bloom */
                 engine_pulse(bk - ENG_DRONES, 110);
             } else if (bk >= VS_KEY0 && bk < VS_KEY0 + JR_VSOUNDS) {  /* the last four: VOX's sounds */
                 ui.vheld |= (uint8_t)(1u << (bk - VS_KEY0));

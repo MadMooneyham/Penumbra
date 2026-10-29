@@ -12,7 +12,7 @@ phases and their gates are in the document "Penumbra: rewrite design". This tree
   installer, USB MIDI and audio, MIDI on the TRS jack, the second core, panel calibration, the screen and fonts,
   the screen reader;
 - four voices: DRONE (five voices, SWARM), VOX (a four-voice oscillator synth: two oscillators from saw to a
-  narrow pulse, a filter from low-pass to band-pass, glide), PULSE (a deep kick tuned to the key, a soft tick)
+  narrow pulse, a filter from low-pass to band-pass, glide), PULSE (a deep kick tuned to the key, and BLOOM: a deep, slow swell in the key, far back)
   and TEXTURE (a bed of space wind), into the shimmer reverb, the tape delay and the master stage;
 - journeys: banks of scenes, each a key and scale, the drone's root and voicing, VOX's brightness and register,
   the space and the wind; with the sound (SHAPE's, the drone voices' own, VOX's four sounds). Six presets, eight
@@ -38,7 +38,7 @@ The clock starts at power-on and the scene's drones swell in (SYSTEM > PLAY AT P
 | --- | --- |
 | White keys | VOX, in the scene's key and scale |
 | Black keys 1-5 | the drone voices: latched when let go; a SWELL voice: played when pressed |
-| Black keys 6, 7 | PULSE's kick and tick |
+| Black keys 6, 7 | PULSE's kick; BLOOM, a deep slow swell in the key (both loop) |
 | Black keys 8-11 | VOX's four sounds: GLASS, REED, HALO, LOW (mid-phrase too) |
 | KNOBS 1-4 on HOME | DRONE (its filter and body), VOX (its brightness), SPACE (reverb and delay), TONE (everything brighter or darker) |
 | SELECT on HOME | MORPH: by hand toward the next scene (right) or the one before (left); past the middle its key, all the way there |
@@ -49,7 +49,7 @@ The clock starts at power-on and the scene's drones swell in (SYSTEM > PLAY AT P
 | PLAY | the loop: stop, or play from its start; held and let go: undo the last layer; held, ALGO: half speed, as played, double |
 | REC with PLAY | clear the loop |
 | ARP | FREEZE: the notes held keep sounding when let go; again: they ring out (and what is held now freezes) |
-| ENV | SHAPE (ENV again: the next page): DRONE filter, body, swarm, wave; VOX bright, attack, release, shimmer; VOX 2 wave, filter, reso, glide; VOX 3 detune, B octave, B mix, envelope; PULSE drop, decay, tick, space; TEXTURE colour, sweep, rate, width. VOX's pages shape the sound playing. SEL twice: the page back as made |
+| ENV | SHAPE (ENV again: the next page): DRONE filter, body, swarm, wave; VOX bright, attack, release, shimmer; VOX 2 wave, filter, reso, glide; VOX 3 detune, B octave, B mix, envelope; PULSE drop, decay, click, space; TEXTURE colour, sweep, rate, width. VOX's pages shape the sound playing. SEL twice: the page back as made |
 | EDIT | SCENE: the scenes' key, scale, drone root, voicing and the rest; SEL stores the moment as a new scene |
 | FX | the reverb and the delay |
 | LFO | JOURNEY: SEL opens a preset or a user journey; SAVE stores the one playing in a user slot |

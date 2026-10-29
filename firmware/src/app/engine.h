@@ -5,8 +5,8 @@
  *
  * The voices (docs: "Penumbra: rewrite design"): DRONE (five voices, SWARM; black keys 1-5 latch
  * them, the journey holds them on its pedal), VOX (four voices: the white keys in PLAY, MIDI
- * notes, and the generator's sparse phrases, far back in the shimmer), PULSE (a deep kick and a tick:
- * the generator, black keys 6 and 7) and TEXTURE (the wind), into the shimmer reverb, the tape delay
+ * notes and the looper's, far back in the shimmer), PULSE (a deep kick, black key 6, and BLOOM, a deep
+ * slow swell in the key, black key 7, far into the reverb) and TEXTURE (the wind), into the shimmer reverb, the tape delay
  * and the master stage. The journey (seq/journey.c) runs in CTRL, its steps on the clock's 16ths, and
  * its scene and the HOME macros set the voices each block (conduct). Every stage of every block is
  * timed on the 24 MHz timer, per core, published once a second for the BENCH page.
@@ -113,7 +113,7 @@ int engine_drone_on(int voice);                    /* (main loop) the voice is o
 float engine_drone_level(int voice);               /* (main loop) how loud it is now, 0..1 of its LEVEL (it rises, falls) */
 void engine_vox_on(int note, int vel);             /* VOX: a note (a white key, MIDI), vel 0..127 */
 void engine_vox_off(int note);
-void engine_pulse(int which, int vel);             /* PULSE_KICK (0) or PULSE_TICK (1), vel 0..127 */
+void engine_pulse(int which, int vel);             /* PULSE_KICK (0) or PULSE_BLOOM (1), vel 0..127 */
 int engine_vox_sounding(void);                     /* (main loop) a VOX voice sounds */
 void engine_load_test(int on);                     /* every voice at its heaviest: the worst case */
 int engine_load_testing(void);

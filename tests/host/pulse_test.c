@@ -1,7 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* PULSE (firmware/src/dsp/pulse.c) alone: silent until hit; the kick starts high and falls to its note
- * (A1, 55 Hz, then an octave up with TUNE +12); hits on a sounding kick carry on without a step; it and
- * the tick fall to silence and stop costing anything; the tick is high (most of its energy over 2 kHz).
+ * (A1, 55 Hz, then an octave up with TUNE +12); hits on a sounding kick carry on without a step; it falls
+ * to silence and stops costing anything. The bloom, on its own pair: it swells in slowly (nothing like a
+ * hit), its sides apart (beating), smooth, then falls to silence and goes idle; the kick's pair stays
+ * silent under it.
  *   pulse_test [OUT.wav]   OUT: the test's sound, to listen to */
 #include <math.h>
 #include <stdio.h>
@@ -12,8 +14,8 @@
 static pulse_t p;
 static int fails;
 #define CHECK(c, what) do { if (c) printf("  ok   %s\n", what); else { printf("  FAIL %s\n", what); fails++; } } while (0)
-#define MAXN (44100 * 20)
-static float L[MAXN], R[MAXN];
+#define MAXN (44100 * 50)
+static float L[MAXN], R[MAXN], BL[MAXN], BR[MAXN];
 static uint32_t at;
 
 static void run(float seconds)
@@ -21,7 +23,7 @@ static void run(float seconds)
     uint32_t end = at + (uint32_t)(seconds * 44100.0f);
     while (at < end) {
         uint32_t n = end - at < 256u ? end - at : 256u;
-        pulse_render(&p, L + at, R + at, (int)n);
+        pulse_render(&p, L + at, R + at, BL + at, BR + at, (int)n);
         at += n;
     }
 }
@@ -95,21 +97,32 @@ int main(int argc, char **argv)
     run(7.0f);                                        /* (DECAY's default: ~0.66 s a step of 8.7 dB) */
     CHECK(peak(at - 4410u, at) < 3e-4 && !pulse_active(&p), "the kick falls to silence and goes idle");
     t = at;
-    pulse_hit(&p, PULSE_TICK, 1.0f);
-    run(0.5f);
+    pulse_hit(&p, PULSE_BLOOM, 1.0f);
+    run(25.0f);
     {
-        double hi = 0.0, all = 0.0, prev = 0.0;
-        uint32_t i;
-        for (i = t; i < t + 2205u; i++) {             /* a crude split at ~2 kHz: the first difference's share */
-            double d = L[i] - prev;
-            hi += d * d * 0.5;
-            all += (double)L[i] * L[i];
-            prev = L[i];
+        double top = 0.0, early = 0.0, side = 0.0, jump = 0.0, kick = 0.0;
+        uint32_t i, top_at = t;
+        for (i = t; i < at; i++) {
+            double a = fmax(fabs(BL[i]), fabs(BR[i]));
+            if (a > top) {
+                top = a;
+                top_at = i;
+            }
+            if (i < t + 13230u)                       /* its first 0.3 s */
+                early = fmax(early, a);
+            side = fmax(side, fabs(BL[i] - BR[i]));
+            if (i > t)
+                jump = fmax(jump, fabs(BL[i] - BL[i - 1]));
+            kick = fmax(kick, fmax(fabs(L[i]), fabs(R[i])));
         }
-        printf("  tick: peak %.3f, high share %.2f\n", peak(t, at), hi / (all + 1e-20));
-        CHECK(peak(t, at) > 0.02 && peak(t, at) < 0.3, "the tick sounds, quietly");
-        CHECK(hi / (all + 1e-20) > 0.5, "the tick is high (most of it over ~2 kHz)");
-        CHECK(!pulse_active(&p), "the tick falls away and goes idle");
+        printf("  bloom: peak %.3f at %.1f s, %.3f in its first 0.3 s; largest step %.4f\n", top,
+               (double)(top_at - t) / 44100.0, early, jump);
+        CHECK(top > 0.05 && top < 0.9, "the bloom sounds, under full scale");
+        CHECK(early < 0.1 * top && top_at - t > 44100u, "it swells in slowly (its top after a second, not at once)");
+        CHECK(side > 0.1 * top, "its sides apart: it beats");
+        CHECK(jump < 0.02, "smooth: no step anywhere");
+        CHECK(kick == 0.0, "the kick's pair silent under it");
+        CHECK(!pulse_active(&p) && !pulse_blooming(&p), "it falls to silence and goes idle");
     }
     if (argc > 1) {
         FILE *f = fopen(argv[1], "wb");

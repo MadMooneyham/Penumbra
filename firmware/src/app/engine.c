@@ -55,7 +55,7 @@ _Static_assert(ENG_DRONES == DRONE_VOICES, "engine.h names the drone voices");
 _Static_assert(PLAT_TICKS_PER_BLOCK(256) == 139319u, "the block's budget in 24 MHz ticks");
 
 /* the voices' places in the mix */
-enum { P_DRONE, P_VOX, P_PULSE, P_TEX, NPARTS };
+enum { P_DRONE, P_VOX, P_PULSE, P_TEX, P_BLOOM, NPARTS };   /* (BLOOM: PULSE's, on its own pair) */
 
 /* ------------------------------------------------------------ benchmark --- */
 /* each stage's 24 MHz ticks this block; summed over a second (acc), then published (pub) for the
@@ -207,8 +207,8 @@ float engine_drone_level(int voice)
  * voice), each voice a little off true like a Solar tuned by ear, spread across the field; VOX a soft
  * pad of two saws; all of it into a long shimmering reverb and a worn ping-pong tape delay, dotted
  * quarters */
-static const float MIX_BASE[NPARTS] = {1.0f, 0.57f, 0.9f, 1.0f};   /* VOX 3 dB under 0.10's */
-static float mix_level[NPARTS] = {1.0f, 0.57f, 0.9f, 1.0f}, mix_rev[NPARTS], mix_dly[NPARTS];
+static const float MIX_BASE[NPARTS] = {1.0f, 0.57f, 0.9f, 1.0f, 0.8f};   /* VOX 3 dB under 0.10's */
+static float mix_level[NPARTS] = {1.0f, 0.57f, 0.9f, 1.0f, 0.8f}, mix_rev[NPARTS], mix_dly[NPARTS];
 static float rev_base[NPARTS], dly_base[NPARTS], space_k = 1.0f;
 
 /* the FX page's settings (settings.c keeps them; they come here as commands), the hands' moves on top */
@@ -237,6 +237,8 @@ static void voice_level(int v, int lv)          /* LEVEL into the mix: 100 is as
     static const uint8_t PART[EV_N] = {P_DRONE, P_VOX, P_PULSE, P_TEX};
     float l = (float)lv * (1.0f / 100.0f);
     mix_level[PART[v]] = MIX_BASE[PART[v]] * l * l;
+    if (v == EV_PULSE)                           /* (the bloom with the kick: PULSE's LEVEL) */
+        mix_level[P_BLOOM] = MIX_BASE[P_BLOOM] * l * l;
 }
 
 static void scene_default(void)
@@ -281,6 +283,8 @@ static void scene_default(void)
     dly_base[P_PULSE] = 0.0f;
     rev_base[P_TEX] = 70.0f / 127.0f;            /* the wind far off */
     dly_base[P_TEX] = 20.0f / 127.0f;
+    rev_base[P_BLOOM] = 96.0f / 127.0f;          /* the bloom deep in the reverb, a little echo */
+    dly_base[P_BLOOM] = 28.0f / 127.0f;
     for (v = 0; v < NPARTS; v++) {
         mix_rev[v] = rev_base[v];
         mix_dly[v] = dly_base[v];
@@ -443,7 +447,7 @@ static void conduct(void)
     if (moved(K_PDEC, sh[EV_PULSE][SH_K2]))
         pulse_set(&pulse, PL_DECAY, sh[EV_PULSE][SH_K2]);
     if (moved(K_PTICK, sh[EV_PULSE][SH_K3]))
-        pulse_set(&pulse, PL_TICK, sh[EV_PULSE][SH_K3]);
+        pulse_set(&pulse, PL_CLICK, sh[EV_PULSE][SH_K3]);
     if (moved(K_ROOT, o->root_midi))
         pulse_root(&pulse, o->root_midi);
     /* TEXTURE */
@@ -468,7 +472,7 @@ static void conduct(void)
         master_set(&mst, MST_DJF, x);            /* (64: off; under 60, the low-pass closing) */
     {   /* SPACE: the scene's x the macro, 64 x 64 as made; each voice's own send on top (VOX's bent); a
          * FREEZE closes what goes in, so the reverb holds what it has */
-        static const uint8_t SEND[NPARTS] = {64, 0, 0, 64};
+        static const uint8_t SEND[NPARTS] = {64, 0, 0, 64, 64};
         float shut = 1.0f - 0.9f * freeze;
         space_k = fm_clampf(o->space * jr.macro_s[MAC_SPACE] * (1.0f / (80.0f * 64.0f)), 0.0f, 1.8f);
         for (v = 0; v < NPARTS; v++) {
@@ -539,7 +543,7 @@ static void test_tick(uint32_t n)                /* VOX's chords, PULSE's 8ths *
         test_left -= n;
         return;
     }
-    hit(PULSE_TICK, 0.7f);                       /* PULSE: the tick each eighth, the kick each quarter */
+    hit(PULSE_BLOOM, 0.7f);                      /* PULSE: a bloom each eighth, the kick each quarter */
     if (!(test_i & 1u))
         hit(PULSE_KICK, 1.0f);
     if ((test_i & 7u) == 0u) {
@@ -795,6 +799,7 @@ __attribute__((noinline)) static void add_glide(float *dst, const float *src, gl
 }
 enum { GL_L, GL_R, GL_REV, GL_DLY, GL_N };
 static glide_t mix_glide[NPARTS][GL_N] = {{{-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}}, {{-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}},
+                                          {{-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}},
                                           {{-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}}, {{-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}}};
 static void mix_targets(int p)
 {
@@ -820,7 +825,8 @@ static float dn2_l[256] POOL, dn2_r[256] POOL;
 static float mono[256] POOL, vox_l[256] POOL, vox_r[256] POOL;
 static float out_l[256] POOL, out_r[256] POOL, rev[256] POOL, dly[256] POOL;
 static uint8_t vox_was_active, pulse_was_active, bus_par;
-static float pulse_l[256] POOL, pulse_r[256] POOL, tex_l[256] POOL, tex_r[256] POOL;
+static float pulse_l[256] POOL, pulse_r[256] POOL, tex_l[256] POOL, tex_r[256] POOL, bloom_l[256] POOL, bloom_r[256] POOL;
+static uint8_t bloom_was_active;
 static uint8_t tex_was_active;
 static uint8_t bus_due, bus_plan;               /* the last block planned voices: its bus runs now, on its plan */
 static uint32_t bus_n;
@@ -917,8 +923,9 @@ static void core2_job(uint32_t arg)
     pulse_was_active = (uint8_t)pulse_active(&pulse);
     if (pulse_was_active) {
         for (i = 0; i < n; i++)
-            pulse_l[i] = pulse_r[i] = 0.0f;
-        pulse_render(&pulse, pulse_l, pulse_r, (int)n);
+            pulse_l[i] = pulse_r[i] = bloom_l[i] = bloom_r[i] = 0.0f;
+        bloom_was_active = (uint8_t)pulse_blooming(&pulse);
+        pulse_render(&pulse, pulse_l, pulse_r, bloom_l, bloom_r, (int)n);
         st_t[ST_PULSE] = plat_ticks24() - t;
     }
     t = plat_ticks24();
@@ -999,6 +1006,7 @@ void engine_render(int32_t *out_lr, uint32_t n)
     mix_targets(P_VOX);
     mix_targets(P_PULSE);
     mix_targets(P_TEX);
+    mix_targets(P_BLOOM);
     if (bus_due) {                               /* the drone: the last block's voices, through the bus */
         const float *bl = dbus[bus_par ^ 1u][0], *br = dbus[bus_par ^ 1u][1];
         uint32_t m = bus_n < n ? bus_n : n;      /* (the device's blocks are all 256: equal) */
@@ -1021,6 +1029,16 @@ void engine_render(int32_t *out_lr, uint32_t n)
         for (i = 0; i < n; i++)
             mono[i] = (pulse_l[i] + pulse_r[i]) * 0.5f;
         add_glide(out_l, pulse_l, &mix_glide[P_PULSE][GL_L], n);
+        if (bloom_was_active) {
+            float *bm = dly;                         /* (its mono into the sends straight away: mono is the kick's) */
+            uint32_t j;
+            add_glide(out_l, bloom_l, &mix_glide[P_BLOOM][GL_L], n);
+            add_glide(out_r, bloom_r, &mix_glide[P_BLOOM][GL_R], n);
+            for (j = 0; j < n; j++)
+                bloom_l[j] = (bloom_l[j] + bloom_r[j]) * 0.5f;
+            add_glide(rev, bloom_l, &mix_glide[P_BLOOM][GL_REV], n);
+            add_glide(bm, bloom_l, &mix_glide[P_BLOOM][GL_DLY], n);
+        }
         add_glide(out_r, pulse_r, &mix_glide[P_PULSE][GL_R], n);
         add_glide(rev, mono, &mix_glide[P_PULSE][GL_REV], n);
     }
