@@ -82,7 +82,7 @@ Or from the web installer, served from `localhost` (Web MIDI needs a secure cont
 
 ```
 ./build.sh --release 1.0                          # the site wants a release build (identity FM-1_73XXYYZZ)
-python3 tools/make_pages.py build/penumbra-0.7-beta.fwsc 0.7-beta build/pages
+python3 tools/make_pages.py build/penumbra-1.0.fwsc 1.0 build/pages
 cd build/pages && python3 -m http.server 8000
 # open http://localhost:8000/install/
 ```

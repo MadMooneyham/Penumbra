@@ -1,93 +1,75 @@
 # Penumbra
 
-A space-drone instrument for the M-VAVE FM-1, by Lunar Eclipse Forge. Switch it on and the drone swells in;
-you play over it, loop it, shape it and move it from place to place. The sound it aims for is the ELTA Solar
-42's: thick, slowly beating drones, an oscillator voice far back in the shimmer, deep soft pulses, a long wash
-of delay. The space between the sounds is part of the sound.
+![Penumbra's HOME screen](assets/card.png)
 
-Version 1.0, identity `FM-1_73010000` (release builds are `FM-1_73XXYYZZ`). Install it from a release's
-`.fwsc` with the web installer (Chrome or Edge), or from thefirmwarehub.com once it is listed; the package
-carries the update loader, so you can always leave it again. What is new: RELEASE-1.0.md.
+**A space-drone instrument for the M-VAVE FM-1**, by Lunar Eclipse Forge.
 
-Penumbra is a rewrite of its first, X0X-based version (kept at the tag `penumbra-0.6-shelved`). The design, its
-phases and their gates are in the document "Penumbra: rewrite design". This tree has:
+Switch it on and a deep drone swells in, five slowly beating voices held on a pedal. You play over it:
 
-- the platform carried over from X0X and Felucca: boot and crash guards, flash storage, the update path and web
-  installer, USB MIDI and audio, MIDI on the TRS jack, the second core, panel calibration, the screen and fonts,
-  the screen reader;
-- four voices: DRONE (five voices, SWARM), VOX (a four-voice oscillator synth: two oscillators from saw to a
-  narrow pulse, a filter from low-pass to band-pass, glide), PULSE (a deep kick tuned to the key, and BLOOM: a deep, slow swell in the key, far back)
-  and TEXTURE (a bed of space wind), into the shimmer reverb, the tape delay and the master stage;
-- journeys: banks of scenes, each a key and scale, the drone's root and voicing, VOX's brightness and register,
-  the space and the wind; with the sound (SHAPE's, the drone voices' own, VOX's four sounds). Six presets, eight
-  user slots;
-- the drone is the backbone: a pedal held through the whole scene. A new scene moves only the notes it must,
-  one voice at a time, a few seconds apart, sliding slowly; each preset keeps its drone's root from scene to
-  scene. A drone voice can come and go instead (SWELL);
-- the looper: VOX's notes and PULSE's hits, on the clock, in layers; it follows the scene (its notes are the
-  key's degrees), plays at half or double speed, and is saved;
-- storage: the journey playing and its loop carry on after a power cut;
-- SLEEP: in 20 to 90 minutes it lets everything go;
-- MIDI clock in and out (24 ppqn, START / STOP), followed or sent as SYSTEM sets it;
-- the benchmark: BENCH shows each stage of the render, average and worst block of the last second, as a share
-  of the real-time budget, per core; SEL runs the load test (the voices at their heaviest).
+- **VOX** is a soft synth voice that sits far back in a long shimmer reverb.
+- **BLOOM** is a slow swell in the key.
+- **The looper** follows the scene's key.
+- **The holds** let you play the sound itself, with throws, bends and freeze.
+- **MORPH** walks from one place to the next by hand.
 
-Nothing plays by itself but the drone you latch (and a SWELL voice now and then).
+The sound it reaches for is the cinematic drone of the ELTA Solar 42: thick, slow, and full of space. The
+silence between the notes is part of it.
 
-## Playing it
+Version 1.0 · identity `FM-1_73010000` · GPL-3.0
 
-The clock starts at power-on and the scene's drones swell in (SYSTEM > PLAY AT POWER-ON).
+## Install
 
-| Control | What it does |
-| --- | --- |
-| White keys | VOX, in the scene's key and scale |
-| Black keys 1-5 | the drone voices: latched when let go; a SWELL voice: played when pressed |
-| Black keys 6, 7 | PULSE's kick; BLOOM, a deep slow swell in the key (both loop) |
-| Black keys 8-11 | VOX's four sounds: GLASS, REED, HALO, LOW (mid-phrase too) |
-| KNOBS 1-4 on HOME | DRONE (its filter and body), VOX (its brightness), SPACE (reverb and delay), TONE (everything brighter or darker) |
-| SELECT on HOME | MORPH: by hand toward the next scene (right) or the one before (left); past the middle its key, all the way there |
-| PRESET | the next scene, or the one before: it glides there (12 s) |
-| ALGO | the tempo (on SHAPE: the voice's level) |
-| SEQ | the clock: start and stop, with a fade (MIDI clock out, if on) |
-| REC | the looper: record (the clock starts if it is not); again: it plays (its length the nearest beat); again: a layer over it; again: kept |
-| PLAY | the loop: stop, or play from its start; held and let go: undo the last layer; held, ALGO: half speed, as played, double |
-| REC with PLAY | clear the loop |
-| ARP | FREEZE: the notes held keep sounding when let go; again: they ring out (and what is held now freezes) |
-| ENV | SHAPE (ENV again: the next page): DRONE filter, body, swarm, wave; VOX bright, attack, release, shimmer; VOX 2 wave, filter, reso, glide; VOX 3 detune, B octave, B mix, envelope; PULSE drop, decay, click, space; TEXTURE colour, sweep, rate, width. VOX's pages shape the sound playing. SEL twice: the page back as made |
-| EDIT | SCENE: the scenes' key, scale, drone root, voicing and the rest; SEL stores the moment as a new scene |
-| FX | the reverb and the delay |
-| LFO | JOURNEY: SEL opens a preset or a user journey; SAVE stores the one playing in a user slot |
-| GLO | SYSTEM (the settings: among them BEND RANGE, 2 to 12 semitones, SLEEP, and RESET SOUND: SEL twice puts every voice, VOX's four sounds, the FX page and HOME's macros back as made; the scenes, the loop and the tempo stay), then BENCH |
-| HOME | back to the corona |
-| SAVE | save now (it saves by itself once the sound is quiet, so after STOP); in a hold: keep what the knobs did |
-| OCT- / OCT+ | the white keys' octave |
-| Any button held | says what it does, and does nothing else (PLAY held: the undo) |
-| OCT- + OCT+ held 5 s | the chip's update mode |
+- **The easy way:** install it in one click from [The Firmware Hub](https://thefirmwarehub.com/) once it is
+  listed there.
+- **By hand:** download `penumbra-1.0.fwsc` from this repository's
+  [Releases](https://github.com/MadMooneyham/Penumbra/releases), and write it with an FM-1 firmware installer.
+  BUILDING.md explains how to build and serve the web installer.
 
-Pages go back to HOME after 30 s untouched (not BENCH).
+Penumbra carries the update loader, so you can always go back to another firmware or to M-VAVE's own. If an
+install ever won't start, hold **OCT-** and **OCT+** for five seconds to put the FM-1 in update mode.
 
-Holds: while one is held, the four knobs play something else, on any page.
+## Two minutes in
 
-| Hold | The knobs | Let go |
-| --- | --- | --- |
-| A drone key (black 1-5) | that voice's level, tone, detune, octave; ALGO: HELD (left) or SWELL (right) | it stays as shaped (and the key does not latch) |
-| A VOX sound key (black 8-11) | that sound's brightness, wave, filter, release | it stays as shaped |
-| BLOOM's key (black 7) | its level, length, height (on the root, an octave over, two), fifth | it stays as shaped |
-| FX | throws: shimmer, delay feedback, freeze (the reverb holds), dip (the mix's low-pass) | they drift back over a couple of seconds; SAVE while holding keeps them, until FX is held and turned again |
-| A white key | bend VOX: brightness, vibrato, shimmer, release; ALGO: the pitch of every note sounding (frozen and looped too) | they drift back; SAVE while holding puts them into VOX's sound, and keeps the pitch bent until the next note |
+1. **Switch it on.** The clock starts and the drone swells in.
+2. **Play the white keys.** VOX plays in the scene's key, so every note fits. Leave space between them.
+3. **Press black key 7** for a BLOOM, and black keys 8-11 to change VOX's sound.
+4. **Press REC, play a phrase, then press REC again.** It loops. Press REC once more to layer over it.
+5. **Turn PRESET** to move to the next scene: everything glides there, and the loop follows the key.
+6. **Hold FX and turn K1** to throw the shimmer. Let go and it drifts back.
+7. **Hold a white key and turn ALGO** to bend the note's pitch.
 
-A drone voice is HELD (its key latches it; the journey holds it on the pedal) or SWELL: it comes and goes,
-swelled in every few bars while the clock runs, and its key plays it, a swell in and out each press. Each
-voice is set apart; the choice is saved with the journey.
+Everything else, from the drone voices to the looper, holds, scenes and sound pages, is in the
+**[manual](MANUAL.md)**. Its last section is a one-page cheat sheet.
 
-The loop is VOX's notes and PULSE's hits, played back as they were played (up to 16 bars, 8 layers). Its notes
-are kept as degrees of the scene's key, so in a new scene (or MORPH) it plays the same tune in that key. It is
-saved with the journey playing (not in the user slots), and plays again when the clock starts. MIDI pitch bend
-in bends VOX like ALGO does.
+## What's in it
 
-SLEEP (SYSTEM, this session only): three minutes before the end the loop stops and FREEZE lets go, then a
-drone voice falls away every 30 s, top first, and at the end the clock stops.
+- **DRONE**: five voices on black keys 1-5, each held or coming and going, with a SWARM that thickens them.
+- **VOX**: a four-voice synth on the white keys. It has four sounds (GLASS, REED, HALO, LOW), a wave from saw
+  to a narrow pulse, a filter from low-pass to band-pass, and glide.
+- **PULSE**: a deep kick tuned to the key, and BLOOM.
+- **TEXTURE**: a bed of space wind, always under the rest.
+- **Effects**: a shimmer reverb, a worn tape delay, and a master stage.
+- **Journeys**: six preset banks of scenes, and eight user slots. The journey playing, with its loop, survives
+  a power cut.
+- **Extras**: MIDI clock in and out, VOX over MIDI (with pitch bend), USB audio, a SLEEP timer, and
+  screen-reader support.
 
-Opening a preset keeps the sound you have; a user journey brings its own.
+## For developers
 
-Building and testing: BUILDING.md. Licences and credits: LICENSING.md.
+Penumbra is written in C for the FM-1's JieLi AC791N. Its audio engine runs on both cores, and the whole app
+also runs on a desktop simulator for testing.
+
+- **Building:** BUILDING.md covers the toolchain, `./build.sh --release X.Y`, and the web installer.
+  - Release builds are `FM-1_73XXYYZZ`; development builds are `FM-1_730`.
+- **Tests:** `tests/run_tests.sh` runs the unit tests, the simulator's scenarios (`tests/scenarios/*.pen`)
+  and the click checks.
+- **Where things are:**
+  - `firmware/src/dsp/`: the voices;
+  - `firmware/src/seq/`: the journeys and the looper;
+  - `firmware/src/app/`: the engine, the UI and the settings;
+  - `host/`: the simulator.
+- **Licence:** GPL-3.0-only. Penumbra is built on [Felucca](https://github.com/hugelton/Felucca) (Leo
+  Kuroshita, Hügelton Instruments) and [X0X](https://github.com/charlesvestal/fm1-x0x) (Charles Vestal). The
+  full credits are in LICENSING.md.
+
+M-VAVE and FM-1 are trademarks of their owners.
