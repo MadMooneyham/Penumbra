@@ -1,6 +1,8 @@
 # PLAY AT POWER-ON: the clock starts and the scene's drones latch; nothing else plays by itself. PRESET
 # moves to the next scene, the one before: it glides there (12 s), the drone holding its pedal. HOME's
-# knobs are the macros DRONE, VOX, SPACE, TONE. SEQ: it all falls away. Audio in journey.wav.
+# knobs are the macros DRONE, VOX, SPACE, TONE. SEQ: it all falls away. Audio in journey.wav. (The
+# guard sees a steady 30 %: the host's own timing, on a busy machine, would trip it; guard.pen tests it.)
+load 30
 wav journey.wav
 wait 2000
 expect playing 1
