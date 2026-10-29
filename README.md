@@ -49,11 +49,11 @@ The clock starts at power-on and the scene's drones swell in (SYSTEM > PLAY AT P
 | PLAY | the loop: stop, or play from its start; held and let go: undo the last layer; held, ALGO: half speed, as played, double |
 | REC with PLAY | clear the loop |
 | ARP | FREEZE: the notes held keep sounding when let go; again: they ring out (and what is held now freezes) |
-| ENV | SHAPE (ENV again: the next page): DRONE filter, body, swarm, wave; VOX bright, attack, release, shimmer; VOX 2 wave, filter, reso, glide; VOX 3 detune, B octave, B mix, envelope; PULSE drop, decay, tick, space; TEXTURE colour, sweep, rate, width. VOX's pages shape the sound playing |
+| ENV | SHAPE (ENV again: the next page): DRONE filter, body, swarm, wave; VOX bright, attack, release, shimmer; VOX 2 wave, filter, reso, glide; VOX 3 detune, B octave, B mix, envelope; PULSE drop, decay, tick, space; TEXTURE colour, sweep, rate, width. VOX's pages shape the sound playing. SEL twice: the page back as made |
 | EDIT | SCENE: the scenes' key, scale, drone root, voicing and the rest; SEL stores the moment as a new scene |
 | FX | the reverb and the delay |
 | LFO | JOURNEY: SEL opens a preset or a user journey; SAVE stores the one playing in a user slot |
-| GLO | SYSTEM (the settings: among them BEND RANGE, 2 to 12 semitones, and SLEEP), then BENCH |
+| GLO | SYSTEM (the settings: among them BEND RANGE, 2 to 12 semitones, SLEEP, and RESET SOUND: SEL twice puts every voice, VOX's four sounds, the FX page and HOME's macros back as made; the scenes, the loop and the tempo stay), then BENCH |
 | HOME | back to the corona |
 | SAVE | save now (it saves by itself once the sound is quiet, so after STOP); in a hold: keep what the knobs did |
 | OCT- / OCT+ | the white keys' octave |

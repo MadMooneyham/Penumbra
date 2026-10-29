@@ -1,0 +1,62 @@
+# RESET: SHAPE's SEL (twice) puts the page shown back as made (DRONE with its voices' own; VOX's pages the
+# sound playing); SYSTEM > RESET SOUND (SEL twice) all of it: every page, the four VOX sounds, the FX page,
+# HOME's macros, a throw kept. The scenes, the tempo and the loop stay. Once alone does nothing.
+autoplay 0
+wait 300
+tap ENV
+turn K1 10
+expect shape11 95
+key b2 down
+turn K2 -5
+key b2 up
+expect dvoice32 65
+tap SEL
+wait 100
+expect shape11 95
+shot reset_ask.png
+tap SEL
+wait 100
+expect shape11 75
+expect dvoice32 75
+turn SELECT 1
+turn K1 8
+expect vs1.1 80
+tap SEL
+wait 4000
+tap SEL
+wait 100
+expect vs1.1 80
+tap SEL
+wait 100
+expect vs1.1 64
+tap ENV
+turn K2 6
+expect vs1.7 12
+tap FX
+turn K1 -4
+expect fx0 83
+tap HOME
+turn K3 -5
+expect macro3 54
+press FX
+turn K3 10
+tap SAVE
+release FX
+wait 100
+expect perf2 40
+turn ALGO 5
+expect set_bpm 95
+tap GLO
+turn SELECT 10
+tap SEL
+wait 100
+expect vs1.7 12
+tap SEL
+wait 100
+expect vs1.7 0
+expect fx0 91
+expect macro3 64
+expect perf2 0
+expect set_bpm 95
+expect nscenes 4
+expect clips 0

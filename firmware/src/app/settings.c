@@ -86,6 +86,13 @@ int settings_load(void)
 
 int settings_save(void) { return plat_store_save(OBJ_SET, &cfg, sizeof cfg); }
 
+void settings_fx_default(void)
+{
+    uint32_t v;
+    for (v = 0; v < EF_N; v++)
+        cfg.fx[v] = FX_DEF[v];
+}
+
 void settings_apply(void)
 {
     int v;

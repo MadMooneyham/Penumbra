@@ -40,6 +40,7 @@ void settings_defaults(void);
 int settings_load(void);                 /* 0 = loaded; else the defaults are in place */
 int settings_save(void);                 /* 0 = saved */
 void settings_apply(void);               /* into the engine and the clock */
+void settings_fx_default(void);          /* the FX page as made (then settings_apply) */
 
 /* journeys: the one playing (eng_jr) is saved with the settings (OBJ_WORK), so it carries on after a
  * power cut; 8 user slots (OBJ_USER) beside the 6 presets */

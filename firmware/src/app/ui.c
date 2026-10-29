@@ -83,6 +83,8 @@ typedef struct {
     uint8_t sleep, sleep_step;         /* SLEEP's choice; how far its letting go has got */
     uint32_t sleep_at;                 /* when it is all gone */
     uint32_t lp_edits;                 /* the loop's, as last seen (a change: it is saved) */
+    uint8_t rs_what;                   /* RESET asked for (a SHAPE page, RS_ALL; 0 none) ... */
+    uint32_t rs_until;                 /* ... until then */
     uint32_t perf_t;                   /* the last drift */
 } ui_t;
 static ui_t ui;
@@ -150,11 +152,11 @@ static int wrap_i(int v, int n) { return ((v % n) + n) % n; }
 
 /* ================================================================ settings === */
 /* SYSTEM's rows: a setting, its choices, and what a change does */
-enum { R_CLKOUT, R_CLKIN, R_MIDICH, R_CORES, R_DRNCORE, R_OUTLOUD, R_USBFULL, R_AUTOPLAY, R_BEND, R_SLEEP, R_ABOUT,
-       NROWS };
+enum { R_CLKOUT, R_CLKIN, R_MIDICH, R_CORES, R_DRNCORE, R_OUTLOUD, R_USBFULL, R_AUTOPLAY, R_BEND, R_SLEEP, R_RESET,
+       R_ABOUT, NROWS };
 static const char *const ROW_N[NROWS] = {"MIDI CLOCK OUT", "FOLLOW CLOCK IN", "VOX MIDI CH", "2ND CORE",
                                          "DRONE CORE", "OUTPUT LEVEL", "USB AUDIO", "PLAY AT POWER-ON",
-                                         "BEND RANGE", "SLEEP", "ABOUT"};
+                                         "BEND RANGE", "SLEEP", "RESET SOUND", "ABOUT"};
 /* SLEEP: in so many minutes it lets everything go (this session's: not saved) */
 #define SLEEPS 5
 static const uint8_t SLEEP_MIN[SLEEPS] = {0, 20, 40, 60, 90};
@@ -165,7 +167,8 @@ static const char *const USB_N[] = {"MASTER", "FULL"};
 
 static int row_n(int r)                           /* choices; 0: not a setting */
 {
-    return r == R_MIDICH ? 17 : r == R_DRNCORE ? 3 : r == R_BEND ? BEND_RANGES : r == R_SLEEP ? SLEEPS : r == R_ABOUT ? 0 : 2;
+    return r == R_MIDICH ? 17 : r == R_DRNCORE ? 3 : r == R_BEND ? BEND_RANGES : r == R_SLEEP ? SLEEPS
+           : r == R_ABOUT || r == R_RESET ? 0 : 2;
 }
 static int row_get(int r)
 {
@@ -203,6 +206,7 @@ static void row_text(int r, char *b)
         else
             put_s(b, "OFF");
         break;
+    case R_RESET: put_s(b, "SEL TWICE"); break;
     case R_ABOUT: put_s(put_s(put_s(b, FW_NAME), " "), PEN_VERSION); break;
     default: put_s(b, ONOFF_N[v ? 1 : 0]); break;
     }
@@ -678,6 +682,66 @@ static int keep_hold(void)
     return 0;
 }
 
+/* ------------------------------------------------------------------ RESET --- */
+/* the sound back as made: SHAPE's SEL the page shown (DRONE with its voices' own; VOX's pages the sound
+ * playing), SYSTEM's RESET SOUND all of it (every page, the four VOX sounds, the drone voices held, the
+ * FX page, HOME's macros, the hands' moves). The scenes, the loop, the tempo and the settings stay.
+ * SEL once asks; again within RESET_MS, it is done */
+#define RESET_MS 3000u
+#define RS_ALL 0xFF
+static void reset_now(int what)
+{
+    static journey_t d;                           /* (the sound as made: jr_sound_default's part of it) */
+    const int all = what == RS_ALL, voice = all ? -1 : PAGE[(what - 1) % NPG].voice;
+    int v, k;
+    jr_sound_default(&d);
+    for (v = 0; v < EV_N; v++)
+        if (all || (v == voice && v != EV_VOX))
+            for (k = 0; k < SH_N; k++)
+                eng_jr.shape[v][k] = d.shape[v][k];
+    if (all || voice == EV_DRONE)
+        for (v = 0; v < ENG_DRONES; v++)
+            for (k = 0; k < DV_N; k++)
+                eng_jr.dvoice[v][k] = d.dvoice[v][k];
+    for (v = 0; v < JR_VSOUNDS; v++)
+        if (all || (voice == EV_VOX && v == eng_jr.vcur))
+            for (k = 0; k < JR_VS; k++)
+                eng_jr.vsound[v][k] = d.vsound[v][k];
+    if (all) {
+        eng_jr.dswell = 0;
+        for (k = 0; k < NMACROS; k++)
+            eng_jr.macro[k] = 64;
+        settings_fx_default();
+        settings_apply();
+        changed();
+        for (k = 0; k < 4; k++)
+            ui.thr[k] = ui.bend[k] = 0.0f;
+        ui.pitch = 0.0f;
+        ui.thr_kept = ui.thr_back = ui.bend_back = ui.pitch_kept = ui.pitch_back = 0;
+        perf_send();
+    }
+    changed_jr();
+    if (all)
+        say("SOUND RESET", 0);
+    else
+        say(voice == EV_VOX ? jr_vsound_name(eng_jr.vcur) : PAGE[(what - 1) % NPG].name, " RESET");
+}
+static void reset_ask(int what)                   /* SEL: once asks, twice does */
+{
+    char t[40];
+    if (ui.rs_what == what && (int32_t)(ui.rs_until - plat_ms()) > 0) {
+        ui.rs_what = 0;
+        reset_now(what);
+        return;
+    }
+    ui.rs_what = (uint8_t)what;
+    ui.rs_until = plat_ms() + RESET_MS;
+    put_s(put_s(t, "SEL AGAIN: RESET "), what == RS_ALL ? "ALL SOUND"
+                                         : PAGE[(what - 1) % NPG].voice == EV_VOX ? jr_vsound_name(eng_jr.vcur)
+                                                                            : PAGE[(what - 1) % NPG].name);
+    warn(t, 0);
+}
+
 /* ------------------------------------------------------------------ SLEEP --- */
 /* the last three minutes: the loop stops and what is frozen lets go; then every 30 s a drone voice falls
  * away, the top first, into the reverb; at the end the clock stops (and it all fades) */
@@ -784,7 +848,11 @@ static void button(int i)
         break;
     }
     case B_SEL:
-        if (ui.view == V_SYSTEM)
+        if (ui.view == V_SYSTEM && ui.row == R_RESET)
+            reset_ask(RS_ALL);
+        else if (ui.view == V_SHAPE)
+            reset_ask(ui.vsel + 1);               /* (0 is no page: rs_what's none) */
+        else if (ui.view == V_SYSTEM)
             row_set(ui.row, row_get(ui.row) + 1);
         else if (ui.view == V_BENCH) {
             int on = !engine_load_testing();      /* (the engine takes it at its next block) */
