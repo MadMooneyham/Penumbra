@@ -5,7 +5,9 @@
  *            the music, a bead on the rim for each drone voice, a star for each note you play. Under
  *            it the scene, the moon's phase, the mode and the loops. KNOBS 1-4: the macros DRIFT,
  *            DENSITY, SPACE, TONE.
- *   VOICES   each voice's LEVEL, TONE, character and SPACE (SELECT: the voice)
+ *   SHAPE    a voice's sound, four knobs each, ALGO its level (ENV again, or SELECT: the next voice):
+ *            DRONE filter, body, swarm, wave; VOX bright, attack, release, shimmer; PULSE drop, decay,
+ *            tick, space; TEXTURE colour, sweep, rate, width. Saved with the journey
  *   SCENE    the journey's scenes, field by field (SELECT: the field, KNOB 1: the scene, 2-4: change
  *            it); SEL stores the moment as a new scene
  *   LOOP     a captured loop's steps (SELECT: VOX, PULSE; KNOB 1 the step, 2 its note, 3 on
@@ -16,12 +18,21 @@
  *   BENCH    the benchmark: each stage of the render, average and worst block; SEL: the load test
  *
  * Buttons, one job each (they act when let go; held, they say what they do instead):
- *   HOME home, ENV VOICES, EDIT SCENE, SEQ LOOP, FX FX, LFO JOURNEY, GLO SYSTEM then BENCH,
+ *   HOME home, ENV SHAPE, EDIT SCENE, SEQ LOOP, FX FX, LFO JOURNEY, GLO SYSTEM then BENCH,
  *   ARP the mode (PLAY, GUIDE, DRIFT), PLAY starts and stops (with a fade), REC loops what plays (PLAY
  *   mode: records VOX from the keys for a bar; pressed with loops on: lets them go), SAVE saves now,
  *   SEL the page's action, OCT- / OCT+ the white keys' octave.
- * Keys: black 1-5 latch the drone voices, 6 and 7 hit PULSE; the white keys follow the mode.
- * ALGO: the tempo. PRESET: the journeys (opens JOURNEY). Every page but BENCH goes home after 30 s idle.
+ * Keys: black 1-5 latch the drone voices (when let go), 6 and 7 hit PULSE; the white keys follow the mode.
+ * ALGO: the tempo (SHAPE: the voice's level). PRESET: the journeys (opens JOURNEY). Every page but
+ * BENCH goes home after 30 s idle.
+ *
+ * Holds: the knobs play something else while one is held, on any page.
+ *   a drone key   that voice's LEVEL, TONE, DETUNE, OCTAVE; it stays (and the key does not latch)
+ *   FX            THROWS: SHIMMER, FEEDBACK, FREEZE, DIP; let go, they drift back
+ *   a white key   (PLAY, GUIDE) BENDS VOX: BRIGHT, VIBRATO, SHIMMER, RELEASE; let go, they drift back
+ * SAVE while holding FX or a white key keeps what the knobs did: the bends go into VOX's sound, the
+ * throws stay where they are until FX is held again.
+ *
  *
  * The screen is three bands (header, main, knob strip), each drawn into Felucca's canvas and
  * blitted only where its pixels changed: SPI time is the scarce thing. */
@@ -33,11 +44,15 @@ static const int8_t KEY_WHITE[NKEYS] = {0, -1, 1, -1, 2, -1, 3, 4, -1, 5, -1, 6,
 static const int8_t KEY_BLACK[NKEYS] = {-1, 0, -1, 1, -1, 2, -1, -1, 3, -1, 4, -1, -1, 5, -1, 6, -1, 7, -1, -1, 8, -1, 9, -1, -1, 10, -1};
 static uint8_t BLACK_KEY[11], WHITE_KEY[16];
 
-enum { V_HOME, V_VOICES, V_SCENE, V_LOOP, V_FX, V_JOURNEY, V_SYSTEM, V_BENCH, NVIEWS };
-static const char *const VIEW_N[NVIEWS] = {"HOME", "VOICES", "SCENE", "LOOP", "FX", "JOURNEY", "SYSTEM", "BENCH"};
+enum { V_HOME, V_SHAPE, V_SCENE, V_LOOP, V_FX, V_JOURNEY, V_SYSTEM, V_BENCH, NVIEWS };
+static const char *const VIEW_N[NVIEWS] = {"HOME", "SHAPE", "SCENE", "LOOP", "FX", "JOURNEY", "SYSTEM", "BENCH"};
 
 #define HELP_MS 600u                       /* held this long, a button says what it does instead */
+#define HELP_HOLD_MS 1500u                 /* (FX, a hold too: later, and not once the knobs have moved) */
 #define IDLE_HOME_MS 30000u
+#define BACK_S 2.0f                        /* a throw or a bend let go drifts back over this, from all the way */
+
+enum { L_PAGE, L_DRONE, L_THROW, L_BEND }; /* what the knobs play: the page's, or a hold's */
 
 typedef struct {
     uint8_t view;
@@ -53,6 +68,14 @@ typedef struct {
     uint32_t act_t;                    /* the last change (a save waits for quiet) */
     uint32_t touch_t;                  /* the last touch (pages go home when idle) */
     uint8_t stars;                     /* notes played since the last frame: a star each */
+    /* the holds */
+    uint8_t dheld, dturned;            /* drone keys held (bit v); a knob moved while they were */
+    uint16_t wheld;                    /* white keys held (bit w) */
+    uint32_t used;                     /* buttons held as a hold this press: they do not act when let go */
+    float thr[4], bend[4];             /* THROWS 0..127 (PF_SHIMMER..), BENDS -64..64 (PF_BRIGHT..) */
+    int16_t sent[PF_N];                /* what the engine has */
+    uint8_t thr_kept, thr_back, bend_back;
+    uint32_t perf_t;                   /* the last drift */
 } ui_t;
 static ui_t ui;
 
@@ -230,21 +253,22 @@ static const char *const LOOP_N[JR_LOOPS] = {"VOX", "PULSE"};
 static const char *const MACRO_N[NMACROS] = {"DRIFT", "DENSITY", "SPACE", "TONE"};
 
 /* SCENE's fields */
-enum { SF_KEY, SF_SCALE, SF_CHORDS, SF_VOICING, SF_DENSITY, SF_PULSE, SF_BRIGHT, SF_SWARM, SF_SPACE, SF_WIND,
+/* (the scene's swarm is no longer heard: the drone's sound is SHAPE's, not the scene's) */
+enum { SF_KEY, SF_SCALE, SF_CHORDS, SF_PEDAL, SF_VOICING, SF_DENSITY, SF_PULSE, SF_BRIGHT, SF_SPACE, SF_WIND,
        SF_COLOUR, SF_REG, SF_PENTA, NSF };
-static const char *const SF_N[NSF] = {"KEY", "SCALE", "CHORDS", "VOICING", "DENSITY", "PULSE", "BRIGHTNESS",
-                                      "SWARM", "SPACE", "WIND", "WIND COLOUR", "REGISTER", "PENTATONIC"};
+static const char *const SF_N[NSF] = {"KEY", "SCALE", "CHORDS", "DRONE ROOT", "VOICING", "DENSITY", "PULSE",
+                                      "VOX BRIGHTNESS", "SPACE", "WIND", "WIND COLOUR", "REGISTER", "PENTATONIC"};
 static uint8_t *sf_ptr(scene_t *s, int f)
 {
     switch (f) {
     case SF_KEY: return &s->root;
     case SF_SCALE: return &s->scale;
     case SF_CHORDS: return &s->prog;
+    case SF_PEDAL: return &s->pedal;
     case SF_VOICING: return &s->voicing;
     case SF_DENSITY: return &s->density;
     case SF_PULSE: return &s->pulse;
     case SF_BRIGHT: return &s->bright;
-    case SF_SWARM: return &s->swarm;
     case SF_SPACE: return &s->space;
     case SF_WIND: return &s->tex;
     case SF_COLOUR: return &s->colour;
@@ -258,6 +282,7 @@ static void sf_text(const scene_t *s, int f, char *b)
     case SF_KEY: put_s(b, jr_root_name(s->root)); break;
     case SF_SCALE: put_s(b, jr_scale_name(s->scale)); break;
     case SF_CHORDS: put_s(b, jr_prog_name(s->prog)); break;
+    case SF_PEDAL: put_s(b, s->pedal ? jr_root_name(s->pedal - 1) : "THE KEY"); break;
     case SF_VOICING: put_s(b, jr_voicing_name(s->voicing)); break;
     case SF_REG: put_i(b, s->reg); break;
     case SF_PENTA: put_s(b, ONOFF_N[s->penta ? 1 : 0]); break;
@@ -273,6 +298,7 @@ static void sf_turn(int f, int e)
     case SF_KEY: *p = (uint8_t)wrap_i(*p + e, 12); break;
     case SF_SCALE: *p = (uint8_t)wrap_i(*p + e, NSCALES); break;
     case SF_CHORDS: *p = (uint8_t)wrap_i(*p + e, jr_nprogs()); break;
+    case SF_PEDAL: *p = (uint8_t)wrap_i(*p + e, 13); break;   /* (a root not in the key: the key's) */
     case SF_VOICING: *p = (uint8_t)wrap_i(*p + e, NVOICINGS); break;
     case SF_REG: *p = (uint8_t)clamp_i(*p + e, 2, 6); break;
     case SF_PENTA: *p = (uint8_t)(e > 0); break;
@@ -421,6 +447,162 @@ static void save_button(void)
     save_now();
 }
 
+/* ================================================================ the sound === */
+static const char *const VOICE_N[EV_N] = {"DRONE", "VOX", "PULSE", "TEXTURE"};
+static const char *const SHAPE_N[EV_N][4] = {{"FILTER", "BODY", "SWARM", "WAVE"},
+                                             {"BRIGHT", "ATTACK", "RELEASE", "SHIMMER"},
+                                             {"DROP", "DECAY", "TICK", "SPACE"},
+                                             {"COLOUR", "SWEEP", "RATE", "WIDTH"}};
+static int shape_signed(int v, int k)             /* an offset from as made (64): shown -64 .. +63 */
+{
+    return (v == EV_VOX && (k == 0 || k == 3)) || (v == EV_PULSE && k == 3) || (v == EV_TEX && k == 0);
+}
+static void shape_text(int v, int k, char *b)     /* k: a knob, or -1 the level */
+{
+    int x = eng_jr.shape[v][k < 0 ? SH_LEVEL : SH_K1 + k];
+    if (k >= 0 && shape_signed(v, k))
+        put_sgn(b, x - 64);
+    else
+        put_i(b, x);
+}
+static void shape_turn(int k, int e)
+{
+    char t[40], b[12];
+    uint8_t *p = &eng_jr.shape[ui.vsel][k < 0 ? SH_LEVEL : SH_K1 + k];
+    *p = (uint8_t)clamp_i(*p + 2 * e, 0, 127);
+    changed_jr();
+    shape_text(ui.vsel, k, b);
+    put_s(put_s(put_s(put_s(put_s(t, VOICE_N[ui.vsel]), " "), k < 0 ? "LEVEL" : SHAPE_N[ui.vsel][k]), " "), b);
+    say(t, 0);
+}
+
+/* ---------------------------------------------------------------- the holds --- */
+static int layer(void)
+{
+    if (ui.dheld)
+        return L_DRONE;
+    if (ui.btn >> B_FX & 1u)
+        return L_THROW;
+    if (ui.wheld && eng_jr.mode != MODE_DRIFT)
+        return L_BEND;
+    return L_PAGE;
+}
+static int lowest_bit(uint32_t m)
+{
+    int i;
+    for (i = 0; i < 31 && !(m >> i & 1u); i++)
+        ;
+    return i;
+}
+static const char *const DVF_N[DV_N] = {"LEVEL", "TONE", "DETUNE", "OCTAVE"};
+static const char *const THR_N[4] = {"SHIMMER", "FEEDBACK", "FREEZE", "DIP"};
+static const char *const BEND_N[4] = {"BRIGHT", "VIBRATO", "SHIMMER", "RELEASE"};
+static int round_i(float x) { return (int)(x + (x < 0.0f ? -0.5f : 0.5f)); }
+static void dv_text(int v, int f, char *b)
+{
+    int x = eng_jr.dvoice[v][f];
+    if (f == DV_OCT)
+        put_s(b, x == 0 ? "-1" : x == 2 ? "+1" : "0");
+    else if (f == DV_DETUNE)
+        put_sgn(b, x - 64);
+    else
+        put_i(b, x);
+}
+static void drone_knob(int k, int e)              /* the drone voices held, each the same way */
+{
+    char t[40], b[8];
+    int v, first = lowest_bit(ui.dheld);
+    for (v = 0; v < ENG_DRONES; v++)
+        if (ui.dheld >> v & 1u) {
+            uint8_t *p = &eng_jr.dvoice[v][k];
+            *p = (uint8_t)(k == DV_OCT ? clamp_i(*p + (e > 0 ? 1 : -1), 0, 2) : clamp_i(*p + 2 * e, 0, 127));
+        }
+    ui.dturned |= ui.dheld;
+    changed_jr();
+    dv_text(first, k, b);
+    put_s(put_s(put_s(put_s(put_i(put_s(t, "DRONE "), first + 1), " "), DVF_N[k]), " "), b);
+    say(t, 0);
+}
+static void throw_knob(int k, int e)
+{
+    char t[40], b[8];
+    ui.thr[k] = fm_clampf(ui.thr[k] + 4.0f * (float)e, 0.0f, 127.0f);
+    ui.thr_kept = ui.thr_back = 0;               /* (a new throw: all of them drift back at the end, unless kept) */
+    ui.used |= 1u << B_FX;
+    put_i(b, round_i(ui.thr[k]));
+    put_s(put_s(put_s(put_s(t, THR_N[k]), " THROW"), " "), b);
+    say(t, 0);
+}
+static void bend_knob(int k, int e)
+{
+    char t[40], b[8];
+    ui.bend[k] = fm_clampf(ui.bend[k] + 2.0f * (float)e, -64.0f, 64.0f);
+    ui.bend_back = 0;
+    put_sgn(b, round_i(ui.bend[k]));
+    put_s(put_s(put_s(t, BEND_N[k]), " "), b);
+    say(t, 0);
+}
+static void perf_send(void)                       /* the moves to the engine, when they change */
+{
+    int k;
+    for (k = 0; k < 4; k++) {
+        int a = round_i(ui.thr[k]), b = round_i(ui.bend[k]);
+        if (a != ui.sent[PF_SHIMMER + k])
+            engine_perf(PF_SHIMMER + k, ui.sent[PF_SHIMMER + k] = (int16_t)a);
+        if (b != ui.sent[PF_BRIGHT + k])
+            engine_perf(PF_BRIGHT + k, ui.sent[PF_BRIGHT + k] = (int16_t)b);
+    }
+}
+static void perf_tick(void)                       /* let go: back, over BACK_S from all the way */
+{
+    uint32_t now = plat_ms();
+    float dt = fm_minf((float)(now - ui.perf_t) * 0.001f, 0.1f);
+    int k, left;
+    ui.perf_t = now;
+    if (ui.thr_back) {
+        for (k = left = 0; k < 4; k++)
+            left |= (ui.thr[k] = fm_maxf(ui.thr[k] - dt * (127.0f / BACK_S), 0.0f)) > 0.0f;
+        ui.thr_back = (uint8_t)left;
+    }
+    if (ui.bend_back) {
+        for (k = left = 0; k < 4; k++) {
+            float s = dt * (64.0f / BACK_S), b = ui.bend[k];
+            ui.bend[k] = b > s ? b - s : b < -s ? b + s : 0.0f;
+            left |= ui.bend[k] != 0.0f;
+        }
+        ui.bend_back = (uint8_t)left;
+    }
+    perf_send();
+}
+static int any_thrown(void) { return ui.thr[0] > 0.5f || ui.thr[1] > 0.5f || ui.thr[2] > 0.5f || ui.thr[3] > 0.5f; }
+/* SAVE in a hold keeps it: a note's bends go into VOX's sound (its SHAPE, and its vibrato), the throws
+ * stay where they are */
+static int keep_hold(void)
+{
+    int k;
+    if (layer() == L_BEND) {
+        static const uint8_t TO[4] = {SH_K1, SH_HIDE, SH_K4, SH_K3};
+        uint8_t *sh = eng_jr.shape[EV_VOX];
+        for (k = 0; k < 4; k++) {
+            sh[TO[k]] = (uint8_t)clamp_i(sh[TO[k]] + round_i(ui.bend[k]), 0, 127);
+            ui.bend[k] = 0.0f;
+        }
+        ui.bend_back = 0;
+        perf_send();
+        changed_jr();
+        say("KEPT IN VOX", 0);
+        return 1;
+    }
+    if (layer() == L_THROW) {
+        ui.thr_kept = 1;
+        ui.thr_back = 0;
+        ui.used |= 1u << B_FX;
+        say(any_thrown() ? "THROWS KEPT" : "NOTHING THROWN", 0);
+        return 1;
+    }
+    return 0;
+}
+
 /* ================================================================== input === */
 static void set_view(int v)
 {
@@ -433,9 +615,9 @@ static void set_view(int v)
 }
 
 static const char *const HELP[NB] = {
-    [B_FX] = "FX: REVERB, DELAY",   [B_SEL] = "THE PAGE'S ACTION",  [B_ENV] = "VOICES: LEVEL, TONE",
+    [B_FX] = "FX. HELD, KNOBS: THROWS", [B_SEL] = "THE PAGE'S ACTION", [B_ENV] = "SHAPE: EACH VOICE",
     [B_LFO] = "JOURNEYS",           [B_EDIT] = "SCENE: KEY, CHORDS", [B_GLO] = "SYSTEM, BENCH",
-    [B_HOME] = "HOME",              [B_SAVE] = "SAVE ALL NOW",       [B_ARP] = "MODE: PLAY GUIDE DRIFT",
+    [B_HOME] = "HOME",              [B_SAVE] = "SAVE. IN A HOLD: KEEP IT", [B_ARP] = "MODE: PLAY GUIDE DRIFT",
     [B_SEQ] = "LOOP: CAPTURE, STEPS", [B_PLAY] = "START, STOP: FADES", [B_REC] = "LOOP WHAT PLAYS",
     [B_OCTDN] = "WHITE KEYS DOWN",  [B_OCTUP] = "WHITE KEYS UP"};
 
@@ -443,7 +625,14 @@ static void button(int i)
 {
     switch (i) {
     case B_HOME: set_view(V_HOME); break;
-    case B_ENV: set_view(V_VOICES); break;
+    case B_ENV:
+        if (ui.view == V_SHAPE) {                 /* again: the next voice */
+            ui.vsel = (uint8_t)((ui.vsel + 1) % EV_N);
+            say(VOICE_N[ui.vsel], 0);
+        } else {
+            set_view(V_SHAPE);
+        }
+        break;
     case B_EDIT:
         if (ui.view != V_SCENE)
             ui.ssel = engine_jr()->cur;
@@ -466,7 +655,10 @@ static void button(int i)
         say(eng_clock.playing ? "STOP" : "PLAY", 0);
         break;
     case B_REC: rec_button(); break;
-    case B_SAVE: save_button(); break;
+    case B_SAVE:
+        if (!keep_hold())
+            save_button();
+        break;
     case B_OCTDN:
     case B_OCTUP: {
         char t[8];
@@ -503,12 +695,10 @@ static void select_turn(int e)
         put_s(put_s(put_s(t, ROW_N[ui.row]), " "), v);
         ann_say(t, 0, ANN_NOW);
         break;
-    case V_VOICES: {
-        static const char *const VN[EV_N] = {"DRONE", "VOX", "PULSE", "TEXTURE"};
+    case V_SHAPE:
         ui.vsel = (uint8_t)clamp_i(ui.vsel + e, 0, EV_N - 1);
-        ann_say(VN[ui.vsel], 0, ANN_NOW);
+        ann_say(VOICE_N[ui.vsel], 0, ANN_NOW);
         break;
-    }
     case V_SCENE:
         ui.srow = (uint8_t)clamp_i(ui.srow + e, 0, NSF - 1);
         sf_text(scene_sel(), ui.srow, v);
@@ -533,7 +723,6 @@ static void select_turn(int e)
     }
 }
 
-static const char *const VCHAR_N[EV_N] = {"DETUNE", "ATTACK", "DECAY", "SWEEP"};
 static const char *const FX_N[EF_N] = {"DECAY", "SIZE", "SHIMMER", "TONE", "TIME", "FEEDBACK", "TONE", "WEAR"};
 static void fx_text(int i, char *b)
 {
@@ -559,17 +748,7 @@ static void knob_turn(int k, int e)
             say_n(k == MAC_DRIFT ? "DRIFT " : k == MAC_DENSITY ? "DENSITY " : k == MAC_SPACE ? "SPACE " : "TONE ", *m);
         break;
     }
-    case V_VOICES: {
-        static const char *const FN[VF_N] = {"LEVEL ", "TONE ", "", "SPACE "};
-        uint8_t *p = &cfg.voice[ui.vsel][k];
-        *p = (uint8_t)clamp_i(*p + 2 * e, 0, 127);
-        engine_voice(ui.vsel, k, *p);
-        changed();
-        put_i(v, k == VF_TONE || k == VF_SEND ? *p - 64 : *p);
-        put_s(put_s(put_s(t, k == VF_CHAR ? VCHAR_N[ui.vsel] : FN[k]), k == VF_CHAR ? " " : ""), v);
-        say(t, 0);
-        break;
-    }
+    case V_SHAPE: shape_turn(k, e); break;
     case V_SCENE:
         if (k == 0) {
             int n = eng_jr.nscenes ? eng_jr.nscenes : 1;
@@ -607,44 +786,65 @@ static void input(void)
         int w = KEY_WHITE[i], bk = KEY_BLACK[i];
         if (kd >> i & 1u) {
             if (w >= 0) {
+                ui.wheld |= (uint16_t)(1u << w);
                 engine_white_key(w, 1, ui.oct);
                 if (eng_jr.mode == MODE_PLAY && ui.stars < 8u)
                     ui.stars++;
                 if (eng_jr.mode == MODE_DRIFT && w < eng_jr.nscenes && w != engine_jr()->cur)
                     say_n("TO SCENE ", w + 1);
             } else if (bk >= 0 && bk < ENG_DRONES) {
-                engine_drone_key(bk);
+                ui.dheld |= (uint8_t)(1u << bk);  /* (it latches when let go, unless the knobs shaped it) */
             } else if (bk == ENG_DRONES || bk == ENG_DRONES + 1) {   /* the next two: PULSE's kick and tick */
                 engine_pulse(bk - ENG_DRONES, 110);
             }
         }
-        if ((ku >> i & 1u) && w >= 0)
+        if ((ku >> i & 1u) && w >= 0) {
             engine_white_key(w, 0, ui.oct);
+            ui.wheld &= (uint16_t)~(1u << w);
+            if (!ui.wheld && (ui.bend[0] != 0.0f || ui.bend[1] != 0.0f || ui.bend[2] != 0.0f || ui.bend[3] != 0.0f))
+                ui.bend_back = 1;                 /* the note let go: its bends drift back */
+        } else if ((ku >> i & 1u) && bk >= 0 && bk < ENG_DRONES) {
+            if (!(ui.dturned >> bk & 1u))
+                engine_drone_key(bk);
+            ui.dheld &= (uint8_t)~(1u << bk);
+            ui.dturned &= (uint8_t)~(1u << bk);
+        }
     }
     for (i = 0; i < NB; i++) {                    /* a button acts when let go; held, it says its job */
         uint32_t bit = 1u << i;
         if (down & bit) {
             ui.press_t[i] = now;
             ui.helped &= ~bit;
-        } else if ((b & bit) && !(ui.helped & bit) && now - ui.press_t[i] >= HELP_MS) {
+            ui.used &= ~bit;
+        } else if ((b & bit) && !(ui.helped & bit) && !(ui.used & bit) &&
+                   now - ui.press_t[i] >= (i == B_FX ? HELP_HOLD_MS : HELP_MS)) {
             ui.helped |= bit;
             if (HELP[i])
                 say(HELP[i], 0);
         }
-        if ((up & bit) && !(ui.helped & bit))
-            button(i);
+        if (up & bit) {
+            if (!(ui.helped & bit) && !(ui.used & bit))
+                button(i);
+            if (i == B_FX && (ui.used & bit) && !ui.thr_kept)
+                ui.thr_back = 1;                  /* FX let go: the throws drift back */
+            ui.used &= ~bit;
+        }
     }
     if ((e = plat_enc(EN_SELECT)) != 0) {
         ui.touch_t = now;
         select_turn(e);
     }
-    if ((e = plat_enc(EN_ALGO)) != 0) {           /* the tempo, wherever you are */
-        int bpm = clamp_i(cfg.bpm_x10 / 10 + e, 20, 300);
+    if ((e = plat_enc(EN_ALGO)) != 0) {           /* the tempo, wherever you are (SHAPE: the voice's level) */
         ui.touch_t = now;
-        cfg.bpm_x10 = (uint16_t)(bpm * 10);
-        settings_apply();
-        changed();
-        say_n("TEMPO ", bpm);
+        if (ui.view == V_SHAPE) {
+            shape_turn(-1, e);
+        } else {
+            int bpm = clamp_i(cfg.bpm_x10 / 10 + e, 20, 300);
+            cfg.bpm_x10 = (uint16_t)(bpm * 10);
+            settings_apply();
+            changed();
+            say_n("TEMPO ", bpm);
+        }
     }
     if ((e = plat_enc(EN_PRESET)) != 0) {         /* the journeys */
         char v[24];
@@ -659,7 +859,12 @@ static void input(void)
     for (i = EN_K1; i <= EN_K4; i++)
         if ((e = plat_enc(i)) != 0) {
             ui.touch_t = now;
-            knob_turn(i - EN_K1, e);
+            switch (layer()) {
+            case L_DRONE: drone_knob(i - EN_K1, e); break;
+            case L_THROW: throw_knob(i - EN_K1, e); break;
+            case L_BEND: bend_knob(i - EN_K1, e); break;
+            default: knob_turn(i - EN_K1, e); break;
+            }
         }
     if (ui.view != V_HOME && ui.view != V_BENCH && now - ui.touch_t >= IDLE_HOME_MS)
         set_view(V_HOME);
@@ -1038,12 +1243,14 @@ static void draw_home(void)
     text_r(213, 112, &FONT_XS, r->playing ? jr_moon_name(r->moon) : "STOPPED", r->playing ? C_GRAY : C_DIM);
     put_s(put_s(b, "MODE "), jr_mode_name(eng_jr.mode));
     cv_text(6, 126, &FONT_XS, b, eng_jr.mode == MODE_PLAY ? C_GRAY : C_AMB);
-    for (v = 0, x = 150; v < JR_LOOPS; v++) {     /* the loops: lit when captured */
+    for (v = 0, x = 112; v < JR_LOOPS; v++) {     /* the loops: lit when captured */
         int on = eng_jr.loop[v].on, recording = v == LP_VOX && r->rec;
         uint16_t c = recording ? ((ui.frame >> 4) & 1u ? C_RED : dim(C_RED, 6)) : on ? C_AMB : C_DIM;
         cv_text(x, 126, &FONT_XS, LOOP_N[v], c);
         x += text_w(&FONT_XS, LOOP_N[v]) + 10;
     }
+    if (any_thrown())                             /* a throw kept (or drifting back) */
+        text_r(234, 126, &FONT_XS, "THROW", ui.thr_kept ? C_AMB : C_DIM);
 }
 
 /* ----------------------------------------------------------------- lists --- */
@@ -1075,22 +1282,40 @@ static void draw_system(void)
         text_c(120, 2 + ROWS_SHOWN * ROW_H, &FONT_XS, "CHANGES AT THE NEXT POWER-ON", C_AMB);
 }
 
-static const char *const VOICE_N[EV_N] = {"DRONE", "VOX", "PULSE", "TEXTURE"};
-static void draw_voices(void)
+/* SHAPE: the voices across the top, the one shown lit; its four knobs as meters (an offset's from
+ * the middle); its level along the bottom, 100 marked */
+static void draw_shape(void)
 {
-    int v;
+    const uint8_t *sh = eng_jr.shape[ui.vsel];
+    char b[12];
+    int v, k, lv = sh[SH_LEVEL];
     for (v = 0; v < EV_N; v++) {
-        int y = 10 + v * 30, sel = v == ui.vsel, lv = cfg.voice[v][VF_LEVEL];
-        char b[8];
+        int cx = 30 + v * 60, sel = v == ui.vsel;
+        text_c(cx, 4, &FONT_XS, VOICE_N[v], sel ? C_AMB : C_DIM);
         if (sel)
-            cv_rect(0, y - 2, 240, 24, dim(C_AMB, 3));
-        cv_text(10, vc(&FONT_S, y, 20), &FONT_S, VOICE_N[v], sel ? C_HI : C_GRAY);
-        cv_rect(100, y + 8, 100, 4, C_LINE);
-        cv_rect(100, y + 8, lv * 100 / 127, 4, sel ? C_AMB : C_GRAY);
-        cv_rect(100 + 100 * 100 / 127, y + 5, 1, 10, C_DIM);   /* 100: as made */
-        put_i(b, lv);
-        text_r(232, vc(&FONT_S, y, 20), &FONT_S, b, sel ? C_AMB : C_HI);
+            cv_rect(cx - 22, 16, 44, 2, C_AMB);
     }
+    for (k = 0; k < 4; k++) {
+        int cx = 30 + k * 60, x = sh[SH_K1 + k], top = 28, h = 66, fill = x * h / 127;
+        cv_rect(cx - 3, top, 6, h, C_LINE);
+        if (shape_signed(ui.vsel, k)) {           /* from the middle, up or down */
+            int mid = top + h - 64 * h / 127;
+            cv_rect(cx - 6, mid, 12, 1, C_DIM);
+            if (top + h - fill < mid)
+                cv_rect(cx - 3, top + h - fill, 6, mid - (top + h - fill), C_AMB);
+            else
+                cv_rect(cx - 3, mid, 6, top + h - fill - mid + 1, C_AMB);
+        } else {
+            cv_rect(cx - 3, top + h - fill, 6, fill, C_AMB);
+        }
+        text_c(cx, 98, &FONT_XS, SHAPE_N[ui.vsel][k], C_GRAY);
+    }
+    cv_text(10, 116, &FONT_XS, "LEVEL", C_GRAY);
+    cv_rect(60, 120, 140, 4, C_LINE);
+    cv_rect(60, 120, lv * 140 / 127, 4, C_AMB);
+    cv_rect(60 + 100 * 140 / 127, 117, 1, 10, C_DIM);   /* 100: as made */
+    put_i(b, lv);
+    text_r(232, 116, &FONT_XS, b, C_HI);
 }
 
 static void draw_scene(void)
@@ -1220,7 +1445,7 @@ static void draw_main(void)
     cv_begin(240, MAIN_H, C_BG);
     switch (ui.view) {
     case V_HOME: draw_home(); break;
-    case V_VOICES: draw_voices(); break;
+    case V_SHAPE: draw_shape(); break;
     case V_SCENE: draw_scene(); break;
     case V_LOOP: draw_loop(); break;
     case V_FX: draw_fx(); break;
@@ -1252,6 +1477,34 @@ static void draw_knobs(void)
     int k;
     cv_begin(240, KNOB_H, C_BG);
     cv_rect(0, 0, 240, 1, C_LINE);
+    switch (layer()) {                            /* a hold: its knobs, on any page */
+    case L_DRONE: {
+        int v = lowest_bit(ui.dheld);
+        for (k = 0; k < DV_N; k++) {
+            dv_text(v, k, a);
+            cell(k, DVF_N[k], a, C_AMB);
+        }
+        put_i(put_s(a, "DRONE "), v + 1);
+        hint(a, "IT STAYS");
+        cv_commit(2, 0, KNOB_Y);
+        return;
+    }
+    case L_THROW:
+    case L_BEND: {
+        int th = layer() == L_THROW;
+        for (k = 0; k < 4; k++) {
+            if (th)
+                put_i(a, round_i(ui.thr[k]));
+            else
+                put_sgn(a, round_i(ui.bend[k]));
+            cell(k, th ? (k == 1 ? "FEEDBK" : THR_N[k]) : (k == 1 ? "VIB" : BEND_N[k]), a, C_AMB);
+        }
+        hint(th ? "THROWS" : "BEND VOX", "SAVE: KEEP   LET GO: BACK");
+        cv_commit(2, 0, KNOB_Y);
+        return;
+    }
+    default: break;
+    }
     switch (ui.view) {
     case V_HOME:
         for (k = 0; k < NMACROS; k++) {
@@ -1268,16 +1521,14 @@ static void draw_knobs(void)
                                                                                        : "WHITE KEYS: SCENES",
              a);
         break;
-    case V_VOICES:
-        put_i(a, cfg.voice[ui.vsel][VF_LEVEL]);
-        put_sgn(b, cfg.voice[ui.vsel][VF_TONE] - 64);
-        put_i(c, cfg.voice[ui.vsel][VF_CHAR]);
-        put_sgn(d, cfg.voice[ui.vsel][VF_SEND] - 64);
-        cell(0, "LEVEL", a, C_HI);
-        cell(1, "TONE", b, C_HI);
-        cell(2, VCHAR_N[ui.vsel], c, C_HI);
-        cell(3, "SPACE", d, C_HI);
-        hint("SELECT: VOICE", VOICE_N[ui.vsel]);
+    case V_SHAPE:
+        for (k = 0; k < 4; k++) {
+            shape_text(ui.vsel, k, a);
+            cell(k, SHAPE_N[ui.vsel][k], a, C_HI);
+        }
+        shape_text(ui.vsel, -1, b);
+        put_s(put_s(c, "ALGO: LEVEL "), b);
+        hint("ENV: NEXT VOICE", c);
         break;
     case V_SCENE:
         put_i(put_s(put_i(a, ui.ssel + 1), "/"), eng_jr.nscenes);
@@ -1368,6 +1619,8 @@ static void leds(void)
         btn |= 1u << B_PLAY;
     if (eng_jr.mode != MODE_PLAY)
         btn |= 1u << B_ARP;
+    if (any_thrown())
+        btn |= 1u << B_FX;                        /* (a throw out, held or kept) */
     if (loops_on() || (r->rec && ((ui.frame >> 4) & 1u)))
         btn |= 1u << B_REC;                       /* (blinking: recording, or waiting for the bar) */
     kdim |= (1u << BLACK_KEY[ENG_DRONES]) | (1u << BLACK_KEY[ENG_DRONES + 1]);   /* PULSE's keys, dim */
@@ -1417,8 +1670,12 @@ static void speak_where(void)
         row_text(ui.row, v);
         q = put_s(put_s(put_s(q, ROW_N[ui.row]), " "), v);
         break;
-    case V_VOICES:
-        q = put_i(put_s(put_s(q, VOICE_N[ui.vsel]), " LEVEL "), cfg.voice[ui.vsel][VF_LEVEL]);
+    case V_SHAPE:
+        q = put_i(put_s(put_s(q, VOICE_N[ui.vsel]), " LEVEL "), eng_jr.shape[ui.vsel][SH_LEVEL]);
+        for (k = 0; k < 4; k++) {
+            shape_text(ui.vsel, k, v);
+            q = put_s(put_s(put_s(put_s(q, ". "), SHAPE_N[ui.vsel][k]), " "), v);
+        }
         break;
     case V_SCENE:
         sf_text(scene_sel(), ui.srow, v);
@@ -1468,6 +1725,7 @@ void ui_start(void)
 void ui_frame(void)
 {
     input();
+    perf_tick();
     for (; ui.stars; ui.stars--)
         ec_star_new();
     autosave();

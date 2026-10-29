@@ -1,0 +1,75 @@
+# The holds: the knobs play something else while a key or FX is held, on any page.
+# A drone key held: the knobs shape that voice (LEVEL, TONE, DETUNE, OCTAVE), it stays so, and the key
+# does not latch it; tapped, it latches. FX held: THROWS (shimmer, feedback, freeze, dip); let go, they
+# drift back; SAVE while holding keeps them, until FX is held and turned again. A white key held (PLAY):
+# BENDS VOX (bright, vibrato, shimmer, release); let go, back; SAVE while holding puts them into VOX's
+# sound. Audio in holds.wav.
+autoplay 0
+wait 300
+wav holds.wav
+key b1 down
+wait 100
+turn K1 -10
+turn K4 1
+wait 100
+expect dvoice21 86
+expect dvoice24 2
+shot hold_drone.png
+key b1 up
+wait 100
+expect drone2 0
+tapkey b1
+wait 100
+expect drone2 1
+press FX
+wait 100
+turn K1 10
+wait 100
+expect perf0 40
+shot hold_fx.png
+release FX
+wait 100
+expect view 0
+wait 2500
+expect perf0 0
+press FX
+wait 100
+turn K3 20
+wait 100
+tap SAVE
+release FX
+wait 3000
+expect perf2 80
+expect view 0
+shot throw_kept.png
+press FX
+wait 100
+turn K3 -20
+release FX
+wait 100
+expect perf2 0
+key w3 down
+wait 100
+turn K1 6
+wait 100
+expect perf4 12
+shot hold_bend.png
+key w3 up
+wait 2500
+expect perf4 0
+key w3 down
+wait 100
+turn K1 6
+turn K2 5
+wait 100
+tap SAVE
+key w3 up
+wait 100
+expect shape21 76
+expect shape25 30
+expect perf4 0
+expect perf5 0
+tapkey b1
+wait 30000
+wavstop
+expect clips 0

@@ -1,19 +1,26 @@
-# VOICES (ENV): each voice's LEVEL, TONE, character and SPACE, kept with the settings. PULSE's level
-# down (the kick sits under the drone); held, a button says what it does and does nothing else; an idle
-# page goes home after 30 s.
+# SHAPE (ENV): each voice's sound, four knobs and its level (ALGO), kept with the journey. PULSE's level
+# down (the kick sits under the drone) and its decay longer; ENV again: the next voice, TEXTURE's colour
+# darker. Held, a button says what it does and does nothing else; an idle page goes home after 30 s.
 autoplay 0
 wait 300
 tap ENV
 expect view 1
 turn SELECT 2
-turn K1 -10
-expect voice31 60
-shot voices.png
+turn ALGO -10
+expect shape30 60
+expect set_bpm 90
+turn K2 5
+expect shape32 90
+tap ENV
+turn K1 -5
+expect shape41 54
+shot shape.png
 tap SAVE
 expect dirty 0
 reboot
 wait 300
-expect voice31 60
+expect shape30 60
+expect shape41 54
 listen
 press PLAY
 wait 900

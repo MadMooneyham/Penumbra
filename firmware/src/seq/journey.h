@@ -2,13 +2,17 @@
 /* Penumbra's journeys (docs: "Penumbra: rewrite design", generative model): what plays when nobody
  * plays it, and how you steer it.
  *
- *   scene      a key and scale, a chord progression and how the drone voices it, how much plays,
- *              the timbre (brightness, swarm), the space, the wind's level and colour, the pulse,
+ *   scene      a key and scale, a chord progression, the drone's pedal and how it voices it, how
+ *              much plays, VOX's brightness, the space, the wind's level and colour, the pulse,
  *              VOX's register. Up to 8 a journey.
  *   director   moves through the moon's phases, NEW (drones only, nearly) -> WAXING -> FULL (the
  *              densest) -> WANING, each 30 s .. 4 min by the DRIFT macro (0: it stays where it is);
  *              at each NEW it travels to the next scene: everything glides over the phase, the key
  *              and chords change at its middle, in the quiet. The chord moves every 2 .. 8 bars.
+ *   drone      the backbone: a pedal, the scene's voicing over its root (or the pedal it names, in
+ *              its key), held the whole scene. The chords move only VOX. A new scene moves the voices
+ *              that must move, to the nearest note of their new one (the rest stay where they are),
+ *              one at a time, the top first and the bass last, JR_DRONE_GAP seconds apart.
  *   generator  writes from the journey's seed and the scene's scale: VOX's phrases (one to three long
  *              notes over eight bars, then the space they ring out into) and PULSE's pattern; repeats
  *              them, then changes them a little (a note a step) and, after a few changes, writes new
@@ -35,8 +39,13 @@
 #define JR_USER 8
 #define JR_DRONES 5
 #define JR_MAGIC 0x314A4E50u                    /* "PNJ1" */
-#define JR_FORMAT 2u                            /* 1 (0.13): three loops, LINE's first (settings.c converts it) */
+#define JR_FORMAT 3u                            /* 2 (0.14): no sound; 1 (0.13): three loops, LINE's first, no
+                                                 * sound (settings.c converts both) */
 #define JR_HANDS_STEPS 64u                      /* PLAY: the generator's VOX waits 4 bars after a played note */
+#define JR_DRONE_GAP 3.0f                       /* seconds between the drone's voices moving to a new scene */
+#define JR_VOICES 4                             /* the sound: DRONE, VOX, PULSE, TEXTURE (engine.h EV_*) */
+#define JR_SHAPE 6                              /* each one's level, the SHAPE page's four knobs, one more (engine.h SH_*) */
+#define JR_DVOICE 4                             /* each drone voice's own, its black key held (engine.h DV_*) */
 
 enum { SC_IONIAN, SC_DORIAN, SC_PHRYGIAN, SC_LYDIAN, SC_MIXOLYDIAN, SC_AEOLIAN, SC_HARMONIC, NSCALES };
 enum { VC_OPEN, VC_WARM, VC_HIGH, VC_CLUSTER, NVOICINGS };
@@ -65,7 +74,8 @@ typedef struct {
     uint8_t reg;                                /* VOX's octave, less one: 2..6 (4: its root an octave over middle C's) */
     uint8_t drones;                             /* the drone voices PLAY latches (bit v) */
     uint8_t penta;                              /* 1: VOX's phrases keep to the scale's pentatonic */
-    uint8_t rsv[2];
+    uint8_t pedal;                              /* the drone's root: 0 the key's, else 1 + a pitch class in the key */
+    uint8_t rsv;
 } scene_t;
 
 typedef struct {
@@ -86,6 +96,10 @@ typedef struct {
     uint8_t rsv;
     scene_t scene[JR_SCENES];
     loop_t loop[JR_LOOPS];
+    /* the sound (0..127; nothing here reads it: the engine does) */
+    uint8_t shape[JR_VOICES][JR_SHAPE];
+    uint8_t dvoice[JR_DRONES][JR_DVOICE];
+    uint8_t rsv2[4];
 } journey_t;
 
 typedef struct {
@@ -125,7 +139,10 @@ typedef struct {
     float intensity;
     uint8_t chord;
     uint32_t bar;
-    int drone[JR_DRONES];                       /* the drone's notes (MIDI) */
+    int drone[JR_DRONES];                       /* the drone's notes (MIDI; 0: none yet) */
+    int dtarget[JR_DRONES];                     /* where they are going */
+    uint8_t dpend;                              /* the voices still to move (bit v) */
+    float dwait;                                /* seconds to the next */
     jr_gen_t g[JR_LOOPS];
     uint32_t lrng[JR_LOOPS];                    /* the captured loops' mutations */
     int vox_note;                               /* the generator's, sounding (-1: none) */
@@ -140,13 +157,14 @@ typedef struct {
     int rec_held, rec_pending;
     uint32_t since_step, step_len;
     float macro_s[NMACROS];
-    uint32_t sig;                               /* the scene's key, scale, chords and voicing: an edit retunes */
+    uint32_t sig;                               /* the scene's key, scale, pedal and voicing: a change moves the drone */
     jr_out_t out;
 } jrun_t;
 
 /* the journeys in the firmware */
 void jr_preset(int i, journey_t *dst);
 const char *jr_preset_name(int i);
+void jr_sound_default(journey_t *j);             /* the sound as made (a preset's, an old journey's) */
 void jr_blank(journey_t *j);                     /* the first preset, named NEW (the power-on journey) */
 int jr_valid(const journey_t *j);                /* loaded from flash: is it one */
 

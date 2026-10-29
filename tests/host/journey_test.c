@@ -22,9 +22,11 @@ static jrun_t R;
 static journey_t J;
 static struct {
     uint32_t hash, vox, kicks, ticks, out_key, out_penta, drone_out;
+    uint32_t dmoves, dgap_min, dlast;               /* the drone's notes after the start, the least time between */
     int vox_held[128];
     int seq[4096], nseq;
 } S;
+static uint32_t frames_now, started;
 static int in_key(int midi, const scene_t *s)
 {
     int pc = ((midi - s->root) % 12 + 12) % 12, i;
@@ -49,6 +51,12 @@ static void d_note(void *x, int v, int m)
     (void)x;
     mix(1, (uint32_t)(v << 8 | m));
     S.drone_out += !in_key(m, now());
+    if (started) {
+        if (S.dmoves && frames_now - S.dlast < S.dgap_min)
+            S.dgap_min = frames_now - S.dlast;
+        S.dmoves++;
+        S.dlast = frames_now;
+    }
 }
 static void d_latch(void *x, uint32_t m) { (void)x; mix(2, m); }
 static void d_rel(void *x) { (void)x; mix(3, 0); }
@@ -91,7 +99,7 @@ static void play_steps(uint32_t n)                  /* each 16th: the block's di
     uint32_t i;
     for (i = 0; i < n; i++, step_n++) {
         uint32_t f;
-        for (f = 0; f < STEP_FRAMES; f += 256u)
+        for (f = 0; f < STEP_FRAMES; f += 256u, frames_now += 256u)
             jr_tick(&R, 256u, &SINK);
         jr_step(&R, step_n, STEP_FRAMES, &SINK);
         played_steps++;
@@ -106,7 +114,10 @@ static void start(int preset, int mode, int drift)
     J.macro[MAC_DRIFT] = (uint8_t)drift;
     jr_init(&R, &J);
     step_n = quiet_steps = played_steps = 0;
+    started = 0;
     jr_start(&R, &SINK);
+    started = 1;
+    S.dgap_min = 0xFFFFFFFFu;
 }
 
 int main(void)
@@ -114,7 +125,7 @@ int main(void)
     int p;
     char t[112];
     for (p = 0; p < JR_PRESETS; p++) {             /* each preset, 20 minutes in GUIDE, DRIFT up */
-        uint32_t h, seen = 0, moons = 0;
+        uint32_t h, seen = 0, moons = 0, travels = 0;
         int last_moon = -1, order = 1, last_scene = 0;
         float per_min, quiet;
         start(p, MODE_GUIDE, 100);
@@ -126,13 +137,18 @@ int main(void)
             if (R.cur != last_scene) {
                 order &= R.cur == (last_scene + 1) % J.nscenes;
                 last_scene = R.cur;
+                travels++;
             }
         }
         h = S.hash;
         per_min = (float)S.vox / 20.0f;
         quiet = (float)quiet_steps / (float)played_steps;
-        printf("  %-12s VOX %.1f notes a minute, silent %.0f%% of the time; kicks %u, ticks %u, scenes %x, moons %u\n",
-               jr_preset_name(p), (double)per_min, (double)(quiet * 100.0f), S.kicks, S.ticks, seen, moons);
+        printf("  %-12s VOX %.1f notes a minute, silent %.0f%% of the time; kicks %u, ticks %u, scenes %x, moons %u;"
+               " the drone moved %u times in %u scene changes\n",
+               jr_preset_name(p), (double)per_min, (double)(quiet * 100.0f), S.kicks, S.ticks, seen, moons, S.dmoves, travels);
+        snprintf(t, sizeof t, "%s: the drone holds through the chords, moves only with the scene, a voice at a time", jr_preset_name(p));
+        CHECK(travels >= 2 && S.dmoves <= 3u * travels &&
+                  (S.dmoves < 2 || S.dgap_min >= (uint32_t)(JR_DRONE_GAP * 44100.0f) - 512u), t);
         snprintf(t, sizeof t, "%s: every note in its scene's key (VOX, the drone)", jr_preset_name(p));
         CHECK(S.out_key == 0 && S.drone_out == 0, t);
         snprintf(t, sizeof t, "%s: pentatonic scenes' phrases on the pentatonic", jr_preset_name(p));

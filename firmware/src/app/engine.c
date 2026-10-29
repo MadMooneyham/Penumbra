@@ -140,7 +140,7 @@ static void guard_apply(void)
 /* ------------------------------------------------------- command queue --- */
 /* uint32 commands, single producer (main loop) / single consumer (audio ISR): type:4 | a:8 | b:8 | c:12 */
 enum { C_DRONE_KEY, C_VOX_ON, C_VOX_OFF, C_TEST, C_MIDI_CH, C_PULSE, C_WHITE, C_LOOPS, C_TRAVEL, C_LOADED,
-       C_VOICE, C_FX };
+       C_PERF, C_FX };
 #define CQ 256u
 static uint32_t cq[CQ];
 static volatile uint32_t cq_w, cq_r;
@@ -167,7 +167,7 @@ void engine_white_key(int w, int down, int oct) { cq_put(C_WHITE, (uint32_t)w, (
 void engine_loops(int op, uint32_t mask) { cq_put(C_LOOPS, (uint32_t)op, mask, 0); }
 void engine_travel(int scene) { cq_put(C_TRAVEL, (uint32_t)scene, 0, 0); }
 void engine_journey_loaded(void) { cq_put(C_LOADED, 0, 0, 0); }
-void engine_voice(int voice, int field, int value) { cq_put(C_VOICE, (uint32_t)voice, (uint32_t)field, (uint32_t)value); }
+void engine_perf(int i, int value) { cq_put(C_PERF, (uint32_t)i, 0, (uint32_t)(value + 128)); }
 void engine_fx(int i, int value) { cq_put(C_FX, (uint32_t)i, 0, (uint32_t)value); }
 static void hit(int which, float vel)            /* (ISR) a PULSE hit; the kicks are counted for the screen */
 {
@@ -191,8 +191,8 @@ static const float MIX_BASE[NPARTS] = {1.0f, 0.57f, 0.9f, 1.0f};   /* VOX 3 dB u
 static float mix_level[NPARTS] = {1.0f, 0.57f, 0.9f, 1.0f}, mix_rev[NPARTS], mix_dly[NPARTS];
 static float rev_base[NPARTS], dly_base[NPARTS], space_k = 1.0f;
 
-/* the VOICES page's settings and the FX page's (settings.c keeps them; they come here as commands) */
-static uint8_t voice_set[EV_N][VF_N] = {{100, 64, 20, 64}, {100, 64, 80, 64}, {80, 64, 80, 64}, {100, 64, 70, 64}};
+/* the FX page's settings (settings.c keeps them; they come here as commands), the hands' moves on top */
+static int16_t perf[PF_N];
 static const uint8_t EF_PARAM[EF_N] = {FX_RV_DECAY, FXX_RV_SIZE, FXX_RV_SHIMMER, FX_RV_TONE, FX_DL_TIME, FX_DL_FDBK,
                                        FX_DL_TONE, FX_DL_WEAR};
 static const uint8_t EF_EXT[EF_N] = {0, 1, 1, 0, 0, 0, 0, 0};
@@ -212,10 +212,10 @@ static void fx_apply(int i)
     else
         fxbus_set(&fx, EF_PARAM[i], fx_set[i]);
 }
-static void voice_level(int v)                   /* LEVEL into the mix: 100 is as made, the square law */
+static void voice_level(int v, int lv)          /* LEVEL into the mix: 100 is as made, the square law */
 {
     static const uint8_t PART[EV_N] = {P_DRONE, P_VOX, P_PULSE, P_TEX};
-    float l = (float)voice_set[v][VF_LEVEL] * (1.0f / 100.0f);
+    float l = (float)lv * (1.0f / 100.0f);
     mix_level[PART[v]] = MIX_BASE[PART[v]] * l * l;
 }
 
@@ -266,13 +266,32 @@ static void scene_default(void)
         mix_dly[v] = dly_base[v];
     }
     for (v = 0; v < EV_N; v++)
-        voice_level(v);
+        voice_level(v, eng_jr.shape[v][SH_LEVEL]);
 }
 
 /* ------------------------------------------------------------- the journey --- */
 /* what the journey plays goes out to the voices here (audio ISR) */
 static void hit(int which, float vel);
-static void js_drone_note(void *x, int v, int midi) { (void)x; drone_set(&dn, v, DN_NOTE, midi - 9); }   /* (ROOT A1: NOTE 24 = 33) */
+/* a drone voice's note: the journey's, in the octave its black key's OCTAVE puts it (in the voice's
+ * range, 9 .. 69: an octave in where it would leave it) */
+static int dn_note[DRONE_VOICES] = {33, 40, 45, 48, 57};
+static void drone_note_apply(int v)
+{
+    int m = dn_note[v] + 12 * ((int)(eng_jr.dvoice[v][DV_OCT] > 2 ? 1 : eng_jr.dvoice[v][DV_OCT]) - 1);
+    while (m > 69)
+        m -= 12;
+    while (m < 9)
+        m += 12;
+    drone_set(&dn, v, DN_NOTE, m - 9);           /* (ROOT A1: NOTE 24 = 33) */
+}
+static void js_drone_note(void *x, int v, int midi)
+{
+    (void)x;
+    if (v < 0 || v >= DRONE_VOICES)
+        return;
+    dn_note[v] = midi;
+    drone_note_apply(v);
+}
 static void js_drone_latch(void *x, uint32_t m)
 {
     int v;
@@ -300,11 +319,15 @@ static void js_vox_off(void *x, int midi) { (void)x; vox_note_off(&vox, midi); }
 static void js_pulse(void *x, int which, int vel) { (void)x; hit(which, (float)vel * (1.0f / 127.0f)); }
 static const jr_sink_t JSINK = {0, js_drone_note, js_drone_latch, js_drone_release, js_vox_on, js_vox_off, js_pulse};
 
-/* the scene and the HOME macros into the voices, each block: TONE brightens everything (with each
- * voice's own TONE), SPACE scales every send, the wind follows the moon. Each pot is set only when
- * its value moves */
-static int16_t cache[16];
-enum { K_DCUT, K_SWARM, K_VCUT, K_TLVL, K_TCOL, K_ROOT, K_SPREAD, K_VATK, K_PDEC, K_TSWEEP, NK };
+/* the sound (the SHAPE pages, the drone voices' own), the scene, the HOME macros and the hands' moves
+ * into the voices, each block. The drone is the backbone: only its sound and TONE move it, never the
+ * scene. VOX is the colour: the scene's brightness, the shape's, a bend. TONE brightens everything,
+ * SPACE scales every send, the wind follows the moon. Each pot is set only when its value moves */
+enum { K_DCUT, K_DRESO, K_SWARM, K_VCUT, K_VATK, K_VREL, K_VVIB, K_PPITCH, K_PDEC, K_PTICK, K_TLVL, K_TCOL,
+       K_TSWEEP, K_TRATE, K_TWIDTH, K_ROOT, K_SHIM, K_FDBK, K_DECAY, K_DIP,
+       K_LEVEL, K_DWAVE = K_LEVEL + EV_N, K_DLVL = K_DWAVE + DRONE_VOICES, K_DTONE = K_DLVL + DRONE_VOICES,
+       K_DSPREAD = K_DTONE + DRONE_VOICES, K_DOCT = K_DSPREAD + DRONE_VOICES, NK = K_DOCT + DRONE_VOICES };
+static int16_t cache[NK];
 static int moved(int k, int v)
 {
     if (cache[k] == v)
@@ -316,35 +339,79 @@ static int clamp127(float x) { return x < 0.0f ? 0 : x > 127.0f ? 127 : (int)(x 
 static void conduct(void)
 {
     const jr_out_t *o = &jr.out;
-    const float tone = jr.macro_s[MAC_TONE] - 64.0f, bright = o->bright + tone;
-    int v, x;
-    if (moved(K_DCUT, x = clamp127(28.0f + bright * 0.66f + (float)(voice_set[EV_DRONE][VF_TONE] - 64))))
+    const uint8_t (*sh)[SH_N] = eng_jr.shape;
+    const float tone = jr.macro_s[MAC_TONE] - 64.0f, bright = o->bright + tone, freeze = (float)perf[PF_FREEZE] * (1.0f / 127.0f);
+    int v, x, swarm = sh[EV_DRONE][SH_K3];
+    for (v = 0; v < EV_N; v++)
+        if (moved(K_LEVEL + v, sh[v][SH_LEVEL]))
+            voice_level(v, sh[v][SH_LEVEL]);
+    /* DRONE */
+    if (moved(K_DCUT, x = clamp127((float)sh[EV_DRONE][SH_K1] + tone * 0.66f)))
         drone_set(&dn, DRONE_KIT, DB_CUTOFF, x);
-    if (moved(K_SWARM, x = clamp127(o->swarm)))
-        drone_set(&dn, DRONE_KIT, DB_SWARM, x);
-    if (moved(K_VCUT, x = clamp127(30.0f + bright * 0.47f + (float)(voice_set[EV_VOX][VF_TONE] - 64))))
+    if (moved(K_DRESO, sh[EV_DRONE][SH_K2]))
+        drone_set(&dn, DRONE_KIT, DB_RESO, sh[EV_DRONE][SH_K2]);
+    if (moved(K_SWARM, swarm))
+        drone_set(&dn, DRONE_KIT, DB_SWARM, swarm);
+    for (v = 0; v < DRONE_VOICES; v++) {
+        const uint8_t *dv = eng_jr.dvoice[v];
+        if (moved(K_DWAVE + v, sh[EV_DRONE][SH_K4]))
+            drone_set(&dn, v, DN_WAVE, sh[EV_DRONE][SH_K4]);
+        if (moved(K_DLVL + v, dv[DV_LEVEL]))
+            drone_set(&dn, v, DN_LEVEL, dv[DV_LEVEL]);
+        if (moved(K_DTONE + v, dv[DV_TONE]))
+            drone_set(&dn, v, DN_TONE, dv[DV_TONE]);
+        if (moved(K_DSPREAD + v, x = clamp127((float)(swarm / 4 + (v == 4 ? 10 : 0) + dv[DV_DETUNE] - 64))))
+            drone_set(&dn, v, DN_SPREAD, x);     /* (the detune follows SWARM: the high octave a wider cluster) */
+        if (moved(K_DOCT + v, dv[DV_OCT]))
+            drone_note_apply(v);
+    }
+    /* VOX */
+    if (moved(K_VCUT, x = clamp127(30.0f + bright * 0.47f + (float)(sh[EV_VOX][SH_K1] - 64 + perf[PF_BRIGHT]))))
         vox_set(&vox, VX_CUTOFF, x);
-    if (moved(K_TLVL, x = clamp127(o->tex * o->fade * (0.6f + 0.4f * o->intensity))))
-        texture_set(&tex, TX_LEVEL, x);
-    if (moved(K_TCOL, x = clamp127(o->colour + tone * 0.5f + (float)(voice_set[EV_TEX][VF_TONE] - 64))))
-        texture_set(&tex, TX_COLOUR, x);
+    if (moved(K_VATK, sh[EV_VOX][SH_K2]))
+        vox_set(&vox, VX_ATTACK, sh[EV_VOX][SH_K2]);
+    if (moved(K_VREL, x = clamp127((float)(sh[EV_VOX][SH_K3] + perf[PF_VREL]))))
+        vox_set(&vox, VX_RELEASE, x);
+    if (moved(K_VVIB, x = clamp127((float)(sh[EV_VOX][SH_HIDE] + perf[PF_VIB]))))
+        vox_set(&vox, VX_VIB, x);
+    /* PULSE */
+    if (moved(K_PPITCH, sh[EV_PULSE][SH_K1]))
+        pulse_set(&pulse, PL_PITCH, sh[EV_PULSE][SH_K1]);
+    if (moved(K_PDEC, sh[EV_PULSE][SH_K2]))
+        pulse_set(&pulse, PL_DECAY, sh[EV_PULSE][SH_K2]);
+    if (moved(K_PTICK, sh[EV_PULSE][SH_K3]))
+        pulse_set(&pulse, PL_TICK, sh[EV_PULSE][SH_K3]);
     if (moved(K_ROOT, o->root_midi))
         pulse_root(&pulse, o->root_midi);
-    if (moved(K_SPREAD, x = voice_set[EV_DRONE][VF_CHAR]))
-        for (v = 0; v < DRONE_VOICES; v++)
-            drone_set(&dn, v, DN_SPREAD, v == 4 ? x + 10 : x);
-    if (moved(K_VATK, x = voice_set[EV_VOX][VF_CHAR]))
-        vox_set(&vox, VX_ATTACK, x);
-    if (moved(K_PDEC, x = voice_set[EV_PULSE][VF_CHAR]))
-        pulse_set(&pulse, PL_DECAY, x);
-    if (moved(K_TSWEEP, x = voice_set[EV_TEX][VF_CHAR]))
-        texture_set(&tex, TX_SWEEP, x);
-    {   /* SPACE: the scene's x the macro, 64 x 64 as made; each voice's own send on top */
-        static const uint8_t EV_OF[NPARTS] = {EV_DRONE, EV_VOX, EV_PULSE, EV_TEX};
+    /* TEXTURE */
+    if (moved(K_TLVL, x = clamp127(o->tex * o->fade * (0.6f + 0.4f * o->intensity))))
+        texture_set(&tex, TX_LEVEL, x);
+    if (moved(K_TCOL, x = clamp127(o->colour + tone * 0.5f + (float)(sh[EV_TEX][SH_K1] - 64))))
+        texture_set(&tex, TX_COLOUR, x);
+    if (moved(K_TSWEEP, sh[EV_TEX][SH_K2]))
+        texture_set(&tex, TX_SWEEP, sh[EV_TEX][SH_K2]);
+    if (moved(K_TRATE, sh[EV_TEX][SH_K3]))
+        texture_set(&tex, TX_RATE, sh[EV_TEX][SH_K3]);
+    if (moved(K_TWIDTH, sh[EV_TEX][SH_K4]))
+        texture_set(&tex, TX_WIDTH, sh[EV_TEX][SH_K4]);
+    /* the throws: over the FX page's */
+    if (moved(K_SHIM, x = clamp127((float)(fx_set[EF_RV_SHIMMER] + perf[PF_SHIMMER]))))
+        fxbus_ext_set(&fx, FXX_RV_SHIMMER, x);
+    if (moved(K_FDBK, x = clamp127((float)fx_set[EF_DL_FDBK] + (float)perf[PF_FDBK] * (fm_maxf(118.0f - (float)fx_set[EF_DL_FDBK], 0.0f) / 127.0f))))
+        fxbus_set(&fx, FX_DL_FDBK, x);           /* (up to 118: it swells, it never runs away) */
+    if (moved(K_DECAY, x = clamp127((float)fx_set[EF_RV_DECAY] + (127.0f - (float)fx_set[EF_RV_DECAY]) * freeze)))
+        fxbus_set(&fx, FX_RV_DECAY, x);
+    if (moved(K_DIP, x = perf[PF_DIP] < 3 ? 64 : 59 - perf[PF_DIP] * 59 / 127))
+        master_set(&mst, MST_DJF, x);            /* (64: off; under 60, the low-pass closing) */
+    {   /* SPACE: the scene's x the macro, 64 x 64 as made; each voice's own send on top (VOX's bent); a
+         * FREEZE closes what goes in, so the reverb holds what it has */
+        static const uint8_t SEND[NPARTS] = {64, 0, 0, 64};
+        float shut = 1.0f - 0.9f * freeze;
         space_k = fm_clampf(o->space * jr.macro_s[MAC_SPACE] * (1.0f / (80.0f * 64.0f)), 0.0f, 1.8f);
         for (v = 0; v < NPARTS; v++) {
-            float s = space_k * (float)voice_set[EV_OF[v]][VF_SEND] * (1.0f / 64.0f);
-            mix_rev[v] = fm_minf(rev_base[v] * s, 1.0f);
+            int snd = v == P_VOX ? sh[EV_VOX][SH_K4] + perf[PF_VSEND] : v == P_PULSE ? sh[EV_PULSE][SH_K4] : SEND[v];
+            float s = space_k * (float)(snd < 0 ? 0 : snd) * (1.0f / 64.0f);
+            mix_rev[v] = fm_minf(rev_base[v] * s, 1.0f) * shut;
             mix_dly[v] = fm_minf(dly_base[v] * s, 1.0f);
         }
     }
@@ -352,7 +419,7 @@ static void conduct(void)
 static void conduct_reset(void)
 {
     int k;
-    for (k = 0; k < 16; k++)
+    for (k = 0; k < NK; k++)
         cache[k] = -1;
 }
 
@@ -538,9 +605,9 @@ static void drain(void)
         else if (type == C_LOADED) {
             jr_restart(&jr, &JSINK);
             conduct_reset();
-        } else if (type == C_VOICE && a < EV_N && b < VF_N) {
-            voice_set[a][b] = (uint8_t)((c & 0xFFFu) > 127u ? 127u : (c & 0xFFFu));
-            voice_level((int)a);
+        } else if (type == C_PERF && a < PF_N) {
+            int v = (int)(c & 0xFFFu) - 128;
+            perf[a] = (int16_t)(v < -127 ? -127 : v > 127 ? 127 : v);
         } else if (type == C_FX && a < EF_N) {
             fx_set[a] = (uint8_t)((c & 0xFFFu) > 127u ? 127u : (c & 0xFFFu));
             if (!testing)
@@ -903,6 +970,7 @@ void engine_render(int32_t *out_lr, uint32_t n)
 void engine_init(void)
 {
     drone_init(&dn);
+    drone_glide(&dn, 5.0f);                      /* a voice moving to a new scene's note: slowly */
     drone_swarm_buffer(&dn, swarm_l, swarm_r);
     vox_init(&vox);
     pulse_init(&pulse);

@@ -37,32 +37,53 @@ const char *jr_moon_name(int m) { return MOON_N[(unsigned)m % NMOONS]; }
 const char *jr_mode_name(int m) { return MODE_N[(unsigned)m % NMODES]; }
 
 /* --------------------------------------------------------------- presets --- */
-#define SCN(root, scale, prog, voc, dens, bri, swm, spc, tex, col, pul, reg, dr, pen) \
-    {root, scale, prog, voc, dens, bri, swm, spc, tex, col, pul, reg, dr, pen, {0, 0}}
+/* each journey keeps its drone's root from scene to scene: where the key moves, the pedal stays (a
+ * scene's pedal is 1 + its pitch class), so the drone changes only its voicing's colour */
+#define SCN(root, scale, prog, voc, dens, bri, swm, spc, tex, col, pul, reg, dr, pen, ped) \
+    {root, scale, prog, voc, dens, bri, swm, spc, tex, col, pul, reg, dr, pen, ped, 0}
 typedef struct { const char *name; uint32_t seed; uint8_t n; scene_t s[4]; } preset_t;
 static const preset_t PRESET[JR_PRESETS] = {
-    {"ECLIPSE", 0x5EC1u, 4, {SCN(9, SC_AEOLIAN, 7, VC_WARM, 60, 60, 80, 80, 40, 50, 0, 4, 0x07, 1),
-                             SCN(9, SC_AEOLIAN, 1, VC_OPEN, 85, 72, 95, 70, 30, 70, 40, 4, 0x1F, 0),
-                             SCN(5, SC_LYDIAN, 4, VC_HIGH, 70, 80, 70, 90, 50, 85, 20, 4, 0x1D, 0),
-                             SCN(2, SC_DORIAN, 2, VC_WARM, 45, 55, 90, 85, 60, 45, 0, 4, 0x0B, 1)}},
-    {"PENUMBRA", 0x9E7Bu, 3, {SCN(2, SC_DORIAN, 2, VC_WARM, 70, 65, 85, 75, 35, 55, 50, 4, 0x1F, 1),
-                              SCN(2, SC_DORIAN, 9, VC_OPEN, 90, 75, 90, 70, 25, 65, 70, 4, 0x1F, 0),
-                              SCN(7, SC_MIXOLYDIAN, 3, VC_WARM, 60, 70, 70, 80, 40, 70, 30, 4, 0x0F, 1)}},
-    {"SELENE", 0x5E1Eu, 3, {SCN(4, SC_PHRYGIAN, 4, VC_CLUSTER, 35, 40, 100, 95, 70, 35, 0, 3, 0x13, 0),
-                            SCN(4, SC_PHRYGIAN, 9, VC_OPEN, 55, 48, 110, 90, 60, 40, 25, 4, 0x1F, 1),
-                            SCN(0, SC_LYDIAN, 0, VC_HIGH, 30, 60, 80, 100, 80, 60, 0, 4, 0x11, 0)}},
-    {"TRANQUILITY", 0x7A9Cu, 3, {SCN(0, SC_LYDIAN, 4, VC_HIGH, 55, 85, 70, 90, 30, 90, 0, 4, 0x1F, 0),
-                                 SCN(7, SC_IONIAN, 8, VC_WARM, 70, 80, 75, 85, 25, 80, 20, 4, 0x1F, 1),
-                                 SCN(4, SC_AEOLIAN, 7, VC_WARM, 60, 70, 80, 85, 35, 70, 10, 4, 0x1F, 1)}},
-    {"PERIGEE", 0x9E21u, 3, {SCN(6, SC_AEOLIAN, 7, VC_OPEN, 95, 70, 75, 60, 20, 60, 85, 4, 0x1F, 1),
-                             SCN(6, SC_DORIAN, 2, VC_WARM, 110, 80, 80, 55, 20, 70, 100, 4, 0x1F, 0),
-                             SCN(2, SC_LYDIAN, 4, VC_HIGH, 80, 85, 70, 70, 25, 80, 60, 4, 0x1D, 1)}},
-    {"FAR SIDE", 0xFA75u, 4, {SCN(7, SC_HARMONIC, 1, VC_WARM, 50, 50, 95, 100, 75, 30, 0, 4, 0x1F, 0),
-                              SCN(3, SC_LYDIAN, 0, VC_HIGH, 30, 55, 90, 110, 85, 50, 0, 4, 0x15, 0),
-                              SCN(0, SC_AEOLIAN, 7, VC_WARM, 70, 60, 85, 90, 50, 45, 30, 4, 0x1F, 1),
-                              SCN(7, SC_HARMONIC, 9, VC_CLUSTER, 40, 45, 110, 100, 70, 35, 0, 3, 0x13, 0)}}};
+    {"ECLIPSE", 0x5EC1u, 4, {SCN(9, SC_AEOLIAN, 7, VC_WARM, 60, 60, 80, 80, 40, 50, 0, 4, 0x07, 1, 0),
+                             SCN(9, SC_AEOLIAN, 1, VC_OPEN, 85, 72, 95, 70, 30, 70, 40, 4, 0x1F, 0, 0),
+                             SCN(5, SC_LYDIAN, 4, VC_HIGH, 70, 80, 70, 90, 50, 85, 20, 4, 0x1D, 0, 10),
+                             SCN(9, SC_DORIAN, 2, VC_WARM, 45, 55, 90, 85, 60, 45, 0, 4, 0x0B, 1, 0)}},
+    {"PENUMBRA", 0x9E7Bu, 3, {SCN(2, SC_DORIAN, 2, VC_WARM, 70, 65, 85, 75, 35, 55, 50, 4, 0x1F, 1, 0),
+                              SCN(2, SC_DORIAN, 9, VC_OPEN, 90, 75, 90, 70, 25, 65, 70, 4, 0x1F, 0, 0),
+                              SCN(7, SC_MIXOLYDIAN, 3, VC_WARM, 60, 70, 70, 80, 40, 70, 30, 4, 0x0F, 1, 3)}},
+    {"SELENE", 0x5E1Eu, 3, {SCN(4, SC_PHRYGIAN, 4, VC_CLUSTER, 35, 40, 100, 95, 70, 35, 0, 3, 0x13, 0, 0),
+                            SCN(4, SC_PHRYGIAN, 9, VC_OPEN, 55, 48, 110, 90, 60, 40, 25, 4, 0x1F, 1, 0),
+                            SCN(0, SC_LYDIAN, 0, VC_HIGH, 30, 60, 80, 100, 80, 60, 0, 4, 0x11, 0, 5)}},
+    {"TRANQUILITY", 0x7A9Cu, 3, {SCN(0, SC_LYDIAN, 4, VC_HIGH, 55, 85, 70, 90, 30, 90, 0, 4, 0x1F, 0, 0),
+                                 SCN(7, SC_IONIAN, 8, VC_WARM, 70, 80, 75, 85, 25, 80, 20, 4, 0x1F, 1, 1),
+                                 SCN(4, SC_AEOLIAN, 7, VC_WARM, 60, 70, 80, 85, 35, 70, 10, 4, 0x1F, 1, 1)}},
+    {"PERIGEE", 0x9E21u, 3, {SCN(6, SC_AEOLIAN, 7, VC_OPEN, 95, 70, 75, 60, 20, 60, 85, 4, 0x1F, 1, 0),
+                             SCN(6, SC_DORIAN, 2, VC_WARM, 110, 80, 80, 55, 20, 70, 100, 4, 0x1F, 0, 0),
+                             SCN(2, SC_LYDIAN, 4, VC_HIGH, 80, 85, 70, 70, 25, 80, 60, 4, 0x1D, 1, 7)}},
+    {"FAR SIDE", 0xFA75u, 4, {SCN(7, SC_HARMONIC, 1, VC_WARM, 50, 50, 95, 100, 75, 30, 0, 4, 0x1F, 0, 0),
+                              SCN(3, SC_LYDIAN, 0, VC_HIGH, 30, 55, 90, 110, 85, 50, 0, 4, 0x15, 0, 8),
+                              SCN(0, SC_AEOLIAN, 7, VC_WARM, 70, 60, 85, 90, 50, 45, 30, 4, 0x1F, 1, 8),
+                              SCN(7, SC_HARMONIC, 9, VC_CLUSTER, 40, 45, 110, 100, 70, 35, 0, 3, 0x13, 0, 0)}}};
 
 const char *jr_preset_name(int i) { return PRESET[(unsigned)i % JR_PRESETS].name; }
+
+/* the sound as made, the engine's meaning (engine.h SH_*, DV_*): each voice's level (100), its SHAPE
+ * knobs and the held-only one; each drone voice's level, tone, detune (64: none) and octave (1: as is) */
+void jr_sound_default(journey_t *j)
+{
+    static const uint8_t SHAPE[JR_VOICES][JR_SHAPE] = {
+        {100, 75, 45, 80, 44, 0},                /* DRONE: FILTER, BODY, SWARM, WAVE */
+        {100, 64, 80, 90, 64, 20},               /* VOX: BRIGHT, ATTACK, RELEASE, SHIMMER; VIBRATO */
+        {80, 50, 80, 40, 64, 0},                 /* PULSE: DROP, DECAY, TICK, SPACE (2 dB down) */
+        {100, 64, 70, 40, 90, 0}};               /* TEXTURE: COLOUR, SWEEP, RATE, WIDTH */
+    static const uint8_t DVOICE[JR_DVOICE] = {106, 75, 64, 1};
+    int v, f;
+    for (v = 0; v < JR_VOICES; v++)
+        for (f = 0; f < JR_SHAPE; f++)
+            j->shape[v][f] = SHAPE[v][f];
+    for (v = 0; v < JR_DRONES; v++)
+        for (f = 0; f < JR_DVOICE; f++)
+            j->dvoice[v][f] = DVOICE[f];
+}
 
 void jr_preset(int i, journey_t *dst)
 {
@@ -88,6 +109,7 @@ void jr_preset(int i, journey_t *dst)
         dst->loop[v].len = 16;
         dst->loop[v].div = v == LP_VOX ? 1 : 2;
     }
+    jr_sound_default(dst);
 }
 
 int jr_valid(const journey_t *j)
@@ -180,17 +202,107 @@ int jr_key_note(const jrun_t *r, int w, int oct)
     return clampi(12 * reg_of(s) + s->root % 12 + deg_semi(scale_of(s), w + 7 * oct), 0, 127);
 }
 
-static void drones_to_chord(jrun_t *r, const jr_sink_t *o)
+/* ------------------------------------------------------------------ the drone --- */
+#define DRONE_LO 21                              /* its range (dsp/drone.h NOTE: 9 .. 69) */
+#define DRONE_HI 69
+/* the scene's pedal as a degree of its key (not in the key, or none: the key's root) */
+static int pedal_deg(const scene_t *s)
+{
+    int scale = scale_of(s), pc, i;
+    if (!s->pedal)
+        return 0;
+    pc = ((s->pedal - 1 - s->root) % 12 + 12) % 12;
+    for (i = 0; i < 7; i++)
+        if (SCALE[scale][i] == pc)
+            return i;
+    return 0;
+}
+static uint32_t drone_sig(const jrun_t *r)
 {
     const scene_t *s = sc(r);
-    int v, cd = chord_root(r), voc = s->voicing % NVOICINGS;
-    for (v = 0; v < JR_DRONES; v++) {
-        int m = 24 + s->root % 12 + deg_semi(scale_of(s), cd + VOICING[voc][v]);
-        while (m > 69)                           /* the drone's top (dsp/drone.h NOTE) */
-            m -= 12;
-        r->drone[v] = m;
-        o->drone_note(o->ctx, v, m);
+    return (uint32_t)s->root | (uint32_t)s->scale << 4 | (uint32_t)s->pedal << 8 | (uint32_t)s->voicing << 16 | 1u << 31;
+}
+static int pc_of(int m) { return ((m % 12) + 12) % 12; }
+static int nearest_oct(int m, int cur)           /* m's octave nearest cur, in the drone's range */
+{
+    int k, best = m, bd = 999;
+    for (k = -36; k <= 36; k += 12) {
+        int c = m + k, d = c > cur ? c - cur : cur - c;
+        if (c >= DRONE_LO && c <= DRONE_HI && d < bd) {
+            bd = d;
+            best = c;
+        }
     }
+    return best;
+}
+/* the scene's voicing over its pedal, the bass in octave 1. now: every voice there at once (the start).
+ * Else the bass to the pedal, and of the others, a voice whose note the new voicing has (in any
+ * octave) stays where it is; the rest take the notes still missing, each at its nearest octave, and
+ * move one at a time (jr_tick). OPEN and HIGH, say, are the same notes: nothing moves */
+static void drone_to_scene(jrun_t *r, int now, const jr_sink_t *o)
+{
+    const scene_t *s = sc(r);
+    int v, i, pd = pedal_deg(s), voc = s->voicing % NVOICINGS, base = 24 + s->root % 12, want[JR_DRONES];
+    uint32_t have = 0, need = 0, kept = 0;
+    while (base + deg_semi(scale_of(s), pd) > 35)
+        base -= 12;
+    for (v = 0; v < JR_DRONES; v++) {
+        int m = base + deg_semi(scale_of(s), pd + VOICING[voc][v]);
+        while (m > DRONE_HI)
+            m -= 12;
+        want[v] = m;
+        need |= 1u << pc_of(m);
+    }
+    r->sig = drone_sig(r);
+    r->dpend = 0;
+    r->dwait = 0.0f;                             /* (the first goes now) */
+    for (v = 0; v < JR_DRONES; v++)
+        r->dtarget[v] = want[v];
+    if (!now && r->drone[0] > 0) {
+        r->dtarget[0] = nearest_oct(want[0], r->drone[0]);
+        have = 1u << pc_of(want[0]);
+        for (v = 1; v < JR_DRONES; v++)
+            if (need >> pc_of(r->drone[v]) & 1u) {
+                kept |= 1u << v;
+                have |= 1u << pc_of(r->drone[v]);
+                r->dtarget[v] = r->drone[v];
+            }
+        for (v = 1; v < JR_DRONES; v++) {
+            int m = want[v];
+            if (kept >> v & 1u)
+                continue;
+            for (i = 1; i < JR_DRONES; i++)       /* a note still missing, else its own */
+                if (!(have >> pc_of(want[i]) & 1u)) {
+                    m = want[i];
+                    break;
+                }
+            have |= 1u << pc_of(m);
+            r->dtarget[v] = nearest_oct(m, r->drone[v]);
+        }
+    }
+    for (v = 0; v < JR_DRONES; v++) {
+        if (now || r->drone[v] <= 0) {
+            r->drone[v] = r->dtarget[v];
+            if (o)
+                o->drone_note(o->ctx, v, r->drone[v]);
+        } else if (r->dtarget[v] != r->drone[v]) {
+            r->dpend |= (uint8_t)(1u << v);
+        }
+    }
+}
+static void drone_moves(jrun_t *r, float dt, const jr_sink_t *o)
+{
+    int v;
+    if (!r->dpend || (r->dwait -= dt) > 0.0f)
+        return;
+    for (v = JR_DRONES - 1; v >= 0; v--)        /* the top first, the bass last */
+        if (r->dpend >> v & 1u) {
+            r->dpend &= (uint8_t)~(1u << v);
+            r->drone[v] = r->dtarget[v];
+            o->drone_note(o->ctx, v, r->drone[v]);
+            r->dwait = JR_DRONE_GAP;
+            return;
+        }
 }
 
 /* --------------------------------------------------------------- generator --- */
@@ -492,7 +604,7 @@ void jr_start(jrun_t *r, const jr_sink_t *o)
     r->playing = 1;
     jr_tick(r, 0, o);
     regen_all(r);
-    drones_to_chord(r, o);
+    drone_to_scene(r, 1, o);
     s = sc(r);
     o->drone_latch(o->ctx, s->drones & 0x1Fu ? s->drones & 0x1Fu : 0x07u);
 }
@@ -518,7 +630,7 @@ void jr_restart(jrun_t *r, const jr_sink_t *o)
     r->cur = r->from = r->dest = (uint8_t)(r->j->at % nsc(r->j));
     r->travelling = 0;
     r->chord = 0;
-    drones_to_chord(r, o);                       /* (the black keys play in its key) */
+    drone_to_scene(r, 1, o);                     /* (the black keys play in its key) */
 }
 
 void jr_travel(jrun_t *r, int scene)
@@ -563,15 +675,13 @@ void jr_tick(jrun_t *r, uint32_t frames, const jr_sink_t *o)
         r->intensity += (tgt - r->intensity) * clampf(dt * (1.0f / 3.0f), 0.0f, 1.0f);
         if (r->travelling) {
             r->xf += dt / r->travel_s;
-            if (r->xf >= 0.5f && !r->switched) {  /* the middle: the new key, its chords, new motifs */
+            if (r->xf >= 0.5f && !r->switched) {  /* the middle: the new key, its chords, new motifs (the drone: below) */
                 r->switched = 1;
                 r->cur = r->dest;
                 r->j->at = r->cur;
                 r->chord = 0;
-                if (o) {
+                if (o)
                     regen_all(r);
-                    drones_to_chord(r, o);
-                }
             }
             if (r->xf >= 1.0f) {
                 r->travelling = 0;
@@ -580,15 +690,11 @@ void jr_tick(jrun_t *r, uint32_t frames, const jr_sink_t *o)
             }
         }
     }
-    if (o) {                                     /* the scene edited (SCENE page): the drone follows now */
-        const scene_t *s = sc(r);
-        uint32_t sig = (uint32_t)s->root | (uint32_t)s->scale << 4 | (uint32_t)s->prog << 8 | (uint32_t)s->voicing << 16 |
-                       (uint32_t)r->cur << 24;
-        if (sig != r->sig) {
-            r->sig = sig;
-            r->chord = (uint8_t)(r->chord % prog_of(s)->n);
-            drones_to_chord(r, o);
-        }
+    if (o) {                                     /* a new scene, or this one edited (SCENE): the drone moves */
+        r->chord = (uint8_t)(r->chord % prog_of(sc(r))->n);
+        if (drone_sig(r) != r->sig)
+            drone_to_scene(r, 0, o);
+        drone_moves(r, dt, o);
     }
     a = &j->scene[(r->travelling ? r->from : r->cur) % nsc(j)];
     b = &j->scene[(r->travelling ? r->dest : r->cur) % nsc(j)];
@@ -636,13 +742,11 @@ void jr_step(jrun_t *r, uint32_t n, uint32_t step_frames, const jr_sink_t *o)
     r->now_n = n;
     if (!r->playing)
         return;
-    if ((n & 15u) == 0u) {                       /* a bar line */
+    if ((n & 15u) == 0u) {                       /* a bar line: the chord moves (VOX's; the drone holds) */
         uint32_t bar = n >> 4, bpc = r->intensity > 0.7f ? 2u : r->intensity > 0.35f ? 4u : 8u;
         const prog_t *p = prog_of(sc(r));
-        if (bar && bar % bpc == 0u && p->n > 1) {
+        if (bar && bar % bpc == 0u && p->n > 1)
             r->chord = (uint8_t)((r->chord + 1) % p->n);
-            drones_to_chord(r, o);
-        }
         if (r->rec == 1) {                       /* recording starts on the bar */
             int i;
             r->rec = 2;

@@ -3,8 +3,8 @@
  * the main loop and reaches the ISR only through the command queue, so the voices' state is only
  * ever touched by one context (and the second core's job, while the first waits for it).
  *
- * The five voices (docs: "Penumbra: rewrite design"): DRONE (five voices, SWARM; black keys 1-5 latch
- * them, the journey's director sets their chords), VOX (four voices: the white keys in PLAY, MIDI
+ * The voices (docs: "Penumbra: rewrite design"): DRONE (five voices, SWARM; black keys 1-5 latch
+ * them, the journey holds them on its pedal), VOX (four voices: the white keys in PLAY, MIDI
  * notes, and the generator's sparse phrases, far back in the shimmer), PULSE (a deep kick and a tick:
  * the generator, black keys 6 and 7) and TEXTURE (the wind), into the shimmer reverb, the tape delay
  * and the master stage. The journey (seq/journey.c) runs in CTRL, its steps on the clock's 16ths, and
@@ -35,12 +35,24 @@ extern tclock_t eng_clock;
 extern journey_t eng_jr;
 const jrun_t *engine_jr(void);                 /* (main loop, read only) the director, the generator */
 
-/* the voices, as the VOICES page sets them: LEVEL (100 = as made), TONE (64 = the scene's), their
- * character (DRONE detune, VOX attack, PULSE decay, TEXTURE sweep) and SPACE (their reverb and delay
- * sends, 64 = as made) */
+/* the sound, saved with the journey (eng_jr.shape, eng_jr.dvoice), read by the ISR each block (conduct).
+ * SHAPE: each voice's LEVEL (100 = as made) and four knobs (64 = as made where it is an offset):
+ *   DRONE    FILTER, BODY (resonance), SWARM (the crowd, and the voices' detune with it), WAVE (soft .. reedy)
+ *   VOX      BRIGHT (over the scene's), ATTACK, RELEASE, SHIMMER (how far into the reverb)
+ *   PULSE    DROP (the kick's fall of pitch), DECAY, TICK, SPACE
+ *   TEXTURE  COLOUR (over the scene's), SWEEP, RATE, WIDTH
+ * SH_HIDE is set only by a held note's SAVE: VOX's vibrato. Each drone voice, its black key held:
+ * LEVEL, TONE, DETUNE (64: none), OCTAVE (0 down, 1 as the journey has it, 2 up) */
 enum { EV_DRONE, EV_VOX, EV_PULSE, EV_TEX, EV_N };
-enum { VF_LEVEL, VF_TONE, VF_CHAR, VF_SEND, VF_N };
-void engine_voice(int voice, int field, int value);
+enum { SH_LEVEL, SH_K1, SH_K2, SH_K3, SH_K4, SH_HIDE, SH_N };
+enum { DV_LEVEL, DV_TONE, DV_DETUNE, DV_OCT, DV_N };
+_Static_assert(EV_N == JR_VOICES && SH_N == JR_SHAPE && DV_N == JR_DVOICE, "the journey keeps the sound");
+/* the hands' moves, on top of the sound and gone when they spring back (the UI glides them):
+ *   THROWS (FX held)        SHIMMER, FEEDBACK (the delay's), FREEZE (the reverb holds, the sends close),
+ *                           DIP (the whole mix's low-pass): 0 none .. 127 all the way
+ *   BENDS (a white key held) VOX's BRIGHT, VIBRATO, SHIMMER, RELEASE: -64 .. +64 */
+enum { PF_SHIMMER, PF_FDBK, PF_FREEZE, PF_DIP, PF_BRIGHT, PF_VIB, PF_VSEND, PF_VREL, PF_N };
+void engine_perf(int i, int value);
 /* the effects, as the FX page sets them */
 enum { EF_RV_DECAY, EF_RV_SIZE, EF_RV_SHIMMER, EF_RV_TONE, EF_DL_TIME, EF_DL_FDBK, EF_DL_TONE, EF_DL_WEAR, EF_N };
 void engine_fx(int i, int value);

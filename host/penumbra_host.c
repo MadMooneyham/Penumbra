@@ -498,8 +498,16 @@ static int expect(const char *what, const char *val)
         got = journey_index();
     else if (!strncmp(what, "slot", 4))             /* slotN: user slot N holds a journey */
         got = journey_slot_used(atoi(what + 4) - 1);
-    else if (!strncmp(what, "voice", 5))            /* voiceVF: voice V (1 DRONE .. 4 TEXTURE) field F (1-4) */
-        got = cfg.voice[(what[5] - '1') % EV_N][(what[6] - '1') % VF_N];
+    else if (!strncmp(what, "shape", 5))            /* shapeVF: voice V (1 DRONE .. 4 TEXTURE), F 0 level, 1-4 its knobs, 5 the hidden one */
+        got = eng_jr.shape[(what[5] - '1') % EV_N][(what[6] - '0') % SH_N];
+    else if (!strncmp(what, "dvoice", 6))           /* dvoiceVF: drone voice V (1-5) field F (1 LEVEL .. 4 OCTAVE) */
+        got = eng_jr.dvoice[(what[6] - '1') % ENG_DRONES][(what[7] - '1') % DV_N];
+    else if (!strncmp(what, "perf", 4))             /* perfN: the hands' move N (0-7, engine.h PF_*) the engine has */
+        got = ui.sent[atoi(what + 4) % PF_N];
+    else if (!strncmp(what, "dnote", 5))            /* dnoteV: drone voice V's note (MIDI), the journey's */
+        got = engine_jr()->drone[(atoi(what + 5) - 1) % ENG_DRONES];
+    else if (!strcmp(what, "dmoving"))              /* the drone voices still to move to the scene's */
+        got = engine_jr()->dpend;
     else if (!strcmp(what, "autoplay"))
         got = cfg.autoplay;
     else if (!strcmp(what, "bench")) {               /* the benchmark has published (a second rendered) */
@@ -643,7 +651,7 @@ int main(int argc, char **argv)
             boot();
         } else if (!strcmp(cmd, "legacy013")) {       /* 0.13's flash: settings format 2 (LINE's voice second),
                                                        * the journey playing and user slot 1 as format 1 (three loops) */
-            uint8_t s[56] = {0}, jb[sizeof(journey_t) + sizeof(loop_t)];
+            uint8_t s[56] = {0}, jb[__builtin_offsetof(journey_t, shape) + sizeof(loop_t)];
             uint32_t at = __builtin_offsetof(journey_t, loop), k;
             journey_t j;
             settings_defaults();
@@ -675,6 +683,27 @@ int main(int argc, char **argv)
                 memcpy(slots, jb, sizeof jb);
                 plat_store_save(OBJ_USER, slots, sizeof slots);
             }
+            store_writes = 0;
+            held_btn = held_keys = 0;
+            boot();
+        } else if (!strcmp(cmd, "legacy014")) {       /* 0.14's flash: settings format 3 (its VOICES page), the
+                                                       * journey playing and user slot 1 as format 2 (no sound) */
+            uint32_t n = __builtin_offsetof(journey_t, shape);
+            static uint8_t slots[JR_USER * __builtin_offsetof(journey_t, shape)];
+            journey_t j;
+            settings_defaults();
+            cfg.voice14[EV_PULSE][0] = 60;
+            cfg.voice14[EV_VOX][1] = 80;              /* (VOX's TONE: its BRIGHT now) */
+            plat_store_save(OBJ_SET, &cfg, sizeof cfg);
+            jr_preset(1, &j);
+            j.format = 2;
+            j.size = (uint16_t)n;
+            j.mode = MODE_GUIDE;
+            j.scene[0].pedal = 0x55;                  /* (0.14's spare byte, anything: it comes over as none) */
+            plat_store_save(OBJ_WORK, &j, n);
+            memset(slots, 0, sizeof slots);
+            memcpy(slots, &j, n);
+            plat_store_save(OBJ_USER, slots, sizeof slots);
             store_writes = 0;
             held_btn = held_keys = 0;
             boot();

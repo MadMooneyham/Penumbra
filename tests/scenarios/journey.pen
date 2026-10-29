@@ -19,6 +19,8 @@ expect travelling 1
 wait 40000
 expect scene 2
 expect travelling 0
+expect dnote1 33
+expect dmoving 0
 shot travelled.png
 tap PLAY
 wait 200

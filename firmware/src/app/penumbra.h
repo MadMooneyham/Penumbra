@@ -26,7 +26,8 @@ typedef struct {
     uint8_t usb_full;                    /* 1: USB audio at full level, MASTER for the FM-1's own outputs */
     uint8_t autoplay;                    /* 1: the journey plays at power-on */
     uint8_t rsv[6];
-    uint8_t voice[EV_N][VF_N];           /* the VOICES page (engine.h EV_*, VF_*) */
+    uint8_t voice14[EV_N][4];            /* 0.14's VOICES page (level, tone, character, send): read once,
+                                          * into an older journey's sound (settings.c), then unused */
     uint8_t fx[EF_N];                    /* the FX page (engine.h EF_*) */
     uint8_t rsv2[4];
 } settings_t;
