@@ -308,6 +308,12 @@ static void js_drone_release(void *x)
         if (dn.v[v].on)
             drone_trigger(&dn, v, 1.0f);         /* (latched: the key again lets it fall) */
 }
+static void js_drone_swell(void *x, int v)
+{
+    (void)x;
+    if (v >= 0 && v < DRONE_VOICES && dn.v[v].pot[DN_MODE] == DN_MODE_SWELL)
+        drone_trigger(&dn, v, 1.0f);
+}
 volatile uint32_t eng_vox_notes;
 static void js_vox_on(void *x, int midi, int vel)
 {
@@ -317,7 +323,8 @@ static void js_vox_on(void *x, int midi, int vel)
 }
 static void js_vox_off(void *x, int midi) { (void)x; vox_note_off(&vox, midi); }
 static void js_pulse(void *x, int which, int vel) { (void)x; hit(which, (float)vel * (1.0f / 127.0f)); }
-static const jr_sink_t JSINK = {0, js_drone_note, js_drone_latch, js_drone_release, js_vox_on, js_vox_off, js_pulse};
+static const jr_sink_t JSINK = {0, js_drone_note, js_drone_latch, js_drone_release, js_drone_swell, js_vox_on, js_vox_off,
+                                js_pulse};
 
 /* the sound (the SHAPE pages, the drone voices' own), the scene, the HOME macros and the hands' moves
  * into the voices, each block. The drone is the backbone: only its sound and TONE move it, never the
@@ -326,7 +333,8 @@ static const jr_sink_t JSINK = {0, js_drone_note, js_drone_latch, js_drone_relea
 enum { K_DCUT, K_DRESO, K_SWARM, K_VCUT, K_VATK, K_VREL, K_VVIB, K_PPITCH, K_PDEC, K_PTICK, K_TLVL, K_TCOL,
        K_TSWEEP, K_TRATE, K_TWIDTH, K_ROOT, K_SHIM, K_FDBK, K_DECAY, K_DIP,
        K_LEVEL, K_DWAVE = K_LEVEL + EV_N, K_DLVL = K_DWAVE + DRONE_VOICES, K_DTONE = K_DLVL + DRONE_VOICES,
-       K_DSPREAD = K_DTONE + DRONE_VOICES, K_DOCT = K_DSPREAD + DRONE_VOICES, NK = K_DOCT + DRONE_VOICES };
+       K_DSPREAD = K_DTONE + DRONE_VOICES, K_DOCT = K_DSPREAD + DRONE_VOICES, K_DMODE = K_DOCT + DRONE_VOICES,
+       NK = K_DMODE + DRONE_VOICES };
 static int16_t cache[NK];
 static int moved(int k, int v)
 {
@@ -364,6 +372,11 @@ static void conduct(void)
             drone_set(&dn, v, DN_SPREAD, x);     /* (the detune follows SWARM: the high octave a wider cluster) */
         if (moved(K_DOCT + v, dv[DV_OCT]))
             drone_note_apply(v);
+        if (moved(K_DMODE + v, x = (eng_jr.dswell >> v & 1u) ? DN_MODE_SWELL : DN_MODE_HOLD) && dn.v[v].pot[DN_MODE] != x) {
+            drone_set(&dn, v, DN_MODE, x);       /* held -> comes and goes: a latched voice swells out now */
+            if (x == DN_MODE_SWELL && dn.v[v].on)
+                drone_trigger(&dn, v, 1.0f);
+        }                                        /* (comes and goes -> held: one sounding stays, latched) */
     }
     /* VOX */
     if (moved(K_VCUT, x = clamp127(30.0f + bright * 0.47f + (float)(sh[EV_VOX][SH_K1] - 64 + perf[PF_BRIGHT]))))

@@ -12,7 +12,8 @@
  *   drone      the backbone: a pedal, the scene's voicing over its root (or the pedal it names, in
  *              its key), held the whole scene. The chords move only VOX. A new scene moves the voices
  *              that must move, to the nearest note of their new one (the rest stay where they are),
- *              one at a time, the top first and the bass last, JR_DRONE_GAP seconds apart.
+ *              one at a time, the top first and the bass last, JR_DRONE_GAP seconds apart. A voice
+ *              may come and go instead (dswell): swelled in every few bars, more often as the moon fills.
  *   generator  writes from the journey's seed and the scene's scale: VOX's phrases (one to three long
  *              notes over eight bars, then the space they ring out into) and PULSE's pattern; repeats
  *              them, then changes them a little (a note a step) and, after a few changes, writes new
@@ -99,7 +100,9 @@ typedef struct {
     /* the sound (0..127; nothing here reads it: the engine does) */
     uint8_t shape[JR_VOICES][JR_SHAPE];
     uint8_t dvoice[JR_DRONES][JR_DVOICE];
-    uint8_t rsv2[4];
+    uint8_t dswell;                             /* the drone voices that come and go (bit v): the director swells
+                                                 * them in now and then, a key plays one; the rest are held */
+    uint8_t rsv2[3];
 } journey_t;
 
 typedef struct {
@@ -107,6 +110,7 @@ typedef struct {
     void (*drone_note)(void *ctx, int voice, int midi);
     void (*drone_latch)(void *ctx, uint32_t mask);        /* these voices on (the others as they are) */
     void (*drone_release)(void *ctx);                     /* every voice falls away */
+    void (*drone_swell)(void *ctx, int voice);            /* a voice that comes and goes: in, then out */
     void (*vox_on)(void *ctx, int midi, int vel);         /* vel 0..127 */
     void (*vox_off)(void *ctx, int midi);
     void (*pulse)(void *ctx, int which, int vel);         /* 0 kick, 1 tick; vel 0..127 */
@@ -143,6 +147,8 @@ typedef struct {
     int dtarget[JR_DRONES];                     /* where they are going */
     uint8_t dpend;                              /* the voices still to move (bit v) */
     float dwait;                                /* seconds to the next */
+    uint8_t swell_wait[JR_DRONES];              /* the swelling voices: bars to the next */
+    uint32_t srng;
     jr_gen_t g[JR_LOOPS];
     uint32_t lrng[JR_LOOPS];                    /* the captured loops' mutations */
     int vox_note;                               /* the generator's, sounding (-1: none) */

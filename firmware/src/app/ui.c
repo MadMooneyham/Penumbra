@@ -523,6 +523,19 @@ static void drone_knob(int k, int e)              /* the drone voices held, each
     put_s(put_s(put_s(put_s(put_i(put_s(t, "DRONE "), first + 1), " "), DVF_N[k]), " "), b);
     say(t, 0);
 }
+static void drone_mode(int e)                     /* ALGO, a drone key held: HELD (left) or SWELL, comes and goes (right) */
+{
+    char t[40];
+    int first = lowest_bit(ui.dheld);
+    if (e > 0)
+        eng_jr.dswell |= ui.dheld;
+    else
+        eng_jr.dswell &= (uint8_t)~ui.dheld;
+    ui.dturned |= ui.dheld;
+    changed_jr();
+    put_s(put_i(put_s(t, "DRONE "), first + 1), e > 0 ? " SWELLS: COMES AND GOES" : " HELD");
+    say(t, 0);
+}
 static void throw_knob(int k, int e)
 {
     char t[40], b[8];
@@ -793,7 +806,9 @@ static void input(void)
                 if (eng_jr.mode == MODE_DRIFT && w < eng_jr.nscenes && w != engine_jr()->cur)
                     say_n("TO SCENE ", w + 1);
             } else if (bk >= 0 && bk < ENG_DRONES) {
-                ui.dheld |= (uint8_t)(1u << bk);  /* (it latches when let go, unless the knobs shaped it) */
+                ui.dheld |= (uint8_t)(1u << bk);  /* (held: it latches when let go, unless the knobs shaped it) */
+                if (eng_jr.dswell >> bk & 1u)
+                    engine_drone_key(bk);         /* a voice that comes and goes: played, now */
             } else if (bk == ENG_DRONES || bk == ENG_DRONES + 1) {   /* the next two: PULSE's kick and tick */
                 engine_pulse(bk - ENG_DRONES, 110);
             }
@@ -804,7 +819,7 @@ static void input(void)
             if (!ui.wheld && (ui.bend[0] != 0.0f || ui.bend[1] != 0.0f || ui.bend[2] != 0.0f || ui.bend[3] != 0.0f))
                 ui.bend_back = 1;                 /* the note let go: its bends drift back */
         } else if ((ku >> i & 1u) && bk >= 0 && bk < ENG_DRONES) {
-            if (!(ui.dturned >> bk & 1u))
+            if (!(ui.dturned >> bk & 1u) && !(eng_jr.dswell >> bk & 1u))
                 engine_drone_key(bk);
             ui.dheld &= (uint8_t)~(1u << bk);
             ui.dturned &= (uint8_t)~(1u << bk);
@@ -836,7 +851,9 @@ static void input(void)
     }
     if ((e = plat_enc(EN_ALGO)) != 0) {           /* the tempo, wherever you are (SHAPE: the voice's level) */
         ui.touch_t = now;
-        if (ui.view == V_SHAPE) {
+        if (layer() == L_DRONE) {
+            drone_mode(e);
+        } else if (ui.view == V_SHAPE) {
             shape_turn(-1, e);
         } else {
             int bpm = clamp_i(cfg.bpm_x10 / 10 + e, 20, 300);
@@ -1484,8 +1501,8 @@ static void draw_knobs(void)
             dv_text(v, k, a);
             cell(k, DVF_N[k], a, C_AMB);
         }
-        put_i(put_s(a, "DRONE "), v + 1);
-        hint(a, "IT STAYS");
+        put_s(put_i(put_s(a, "DRONE "), v + 1), eng_jr.dswell >> v & 1u ? ": SWELL" : ": HELD");
+        hint(a, "ALGO: HELD / SWELL");
         cv_commit(2, 0, KNOB_Y);
         return;
     }

@@ -123,6 +123,7 @@ static void journey_sane(journey_t *j)          /* a loaded one: every field in 
     for (i = 0; i < ENG_DRONES; i++)
         if (j->dvoice[i][DV_OCT] > 2)
             j->dvoice[i][DV_OCT] = 1;
+    j->dswell &= (1u << ENG_DRONES) - 1u;
     for (i = 0; i < JR_LOOPS; i++) {
         loop_t *l = &j->loop[i];
         l->len = (uint8_t)(l->len < 1 || l->len > JR_STEPS ? JR_STEPS : l->len);
@@ -279,6 +280,7 @@ void journey_open_preset(int i)
         (&j.shape[0][0])[k] = (&eng_jr.shape[0][0])[k];
     for (k = 0; k < sizeof j.dvoice; k++)
         (&j.dvoice[0][0])[k] = (&eng_jr.dvoice[0][0])[k];
+    j.dswell = eng_jr.dswell;
     eng_jr = j;
     engine_journey_loaded();
 }

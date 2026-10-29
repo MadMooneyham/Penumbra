@@ -41,7 +41,7 @@ It plays at power-on (SYSTEM > PLAY AT POWER-ON). The modes (ARP) say what the w
 
 | Control | What it does |
 | --- | --- |
-| Black keys 1-5 | latch the drone voices, when let go (the journey sets their notes) |
+| Black keys 1-5 | latch the drone voices, when let go (the journey sets their notes); a SWELL voice: play it |
 | Black keys 6, 7 | PULSE's kick and tick, by hand |
 | KNOBS 1-4 on HOME | DRIFT (how fast the journey moves; 0 holds it still), DENSITY (how much plays), SPACE (reverb and delay together), TONE (brightness) |
 | ALGO | the tempo (on SHAPE: the voice's level) |
@@ -67,7 +67,11 @@ Holds: while one is held, the four knobs play something else, on any page.
 
 | Hold | The knobs | Let go |
 | --- | --- | --- |
-| A drone key (black 1-5) | that voice's level, tone, detune, octave | it stays as shaped (and the key does not latch) |
+| A drone key (black 1-5) | that voice's level, tone, detune, octave; ALGO: HELD (left) or SWELL (right) | it stays as shaped (and the key does not latch) |
+
+A drone voice is HELD (its key latches it; the journey holds it on the pedal) or SWELL: it comes and goes,
+the journey swelling it in every few bars (more often as the moon fills), and its key plays it, a swell in
+and out each press. Each voice is set apart; the choice is saved with the journey.
 | FX | throws: shimmer, delay feedback, freeze (the reverb holds), dip (the mix's low-pass) | they drift back over a couple of seconds; SAVE while holding keeps them, until FX is held and turned again |
 | A white key (PLAY, GUIDE) | bend VOX: brightness, vibrato, shimmer, release | they drift back; SAVE while holding puts them into VOX's sound |
 

@@ -576,6 +576,7 @@ void jr_init(jrun_t *r, journey_t *j)
         r->macro_s[i] = (float)j->macro[i];
     for (i = 0; i < JR_LOOPS; i++)
         r->lrng[i] = hash3(j->seed, 0x100u + i, 0);
+    r->srng = hash3(j->seed, 0x200u, 0);
     r->cur = r->from = r->dest = (uint8_t)(j->at % nsc(j));
     jr_tick(r, 0, 0);
 }
@@ -592,6 +593,7 @@ static void regen_all(jrun_t *r)
 void jr_start(jrun_t *r, const jr_sink_t *o)
 {
     const scene_t *s;
+    int v;
     r->cur = r->from = r->dest = (uint8_t)(r->j->at % nsc(r->j));
     r->travelling = 0;
     r->xf = 0.0f;
@@ -606,7 +608,9 @@ void jr_start(jrun_t *r, const jr_sink_t *o)
     regen_all(r);
     drone_to_scene(r, 1, o);
     s = sc(r);
-    o->drone_latch(o->ctx, s->drones & 0x1Fu ? s->drones & 0x1Fu : 0x07u);
+    o->drone_latch(o->ctx, (s->drones & 0x1Fu ? s->drones & 0x1Fu : 0x07u) & ~(uint32_t)r->j->dswell);
+    for (v = 0; v < JR_DRONES; v++)              /* the ones that come and go: the first soon */
+        r->swell_wait[v] = (uint8_t)(1 + v + rndn(&r->srng, 3));
 }
 
 void jr_stop(jrun_t *r, const jr_sink_t *o)
@@ -747,6 +751,15 @@ void jr_step(jrun_t *r, uint32_t n, uint32_t step_frames, const jr_sink_t *o)
         const prog_t *p = prog_of(sc(r));
         if (bar && bar % bpc == 0u && p->n > 1)
             r->chord = (uint8_t)((r->chord + 1) % p->n);
+        for (v = 0; v < JR_DRONES; v++)          /* the voices that come and go: every 3 .. 18 bars, sooner as it fills */
+            if (j->dswell >> v & 1u) {
+                if (r->swell_wait[v]) {
+                    r->swell_wait[v]--;
+                    continue;
+                }
+                o->drone_swell(o->ctx, v);
+                r->swell_wait[v] = (uint8_t)(3 + rndn(&r->srng, 4 + (int)(12.0f * (1.0f - r->out.eff))));
+            }
         if (r->rec == 1) {                       /* recording starts on the bar */
             int i;
             r->rec = 2;

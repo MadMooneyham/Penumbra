@@ -1,6 +1,7 @@
 # The holds: the knobs play something else while a key or FX is held, on any page.
 # A drone key held: the knobs shape that voice (LEVEL, TONE, DETUNE, OCTAVE), it stays so, and the key
-# does not latch it; tapped, it latches. FX held: THROWS (shimmer, feedback, freeze, dip); let go, they
+# does not latch it; tapped, it latches. With ALGO it comes and goes instead (SWELL): a tap swells it in,
+# then it falls away by itself; a latched one switched so swells out. FX held: THROWS (shimmer, feedback, freeze, dip); let go, they
 # drift back; SAVE while holding keeps them, until FX is held and turned again. A white key held (PLAY):
 # BENDS VOX (bright, vibrato, shimmer, release); let go, back; SAVE while holding puts them into VOX's
 # sound. Audio in holds.wav.
@@ -21,6 +22,26 @@ expect drone2 0
 tapkey b1
 wait 100
 expect drone2 1
+key b3 down
+wait 100
+turn ALGO 1
+key b3 up
+wait 100
+expect dswell 8
+expect drone4 0
+expect set_bpm 90
+tapkey b3
+wait 300
+expect drone4 1
+wait 8000
+expect drone4 0
+key b1 down
+wait 100
+turn ALGO 1
+key b1 up
+wait 6000
+expect dswell 10
+expect drone2 0
 press FX
 wait 100
 turn K1 10

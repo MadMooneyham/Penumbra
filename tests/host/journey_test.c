@@ -26,7 +26,7 @@ static struct {
     int vox_held[128];
     int seq[4096], nseq;
 } S;
-static uint32_t frames_now, started;
+static uint32_t frames_now, started, swells, latched;
 static int in_key(int midi, const scene_t *s)
 {
     int pc = ((midi - s->root) % 12 + 12) % 12, i;
@@ -58,8 +58,9 @@ static void d_note(void *x, int v, int m)
         S.dlast = frames_now;
     }
 }
-static void d_latch(void *x, uint32_t m) { (void)x; mix(2, m); }
+static void d_latch(void *x, uint32_t m) { (void)x; mix(2, m); latched = m; }
 static void d_rel(void *x) { (void)x; mix(3, 0); }
+static void d_swell(void *x, int v) { (void)x; mix(4, (uint32_t)v); swells++; }
 static void v_on(void *x, int m, int v)
 {
     (void)x;
@@ -81,7 +82,7 @@ static void p_hit(void *x, int w, int v)
     else
         S.kicks++;
 }
-static const jr_sink_t SINK = {0, d_note, d_latch, d_rel, v_on, v_off, p_hit};
+static const jr_sink_t SINK = {0, d_note, d_latch, d_rel, d_swell, v_on, v_off, p_hit};
 
 static int sounding_vox(void)
 {
@@ -164,6 +165,20 @@ int main(void)
         play_steps(113u * 64u);
         snprintf(t, sizeof t, "%s: the same seed, the same music", jr_preset_name(p));
         CHECK(S.hash == h, t);
+    }
+    {   /* a drone voice that comes and goes: not latched, swelled in now and then, more as the moon fills */
+        uint32_t bars;
+        jr_preset(0, &J);
+        J.dswell = 1u << 4;
+        jr_init(&R, &J);
+        swells = 0;
+        step_n = 0;
+        jr_start(&R, &SINK);
+        play_steps(10u * PER_MIN);
+        bars = step_n / 16u;
+        printf("  swell: voice 5 swelled %u times in %u bars\n", swells, bars);
+        CHECK(!(latched >> 4 & 1u) && swells * 20u >= bars && swells * 3u <= bars,
+              "a swelling drone voice: not latched, in every 3 .. 20 bars");
     }
     {   /* DRIFT 0: it stays where it is; PLAY: the hands come first */
         uint32_t before;
