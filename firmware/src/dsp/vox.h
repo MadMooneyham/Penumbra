@@ -18,8 +18,10 @@
 #define VOX_CTRL 16                       /* control rate: every 16 samples */
 #define VOX_MAX_BLOCK 256
 
+/* WAVE: saw (0) .. square (64) .. a narrow pulse (127), both oscillators. FMODE: the filter low-pass (0)
+ * .. band-pass (127). GLIDE: a new note slides from the last one played (0: none .. ~1.5 s) */
 enum { VX_DETUNE, VX_OCTB, VX_MIXB, VX_CUTOFF, VX_RESO, VX_ENVAMT, VX_KEYTRK, VX_ATTACK, VX_DECAY,
-       VX_SUSTAIN, VX_RELEASE, VX_VIB, VX_SPREAD, VX_LEVEL, VX_NPARAMS };
+       VX_SUSTAIN, VX_RELEASE, VX_VIB, VX_SPREAD, VX_LEVEL, VX_WAVE, VX_FMODE, VX_GLIDE, VX_NPARAMS };
 
 typedef struct {
     int32_t note;                         /* MIDI note, -1 never used */
@@ -31,11 +33,14 @@ typedef struct {
     float ic1, ic2, a1, a2, a3, k;        /* TPT SVF */
     float pan_l, pan_r;
     float vel;
+    float pitch;                          /* the note it sounds, gliding to note */
+    float bpk;                            /* the band-pass's gain: k, so its peak is unity */
 } vox_voice_t;
 
 typedef struct {
     uint8_t pot[VX_NPARAMS];
     float det, octb, mixb, cutoff, reso, envamt, keytrk, atk_c, dec_c, sus, rel_c, vib, spread, level;
+    float wmix, pw, bp, glide_c, last_note;
     vox_voice_t v[VOX_VOICES];
     float vib_ph;
     uint32_t clock;                       /* notes so far, for the voices' ages */

@@ -48,6 +48,12 @@ enum { EV_DRONE, EV_VOX, EV_PULSE, EV_TEX, EV_N };
 enum { SH_LEVEL, SH_K1, SH_K2, SH_K3, SH_K4, SH_HIDE, SH_N };
 enum { DV_LEVEL, DV_TONE, DV_DETUNE, DV_OCT, DV_N };
 _Static_assert(EV_N == JR_VOICES && SH_N == JR_SHAPE && DV_N == JR_DVOICE, "the journey keeps the sound");
+/* VOX's sounds (eng_jr.vsound[vcur]: VOX's row of shape is unused): its SHAPE pages are VOX (BRIGHT,
+ * ATTACK, RELEASE, SHIMMER), VOX 2 (WAVE, FILTER: low-pass .. band-pass, RESO, GLIDE) and VOX 3 (DETUNE,
+ * B OCTAVE, B MIX, ENV: how far its envelope opens the filter); VIBRATO a held note's SAVE sets */
+enum { VS_LEVEL, VS_BRIGHT, VS_ATTACK, VS_RELEASE, VS_SHIMMER, VS_VIB, VS_WAVE, VS_FILTER, VS_RESO, VS_GLIDE,
+       VS_DETUNE, VS_BOCT, VS_BMIX, VS_ENV, VS_N };
+_Static_assert(VS_N <= JR_VS, "a VOX sound fits its bytes");
 /* the hands' moves, on top of the sound and gone when they spring back (the UI glides them):
  *   THROWS (FX held)        SHIMMER, FEEDBACK (the delay's), FREEZE (the reverb holds, the sends close),
  *                           DIP (the whole mix's low-pass): 0 none .. 127 all the way

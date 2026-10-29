@@ -1,0 +1,14 @@
+# From 0.15: its journeys (one VOX sound, SHAPE's row) carry over with that sound as the first of the
+# four (GLASS: its brightness, its vibrato) and the others as made; the rest as it was (a drone voice
+# that comes and goes). The user slot too.
+legacy015
+wait 500
+expect journey 5
+expect vcur 1
+expect vs1.1 90
+expect vs1.5 33
+expect vs2.6 96
+expect dswell 16
+expect slot1 1
+expect jr_playing 1
+expect clips 0

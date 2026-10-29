@@ -50,7 +50,7 @@ static const char *const VIEW_N[NVIEWS] = {"HOME", "SHAPE", "SCENE", "FX", "JOUR
 #define IDLE_HOME_MS 30000u
 #define BACK_S 2.0f                        /* a throw or a bend let go drifts back over this, from all the way */
 
-enum { L_PAGE, L_DRONE, L_THROW, L_BEND }; /* what the knobs play: the page's, or a hold's */
+enum { L_PAGE, L_DRONE, L_VSOUND, L_THROW, L_BEND };   /* what the knobs play: the page's, or a hold's */
 
 typedef struct {
     uint8_t view;
@@ -69,6 +69,7 @@ typedef struct {
     uint8_t stars;                     /* notes played since the last frame: a star each */
     /* the holds */
     uint8_t dheld, dturned;            /* drone keys held (bit v); a knob moved while they were */
+    uint8_t vheld;                     /* VOX's sound keys held (bit s) */
     uint16_t wheld;                    /* white keys held (bit w) */
     uint32_t used;                     /* buttons held as a hold this press: they do not act when let go */
     float thr[4], bend[4];             /* THROWS 0..127 (PF_SHIMMER..), BENDS -64..64 (PF_BRIGHT..) */
@@ -400,18 +401,37 @@ static void save_button(void)
 
 /* ================================================================ the sound === */
 static const char *const VOICE_N[EV_N] = {"DRONE", "VOX", "PULSE", "TEXTURE"};
-static const char *const SHAPE_N[EV_N][4] = {{"FILTER", "BODY", "SWARM", "WAVE"},
-                                             {"BRIGHT", "ATTACK", "RELEASE", "SHIMMER"},
-                                             {"DROP", "DECAY", "TICK", "SPACE"},
-                                             {"COLOUR", "SWEEP", "RATE", "WIDTH"}};
-static int shape_signed(int v, int k)             /* an offset from as made (64): shown -64 .. +63 */
+/* SHAPE's pages: a voice each, VOX three, of the sound of its four playing (ENV, SELECT: the next) */
+enum { PG_DRONE, PG_VOX, PG_VOX2, PG_VOX3, PG_PULSE, PG_TEX, NPG };
+typedef struct {
+    uint8_t voice;
+    const char *name;
+    const char *k[4];
+    uint8_t f[4];                                 /* the fields: SH_* (VOX: VS_*) */
+    uint8_t sgn;                                  /* the knobs that are an offset from as made (bit k): -64 .. +63 */
+} spage_t;
+static const spage_t PAGE[NPG] = {
+    {EV_DRONE, "DRONE", {"FILTER", "BODY", "SWARM", "WAVE"}, {SH_K1, SH_K2, SH_K3, SH_K4}, 0},
+    {EV_VOX, "VOX", {"BRIGHT", "ATTACK", "RELEASE", "SHIMMER"}, {VS_BRIGHT, VS_ATTACK, VS_RELEASE, VS_SHIMMER}, 0x9},
+    {EV_VOX, "VOX 2", {"WAVE", "FILTER", "RESO", "GLIDE"}, {VS_WAVE, VS_FILTER, VS_RESO, VS_GLIDE}, 0},
+    {EV_VOX, "VOX 3", {"DETUNE", "B OCT", "B MIX", "ENV"}, {VS_DETUNE, VS_BOCT, VS_BMIX, VS_ENV}, 0},
+    {EV_PULSE, "PULSE", {"DROP", "DECAY", "TICK", "SPACE"}, {SH_K1, SH_K2, SH_K3, SH_K4}, 0x8},
+    {EV_TEX, "TEXTURE", {"COLOUR", "SWEEP", "RATE", "WIDTH"}, {SH_K1, SH_K2, SH_K3, SH_K4}, 0x1}};
+static uint8_t *vsound(void) { return eng_jr.vsound[eng_jr.vcur % JR_VSOUNDS]; }
+static uint8_t *pg_ptr(int pg, int k)             /* k: a knob, or -1 the level */
 {
-    return (v == EV_VOX && (k == 0 || k == 3)) || (v == EV_PULSE && k == 3) || (v == EV_TEX && k == 0);
+    const spage_t *p = &PAGE[pg % NPG];
+    if (p->voice == EV_VOX)
+        return &vsound()[k < 0 ? VS_LEVEL : p->f[k]];
+    return &eng_jr.shape[p->voice][k < 0 ? SH_LEVEL : p->f[k]];
 }
-static void shape_text(int v, int k, char *b)     /* k: a knob, or -1 the level */
+static int pg_octave(int pg, int k) { return k >= 0 && PAGE[pg % NPG].voice == EV_VOX && PAGE[pg % NPG].f[k] == VS_BOCT; }
+static void shape_text(int pg, int k, char *b)
 {
-    int x = eng_jr.shape[v][k < 0 ? SH_LEVEL : SH_K1 + k];
-    if (k >= 0 && shape_signed(v, k))
+    int x = *pg_ptr(pg, k);
+    if (pg_octave(pg, k))
+        put_s(b, x == 0 ? "-1" : x == 2 ? "+1" : "0");
+    else if (k >= 0 && (PAGE[pg % NPG].sgn >> k & 1u))
         put_sgn(b, x - 64);
     else
         put_i(b, x);
@@ -419,12 +439,24 @@ static void shape_text(int v, int k, char *b)     /* k: a knob, or -1 the level 
 static void shape_turn(int k, int e)
 {
     char t[40], b[12];
-    uint8_t *p = &eng_jr.shape[ui.vsel][k < 0 ? SH_LEVEL : SH_K1 + k];
-    *p = (uint8_t)clamp_i(*p + 2 * e, 0, 127);
+    uint8_t *p = pg_ptr(ui.vsel, k);
+    *p = (uint8_t)(pg_octave(ui.vsel, k) ? clamp_i(*p + (e > 0 ? 1 : -1), 0, 2) : clamp_i(*p + 2 * e, 0, 127));
     changed_jr();
     shape_text(ui.vsel, k, b);
-    put_s(put_s(put_s(put_s(put_s(t, VOICE_N[ui.vsel]), " "), k < 0 ? "LEVEL" : SHAPE_N[ui.vsel][k]), " "), b);
+    put_s(put_s(put_s(put_s(put_s(t, PAGE[ui.vsel].name), " "), k < 0 ? "LEVEL" : PAGE[ui.vsel].k[k]), " "), b);
     say(t, 0);
+}
+
+/* VOX's four sounds, black keys 8 .. 11: pressed, that one plays (mid-phrase too); held, the knobs
+ * shape it (BRIGHT, WAVE, FILTER, RELEASE) */
+#define VS_KEY0 (ENG_DRONES + 2)                  /* the first of their keys (black: the drones, PULSE's two) */
+static const uint8_t VSH_F[4] = {VS_BRIGHT, VS_WAVE, VS_FILTER, VS_RELEASE};
+static const char *const VSH_N[4] = {"BRIGHT", "WAVE", "FILTER", "RELEASE"};
+static void vsound_pick(int s)
+{
+    eng_jr.vcur = (uint8_t)(s % JR_VSOUNDS);
+    changed_jr();
+    say("VOX ", jr_vsound_name(s));
 }
 
 /* ---------------------------------------------------------------- the holds --- */
@@ -432,6 +464,8 @@ static int layer(void)
 {
     if (ui.dheld)
         return L_DRONE;
+    if (ui.vheld)
+        return L_VSOUND;
     if (ui.btn >> B_FX & 1u)
         return L_THROW;
     if (ui.wheld)
@@ -472,6 +506,19 @@ static void drone_knob(int k, int e)              /* the drone voices held, each
     changed_jr();
     dv_text(first, k, b);
     put_s(put_s(put_s(put_s(put_i(put_s(t, "DRONE "), first + 1), " "), DVF_N[k]), " "), b);
+    say(t, 0);
+}
+static void vsound_knob(int k, int e)             /* a VOX sound key held: that sound */
+{
+    char t[40], b[8];
+    uint8_t *p = &vsound()[VSH_F[k]];
+    *p = (uint8_t)clamp_i(*p + 2 * e, 0, 127);
+    changed_jr();
+    if (k == 0)
+        put_sgn(b, *p - 64);
+    else
+        put_i(b, *p);
+    put_s(put_s(put_s(put_s(put_s(t, jr_vsound_name(eng_jr.vcur)), " "), VSH_N[k]), " "), b);
     say(t, 0);
 }
 static void drone_mode(int e)                     /* ALGO, a drone key held: HELD (left) or SWELL, comes and goes (right) */
@@ -545,8 +592,8 @@ static int keep_hold(void)
 {
     int k;
     if (layer() == L_BEND) {
-        static const uint8_t TO[4] = {SH_K1, SH_HIDE, SH_K4, SH_K3};
-        uint8_t *sh = eng_jr.shape[EV_VOX];
+        static const uint8_t TO[4] = {VS_BRIGHT, VS_VIB, VS_SHIMMER, VS_RELEASE};
+        uint8_t *sh = vsound();
         for (k = 0; k < 4; k++) {
             sh[TO[k]] = (uint8_t)clamp_i(sh[TO[k]] + round_i(ui.bend[k]), 0, 127);
             ui.bend[k] = 0.0f;
@@ -591,8 +638,8 @@ static void button(int i)
     case B_HOME: set_view(V_HOME); break;
     case B_ENV:
         if (ui.view == V_SHAPE) {                 /* again: the next voice */
-            ui.vsel = (uint8_t)((ui.vsel + 1) % EV_N);
-            say(VOICE_N[ui.vsel], 0);
+            ui.vsel = (uint8_t)((ui.vsel + 1) % NPG);
+            say(PAGE[ui.vsel].name, 0);
         } else {
             set_view(V_SHAPE);
         }
@@ -657,8 +704,8 @@ static void select_turn(int e)
         ann_say(t, 0, ANN_NOW);
         break;
     case V_SHAPE:
-        ui.vsel = (uint8_t)clamp_i(ui.vsel + e, 0, EV_N - 1);
-        ann_say(VOICE_N[ui.vsel], 0, ANN_NOW);
+        ui.vsel = (uint8_t)clamp_i(ui.vsel + e, 0, NPG - 1);
+        ann_say(PAGE[ui.vsel].name, 0, ANN_NOW);
         break;
     case V_SCENE:
         ui.srow = (uint8_t)clamp_i(ui.srow + e, 0, NSF - 1);
@@ -750,6 +797,9 @@ static void input(void)
                     engine_drone_key(bk);         /* a voice that comes and goes: played, now */
             } else if (bk == ENG_DRONES || bk == ENG_DRONES + 1) {   /* the next two: PULSE's kick and tick */
                 engine_pulse(bk - ENG_DRONES, 110);
+            } else if (bk >= VS_KEY0 && bk < VS_KEY0 + JR_VSOUNDS) {  /* the last four: VOX's sounds */
+                ui.vheld |= (uint8_t)(1u << (bk - VS_KEY0));
+                vsound_pick(bk - VS_KEY0);
             }
         }
         if ((ku >> i & 1u) && w >= 0) {
@@ -762,6 +812,8 @@ static void input(void)
                 engine_drone_key(bk);
             ui.dheld &= (uint8_t)~(1u << bk);
             ui.dturned &= (uint8_t)~(1u << bk);
+        } else if ((ku >> i & 1u) && bk >= VS_KEY0 && bk < VS_KEY0 + JR_VSOUNDS) {
+            ui.vheld &= (uint8_t)~(1u << (bk - VS_KEY0));
         }
     }
     for (i = 0; i < NB; i++) {                    /* a button acts when let go; held, it says its job */
@@ -828,6 +880,7 @@ static void input(void)
             ui.touch_t = now;
             switch (layer()) {
             case L_DRONE: drone_knob(i - EN_K1, e); break;
+            case L_VSOUND: vsound_knob(i - EN_K1, e); break;
             case L_THROW: throw_knob(i - EN_K1, e); break;
             case L_BEND: bend_knob(i - EN_K1, e); break;
             default: knob_turn(i - EN_K1, e); break;
@@ -1243,23 +1296,26 @@ static void draw_system(void)
         text_c(120, 2 + ROWS_SHOWN * ROW_H, &FONT_XS, "CHANGES AT THE NEXT POWER-ON", C_AMB);
 }
 
-/* SHAPE: the voices across the top, the one shown lit; its four knobs as meters (an offset's from
- * the middle); its level along the bottom, 100 marked */
+/* SHAPE: the voices across the top, the one shown lit (VOX: which of its pages, and its sound); its
+ * four knobs as meters (an offset's from the middle); its level along the bottom, 100 marked */
 static void draw_shape(void)
 {
-    const uint8_t *sh = eng_jr.shape[ui.vsel];
-    char b[12];
-    int v, k, lv = sh[SH_LEVEL];
+    const spage_t *pg = &PAGE[ui.vsel % NPG];
+    char b[24];
+    int v, k, lv = *pg_ptr(ui.vsel, -1);
     for (v = 0; v < EV_N; v++) {
-        int cx = 30 + v * 60, sel = v == ui.vsel;
-        text_c(cx, 4, &FONT_XS, VOICE_N[v], sel ? C_AMB : C_DIM);
+        int cx = 30 + v * 60, sel = v == pg->voice;
+        text_c(cx, 4, &FONT_XS, sel ? pg->name : VOICE_N[v], sel ? C_AMB : C_DIM);
         if (sel)
             cv_rect(cx - 22, 16, 44, 2, C_AMB);
     }
     for (k = 0; k < 4; k++) {
-        int cx = 30 + k * 60, x = sh[SH_K1 + k], top = 28, h = 66, fill = x * h / 127;
+        int cx = 30 + k * 60, x = *pg_ptr(ui.vsel, k), top = 28, h = 66, fill;
+        if (pg_octave(ui.vsel, k))
+            x = x * 127 / 2;
+        fill = x * h / 127;
         cv_rect(cx - 3, top, 6, h, C_LINE);
-        if (shape_signed(ui.vsel, k)) {           /* from the middle, up or down */
+        if (pg->sgn >> k & 1u) {                  /* from the middle, up or down */
             int mid = top + h - 64 * h / 127;
             cv_rect(cx - 6, mid, 12, 1, C_DIM);
             if (top + h - fill < mid)
@@ -1269,12 +1325,16 @@ static void draw_shape(void)
         } else {
             cv_rect(cx - 3, top + h - fill, 6, fill, C_AMB);
         }
-        text_c(cx, 98, &FONT_XS, SHAPE_N[ui.vsel][k], C_GRAY);
+        text_c(cx, 98, &FONT_XS, pg->k[k], C_GRAY);
     }
-    cv_text(10, 116, &FONT_XS, "LEVEL", C_GRAY);
-    cv_rect(60, 120, 140, 4, C_LINE);
-    cv_rect(60, 120, lv * 140 / 127, 4, C_AMB);
-    cv_rect(60 + 100 * 140 / 127, 117, 1, 10, C_DIM);   /* 100: as made */
+    if (pg->voice == EV_VOX)                      /* (the sound of the four these pages shape) */
+        put_s(put_s(b, jr_vsound_name(eng_jr.vcur)), " LEVEL");
+    else
+        put_s(b, "LEVEL");
+    cv_text(6, 116, &FONT_XS, b, C_GRAY);
+    cv_rect(90, 120, 110, 4, C_LINE);
+    cv_rect(90, 120, lv * 110 / 127, 4, C_AMB);
+    cv_rect(90 + 100 * 110 / 127, 117, 1, 10, C_DIM);   /* 100: as made */
     put_i(b, lv);
     text_r(232, 116, &FONT_XS, b, C_HI);
 }
@@ -1410,6 +1470,19 @@ static void draw_knobs(void)
         cv_commit(2, 0, KNOB_Y);
         return;
     }
+    case L_VSOUND:
+        for (k = 0; k < 4; k++) {
+            int x = vsound()[VSH_F[k]];
+            if (k == 0)
+                put_sgn(a, x - 64);
+            else
+                put_i(a, x);
+            cell(k, VSH_N[k], a, C_AMB);
+        }
+        put_s(put_s(a, "VOX "), jr_vsound_name(eng_jr.vcur));
+        hint(a, "IT STAYS");
+        cv_commit(2, 0, KNOB_Y);
+        return;
     case L_THROW:
     case L_BEND: {
         int th = layer() == L_THROW;
@@ -1439,11 +1512,11 @@ static void draw_knobs(void)
     case V_SHAPE:
         for (k = 0; k < 4; k++) {
             shape_text(ui.vsel, k, a);
-            cell(k, SHAPE_N[ui.vsel][k], a, C_HI);
+            cell(k, PAGE[ui.vsel].k[k], a, C_HI);
         }
         shape_text(ui.vsel, -1, b);
         put_s(put_s(c, "ALGO: LEVEL "), b);
-        hint("ENV: NEXT VOICE", c);
+        hint("ENV: NEXT PAGE", c);
         break;
     case V_SCENE:
         put_i(put_s(put_i(a, ui.ssel + 1), "/"), eng_jr.nscenes);
@@ -1520,6 +1593,11 @@ static void leds(void)
     if (any_thrown())
         btn |= 1u << B_FX;                        /* (a throw out, held or kept) */
     kdim |= (1u << BLACK_KEY[ENG_DRONES]) | (1u << BLACK_KEY[ENG_DRONES + 1]);   /* PULSE's keys, dim */
+    for (i = 0; i < JR_VSOUNDS; i++)              /* VOX's sounds: the one playing lit, the others dim */
+        if (i == eng_jr.vcur)
+            keys |= 1u << BLACK_KEY[VS_KEY0 + i];
+        else
+            kdim |= 1u << BLACK_KEY[VS_KEY0 + i];
     for (i = 0; i < ENG_DRONES; i++) {          /* the drone keys: lit while the voice sounds, dim else */
         if (engine_drone_on(i))
             keys |= 1u << BLACK_KEY[i];
@@ -1559,10 +1637,12 @@ static void speak_where(void)
         q = put_s(put_s(put_s(q, ROW_N[ui.row]), " "), v);
         break;
     case V_SHAPE:
-        q = put_i(put_s(put_s(q, VOICE_N[ui.vsel]), " LEVEL "), eng_jr.shape[ui.vsel][SH_LEVEL]);
+        if (PAGE[ui.vsel].voice == EV_VOX)
+            q = put_s(put_s(q, jr_vsound_name(eng_jr.vcur)), ". ");
+        q = put_i(put_s(put_s(q, PAGE[ui.vsel].name), " LEVEL "), *pg_ptr(ui.vsel, -1));
         for (k = 0; k < 4; k++) {
             shape_text(ui.vsel, k, v);
-            q = put_s(put_s(put_s(put_s(q, ". "), SHAPE_N[ui.vsel][k]), " "), v);
+            q = put_s(put_s(put_s(put_s(q, ". "), PAGE[ui.vsel].k[k]), " "), v);
         }
         break;
     case V_SCENE:

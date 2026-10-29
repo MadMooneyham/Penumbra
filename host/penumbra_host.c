@@ -500,6 +500,10 @@ static int expect(const char *what, const char *val)
         got = journey_slot_used(atoi(what + 4) - 1);
     else if (!strncmp(what, "shape", 5))            /* shapeVF: voice V (1 DRONE .. 4 TEXTURE), F 0 level, 1-4 its knobs, 5 the hidden one */
         got = eng_jr.shape[(what[5] - '1') % EV_N][(what[6] - '0') % SH_N];
+    else if (!strncmp(what, "vs", 2) && what[3] == '.')   /* vsS.F: VOX's sound S (1-4), field F (engine.h VS_*) */
+        got = eng_jr.vsound[(what[2] - '1') % JR_VSOUNDS][atoi(what + 4) % JR_VS];
+    else if (!strcmp(what, "vcur"))                 /* VOX's sound playing, 1-4 */
+        got = eng_jr.vcur + 1;
     else if (!strncmp(what, "dvoice", 6))           /* dvoiceVF: drone voice V (1-5) field F (1 LEVEL .. 4 OCTAVE) */
         got = eng_jr.dvoice[(what[6] - '1') % ENG_DRONES][(what[7] - '1') % DV_N];
     else if (!strncmp(what, "perf", 4))             /* perfN: the hands' move N (0-7, engine.h PF_*) the engine has */
@@ -701,6 +705,24 @@ int main(int argc, char **argv)
             j.size = (uint16_t)n;
             j.mode = 1;
             j.scene[0].pedal = 0x55;                  /* (0.14's spare byte, anything: it comes over as none) */
+            plat_store_save(OBJ_WORK, &j, n);
+            memset(slots, 0, sizeof slots);
+            memcpy(slots, &j, n);
+            plat_store_save(OBJ_USER, slots, sizeof slots);
+            store_writes = 0;
+            held_btn = held_keys = 0;
+            boot();
+        } else if (!strcmp(cmd, "legacy015")) {       /* 0.15's flash: the journey playing and user slot 1 as format 3
+                                                       * (one VOX sound, SHAPE's row) */
+            uint32_t n = __builtin_offsetof(journey_t, vsound);
+            static uint8_t slots[JR_USER * __builtin_offsetof(journey_t, vsound)];
+            journey_t j;
+            jr_preset(4, &j);
+            j.format = 3;
+            j.size = (uint16_t)n;
+            j.shape[EV_VOX][SH_K1] = 90;              /* (its BRIGHT) */
+            j.shape[EV_VOX][SH_HIDE] = 33;            /* (its vibrato) */
+            j.dswell = 0x10;
             plat_store_save(OBJ_WORK, &j, n);
             memset(slots, 0, sizeof slots);
             memcpy(slots, &j, n);

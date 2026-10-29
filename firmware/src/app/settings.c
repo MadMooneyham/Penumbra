@@ -119,6 +119,12 @@ static void journey_sane(journey_t *j)          /* a loaded one: every field in 
         (&j->shape[0][0])[i] &= 0x7Fu;
     for (i = 0; i < ENG_DRONES * DV_N; i++)
         (&j->dvoice[0][0])[i] &= 0x7Fu;
+    for (i = 0; i < JR_VSOUNDS * JR_VS; i++)
+        (&j->vsound[0][0])[i] &= 0x7Fu;
+    for (i = 0; i < JR_VSOUNDS; i++)
+        if (j->vsound[i][VS_BOCT] > 2)
+            j->vsound[i][VS_BOCT] = 1;
+    j->vcur %= JR_VSOUNDS;
     for (i = 0; i < ENG_DRONES; i++)
         if (j->dvoice[i][DV_OCT] > 2)
             j->dvoice[i][DV_OCT] = 1;
@@ -151,12 +157,38 @@ static void sound_from_v14(journey_t *j)
     j->shape[EV_TEX][SH_K1] = o[EV_TEX][1];
     j->shape[EV_TEX][SH_K2] = o[EV_TEX][2];
 }
+/* a 0.15 journey (format 3) is this one up to VOX's four sounds: its one VOX sound (SHAPE's row) is
+ * the first, GLASS, and the others come as made */
+#define JR_V3_SIZE __builtin_offsetof(journey_t, vsound)
+_Static_assert(JR_V3_SIZE != JR_V1_SIZE && JR_V3_SIZE < sizeof(journey_t), "the formats tell apart by size");
+static void vox_from_shape(journey_t *j)
+{
+    const uint8_t *s = j->shape[EV_VOX];
+    uint8_t *v = j->vsound[0];
+    jr_vsound_default(j);
+    v[VS_LEVEL] = s[SH_LEVEL];
+    v[VS_BRIGHT] = s[SH_K1];
+    v[VS_ATTACK] = s[SH_K2];
+    v[VS_RELEASE] = s[SH_K3];
+    v[VS_SHIMMER] = s[SH_K4];
+    v[VS_VIB] = s[SH_HIDE];
+}
 static int journey_from_old(const uint8_t *src, int n, journey_t *j)
 {
     uint8_t *d = (uint8_t *)j;
-    uint32_t k, fmt = n == (int)JR_V1_SIZE ? 1u : 2u;
+    uint32_t k, fmt = n == (int)JR_V1_SIZE ? 1u : n == (int)JR_V2_SIZE ? 2u : 3u;
     for (k = 0; k < sizeof *j; k++)
         d[k] = 0;
+    if (fmt == 3u) {
+        for (k = 0; k < JR_V3_SIZE; k++)
+            d[k] = src[k];
+        if (j->magic != JR_MAGIC || j->format != 3u || j->size != JR_V3_SIZE)
+            return -1;
+        j->format = JR_FORMAT;
+        j->size = (uint16_t)sizeof *j;
+        vox_from_shape(j);
+        return jr_valid(j) ? 0 : -1;
+    }
     for (k = 0; k < JR_LOOPS_AT; k++)
         d[k] = src[k];
     for (k = 0; k < JR_OLD_LOOPS; k++)
@@ -168,6 +200,7 @@ static int journey_from_old(const uint8_t *src, int n, journey_t *j)
     j->format = JR_FORMAT;
     j->size = (uint16_t)sizeof *j;
     sound_from_v14(j);
+    vox_from_shape(j);
     return jr_valid(j) ? 0 : -1;
 }
 static uint8_t jr_buf[JR_USER * sizeof(journey_t)] __attribute__((aligned(4))) PEN_POOL;
@@ -176,7 +209,7 @@ int journey_load_work(void)
 {
     journey_t j;
     int n = plat_store_load(OBJ_WORK, jr_buf, sizeof(journey_t));
-    if (n == (int)JR_V1_SIZE || n == (int)JR_V2_SIZE) {
+    if (n == (int)JR_V1_SIZE || n == (int)JR_V2_SIZE || n == (int)JR_V3_SIZE) {
         if (journey_from_old(jr_buf, n, &j) != 0)
             return -1;
     } else {
@@ -209,7 +242,7 @@ int journey_slots_load(void)
     if (n == (int)sizeof jslot) {
         for (k = 0; k < sizeof jslot; k++)
             z[k] = jr_buf[k];
-    } else if (n == (int)(JR_USER * JR_V1_SIZE) || n == (int)(JR_USER * JR_V2_SIZE)) {
+    } else if (n == (int)(JR_USER * JR_V1_SIZE) || n == (int)(JR_USER * JR_V2_SIZE) || n == (int)(JR_USER * JR_V3_SIZE)) {
         int one = n / JR_USER;                    /* 0.13's or 0.14's: each converted (an empty slot stays empty) */
         for (i = 0; i < JR_USER; i++)
             if (journey_from_old(jr_buf + (uint32_t)(i * one), one, &jslot[i]) != 0)
@@ -274,6 +307,9 @@ void journey_open_preset(int i)
     for (k = 0; k < sizeof j.dvoice; k++)
         (&j.dvoice[0][0])[k] = (&eng_jr.dvoice[0][0])[k];
     j.dswell = eng_jr.dswell;
+    for (k = 0; k < sizeof j.vsound; k++)
+        (&j.vsound[0][0])[k] = (&eng_jr.vsound[0][0])[k];
+    j.vcur = eng_jr.vcur;
     eng_jr = j;
     engine_journey_loaded();
 }

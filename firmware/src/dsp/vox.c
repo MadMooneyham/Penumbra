@@ -15,7 +15,9 @@ static const param_t VOX_P[VX_NPARAMS] = {
     [VX_KEYTRK] = {"KeyTrk", 127, 64, 0},    [VX_ATTACK] = {"Attack", 127, 80, 0},
     [VX_DECAY] = {"Decay", 127, 80, 0},      [VX_SUSTAIN] = {"Sustn", 127, 90, 0},
     [VX_RELEASE] = {"Releas", 127, 90, 0},   [VX_VIB] = {"Vib", 127, 20, 0},
-    [VX_SPREAD] = {"Spread", 127, 70, 0},    [VX_LEVEL] = {"Level", 127, 100, 0}};
+    [VX_SPREAD] = {"Spread", 127, 70, 0},    [VX_LEVEL] = {"Level", 127, 100, 0},
+    [VX_WAVE] = {"Wave", 127, 0, 0},         [VX_FMODE] = {"Filter", 127, 0, 0},
+    [VX_GLIDE] = {"Glide", 127, 0, 0}};
 
 int vox_nparams(void) { return VX_NPARAMS; }
 const param_t *vox_param(int i) { return i >= 0 && i < VX_NPARAMS ? &VOX_P[i] : 0; }
@@ -58,6 +60,12 @@ void vox_set(vox_t *x, int i, int value)
     case VX_VIB: x->vib = pot01(value) * 20.0f; break;                      /* cents */
     case VX_SPREAD: x->spread = pot01(value); voice_pans(x); break;
     case VX_LEVEL: x->level = pot01(value) * pot01(value) * 1.6129f; break; /* 100 = unity, square law */
+    case VX_WAVE:                                                           /* saw .. square, then narrower */
+        x->wmix = value >= 64 ? 1.0f : (float)value * (1.0f / 64.0f);
+        x->pw = value <= 64 ? 0.5f : 0.5f - 0.4f * (float)(value - 64) * (1.0f / 63.0f);
+        break;
+    case VX_FMODE: x->bp = pot01(value); break;
+    case VX_GLIDE: x->glide_c = value ? 1.0f - fm_expf(-(float)VOX_CTRL / (pot_exp(value, 0.01f, 7.2f) * SR)) : 1.0f; break;
     default: break;
     }
 }
@@ -77,6 +85,7 @@ void vox_init(vox_t *x)
     }
     for (k = 0; k < VX_NPARAMS; k++)
         vox_set(x, k, VOX_P[k].def);
+    x->last_note = -1.0f;
 }
 
 /* silent: let go and 80 dB down (about -93 dBFS out, under any tail): it stops costing anything */
@@ -122,6 +131,11 @@ static int pick(const vox_t *x, int note)
 void vox_note_on(vox_t *x, int note, float vel)
 {
     vox_voice_t *v = &x->v[pick(x, note)];
+    if (x->glide_c < 1.0f && x->last_note >= 0.0f)  /* GLIDE: from the last note played */
+        v->pitch = x->last_note;
+    else if (v->note != note || voice_idle(v))
+        v->pitch = (float)note;
+    x->last_note = (float)note;
     v->note = note;
     v->gate = 1;
     v->stage = 0;                                   /* the attack, from wherever the level is */
@@ -165,7 +179,8 @@ static void control(vox_t *x)
         float n, fc, g, k;
         if (voice_idle(v))
             continue;
-        n = (float)v->note + vib;
+        v->pitch += ((float)v->note - v->pitch) * x->glide_c;
+        n = v->pitch + vib;
         v->inc[0] = mtof_inc(n - x->det * 0.005f);
         v->inc[1] = mtof_inc(n + x->octb + x->det * 0.005f);
         fc = x->cutoff * fm_exp2f(x->envamt * v->env + x->keytrk * ((float)v->note - 60.0f) * (1.0f / 12.0f));
@@ -175,6 +190,7 @@ static void control(vox_t *x)
         v->a1 = 1.0f / (1.0f + g * (g + k));
         v->a2 = g * v->a1;
         v->a3 = g * v->a2;
+        v->bpk = k;
     }
 }
 
@@ -191,17 +207,32 @@ static inline float blep(float t, float dt)
     return 0.0f;
 }
 
+static inline float saw(float t, float dt) { return 2.0f * t - 1.0f - blep(t, dt); }
+/* a pulse of width pw: two saws pw apart, one taken from the other (no DC: it averages 0) */
+static inline float pulse(float t, float dt, float pw)
+{
+    float t2 = t + pw;
+    if (t2 >= 1.0f)
+        t2 -= 1.0f;
+    return saw(t, dt) - saw(t2, dt);
+}
+
 static void voice_chunk(vox_t *x, vox_voice_t *v, float *l, float *r, int n)
 {
-    const float ga = 1.0f - x->mixb, gb = x->mixb, sus = x->sus;
+    const float ga = 1.0f - x->mixb, gb = x->mixb, sus = x->sus, wm = x->wmix, pw = x->pw;
     const float gain = VOX_SCALE * x->level * (0.4f + 0.6f * v->vel);
     const float pl = v->pan_l * gain, pr = v->pan_r * gain;
-    const float a1 = v->a1, a2 = v->a2, a3 = v->a3;
+    const float a1 = v->a1, a2 = v->a2, a3 = v->a3, lpg = 1.0f - x->bp, bpg = x->bp * v->bpk;
     float ta = v->ph[0], tb = v->ph[1], da = v->inc[0], db = v->inc[1];
     float env = v->env, ic1 = v->ic1, ic2 = v->ic2;
     int stage = v->stage, i;
     for (i = 0; i < n; i++) {
-        float s = ga * (2.0f * ta - 1.0f - blep(ta, da)) + gb * (2.0f * tb - 1.0f - blep(tb, db)), v1, v2, v3;
+        float s, v1, v2, v3;
+        if (wm <= 0.0f)                             /* (the saws alone: as before, sample for sample) */
+            s = ga * saw(ta, da) + gb * saw(tb, db);
+        else
+            s = ga * (saw(ta, da) + wm * (0.5f * pulse(ta, da, pw) - saw(ta, da))) +
+                gb * (saw(tb, db) + wm * (0.5f * pulse(tb, db, pw) - saw(tb, db)));
         ta += da;
         if (ta >= 1.0f) ta -= 1.0f;
         tb += db;
@@ -222,7 +253,7 @@ static void voice_chunk(vox_t *x, vox_voice_t *v, float *l, float *r, int n)
         v2 = ic2 + a2 * ic1 + a3 * v3;
         ic1 = 2.0f * v1 - ic1;
         ic2 = 2.0f * v2 - ic2;
-        s = v2 * env;
+        s = (lpg * v2 + bpg * v1) * env;            /* low-pass .. band-pass (FMODE) */
         l[i] += s * pl;
         r[i] += s * pr;
     }

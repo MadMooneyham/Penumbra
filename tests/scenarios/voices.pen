@@ -5,7 +5,7 @@ autoplay 0
 wait 300
 tap ENV
 expect view 1
-turn SELECT 2
+turn SELECT 4
 turn ALGO -10
 expect shape30 60
 expect set_bpm 90

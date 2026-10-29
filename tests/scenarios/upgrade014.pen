@@ -5,7 +5,7 @@ legacy014
 wait 500
 expect journey 2
 expect shape30 60
-expect shape21 80
+expect vs1.1 80
 expect shape10 100
 expect dnote1 26
 expect slot1 1

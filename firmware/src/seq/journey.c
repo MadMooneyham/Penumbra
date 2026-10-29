@@ -69,6 +69,25 @@ void jr_sound_default(journey_t *j)
         for (f = 0; f < JR_DVOICE; f++)
             j->dvoice[v][f] = DVOICE[f];
     j->dswell = 0;
+    jr_vsound_default(j);
+}
+
+/* VOX's sounds (engine.h VS_*): LEVEL, BRIGHT (64: the scene's), ATTACK, RELEASE, SHIMMER (64: as made),
+ * VIBRATO, WAVE, FILTER (low-pass .. band-pass), RESO, GLIDE, DETUNE, B OCTAVE (0 down, 1, 2 up), B MIX, ENV */
+static const char *const VSOUND_N[JR_VSOUNDS] = {"GLASS", "REED", "HALO", "LOW"};
+const char *jr_vsound_name(int i) { return VSOUND_N[(unsigned)i % JR_VSOUNDS]; }
+void jr_vsound_default(journey_t *j)
+{
+    static const uint8_t VS[JR_VSOUNDS][JR_VS] = {
+        {100, 64, 80, 90, 64, 20, 0, 0, 25, 0, 40, 1, 64, 50},      /* GLASS: the two saws, as VOX was */
+        {92, 60, 64, 82, 56, 14, 96, 92, 64, 0, 18, 1, 30, 44},     /* REED: a narrow pulse, band-pass, closer */
+        {88, 70, 98, 112, 92, 28, 24, 12, 20, 0, 78, 2, 70, 30},    /* HALO: wide, an octave over, long, far back */
+        {106, 40, 70, 86, 48, 10, 64, 0, 36, 44, 28, 0, 60, 36}};   /* LOW: square, an octave under, gliding */
+    int s, f;
+    for (s = 0; s < JR_VSOUNDS; s++)
+        for (f = 0; f < JR_VS; f++)
+            j->vsound[s][f] = VS[s][f];
+    j->vcur = 0;
 }
 
 void jr_preset(int i, journey_t *dst)

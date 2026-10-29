@@ -86,8 +86,8 @@ wait 100
 tap SAVE
 key w3 up
 wait 100
-expect shape21 76
-expect shape25 30
+expect vs1.1 76
+expect vs1.5 30
 expect perf4 0
 expect perf5 0
 tapkey b1

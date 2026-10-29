@@ -348,7 +348,7 @@ enum { K_DCUT, K_DRESO, K_SWARM, K_VCUT, K_VATK, K_VREL, K_VVIB, K_PPITCH, K_PDE
        K_TSWEEP, K_TRATE, K_TWIDTH, K_ROOT, K_SHIM, K_FDBK, K_DECAY, K_DIP,
        K_LEVEL, K_DWAVE = K_LEVEL + EV_N, K_DLVL = K_DWAVE + DRONE_VOICES, K_DTONE = K_DLVL + DRONE_VOICES,
        K_DSPREAD = K_DTONE + DRONE_VOICES, K_DOCT = K_DSPREAD + DRONE_VOICES, K_DMODE = K_DOCT + DRONE_VOICES,
-       NK = K_DMODE + DRONE_VOICES };
+       K_VX = K_DMODE + DRONE_VOICES, NK = K_VX + 8 };
 static int16_t cache[NK];
 static int moved(int k, int v)
 {
@@ -364,10 +364,11 @@ static void conduct(void)
     const uint8_t (*sh)[SH_N] = eng_jr.shape;
     const float tone = jr.macro_s[MAC_TONE] - 64.0f, freeze = (float)perf[PF_FREEZE] * (1.0f / 127.0f);
     const float dmac = jr.macro_s[MAC_DRONE] - 64.0f, bright = o->bright + tone + (jr.macro_s[MAC_VOX] - 64.0f) * 0.9f;
+    const uint8_t *vs = eng_jr.vsound[eng_jr.vcur % JR_VSOUNDS];
     int v, x, swarm = sh[EV_DRONE][SH_K3];
     for (v = 0; v < EV_N; v++)
-        if (moved(K_LEVEL + v, sh[v][SH_LEVEL]))
-            voice_level(v, sh[v][SH_LEVEL]);
+        if (moved(K_LEVEL + v, x = v == EV_VOX ? vs[VS_LEVEL] : sh[v][SH_LEVEL]))
+            voice_level(v, x);
     /* DRONE: HOME's DRONE opens its filter and its body together */
     if (moved(K_DCUT, x = clamp127((float)sh[EV_DRONE][SH_K1] + tone * 0.66f + dmac * 0.8f)))
         drone_set(&dn, DRONE_KIT, DB_CUTOFF, x);
@@ -393,15 +394,21 @@ static void conduct(void)
                 drone_trigger(&dn, v, 1.0f);
         }                                        /* (comes and goes -> held: one sounding stays, latched) */
     }
-    /* VOX */
-    if (moved(K_VCUT, x = clamp127(30.0f + bright * 0.47f + (float)(sh[EV_VOX][SH_K1] - 64 + perf[PF_BRIGHT]))))
+    /* VOX: the sound playing (of its four), the scene's brightness, a bend */
+    if (moved(K_VCUT, x = clamp127(30.0f + bright * 0.47f + (float)(vs[VS_BRIGHT] - 64 + perf[PF_BRIGHT]))))
         vox_set(&vox, VX_CUTOFF, x);
-    if (moved(K_VATK, sh[EV_VOX][SH_K2]))
-        vox_set(&vox, VX_ATTACK, sh[EV_VOX][SH_K2]);
-    if (moved(K_VREL, x = clamp127((float)(sh[EV_VOX][SH_K3] + perf[PF_VREL]))))
+    if (moved(K_VATK, vs[VS_ATTACK]))
+        vox_set(&vox, VX_ATTACK, vs[VS_ATTACK]);
+    if (moved(K_VREL, x = clamp127((float)(vs[VS_RELEASE] + perf[PF_VREL]))))
         vox_set(&vox, VX_RELEASE, x);
-    if (moved(K_VVIB, x = clamp127((float)(sh[EV_VOX][SH_HIDE] + perf[PF_VIB]))))
+    if (moved(K_VVIB, x = clamp127((float)(vs[VS_VIB] + perf[PF_VIB]))))
         vox_set(&vox, VX_VIB, x);
+    {
+        static const uint8_t VX_OF[] = {VX_WAVE, VX_FMODE, VX_RESO, VX_GLIDE, VX_DETUNE, VX_OCTB, VX_MIXB, VX_ENVAMT};
+        for (v = 0; v < 8; v++)
+            if (moved(K_VX + v, vs[VS_WAVE + v]))
+                vox_set(&vox, VX_OF[v], vs[VS_WAVE + v]);
+    }
     /* PULSE */
     if (moved(K_PPITCH, sh[EV_PULSE][SH_K1]))
         pulse_set(&pulse, PL_PITCH, sh[EV_PULSE][SH_K1]);
@@ -437,7 +444,7 @@ static void conduct(void)
         float shut = 1.0f - 0.9f * freeze;
         space_k = fm_clampf(o->space * jr.macro_s[MAC_SPACE] * (1.0f / (80.0f * 64.0f)), 0.0f, 1.8f);
         for (v = 0; v < NPARTS; v++) {
-            int snd = v == P_VOX ? sh[EV_VOX][SH_K4] + perf[PF_VSEND] : v == P_PULSE ? sh[EV_PULSE][SH_K4] : SEND[v];
+            int snd = v == P_VOX ? vs[VS_SHIMMER] + perf[PF_VSEND] : v == P_PULSE ? sh[EV_PULSE][SH_K4] : SEND[v];
             float s = space_k * (float)(snd < 0 ? 0 : snd) * (1.0f / 64.0f);
             mix_rev[v] = fm_minf(rev_base[v] * s, 1.0f) * shut;
             mix_dly[v] = fm_minf(dly_base[v] * s, 1.0f);
