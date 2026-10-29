@@ -3,8 +3,8 @@
 # does not latch it; tapped, it latches. With ALGO it comes and goes instead (SWELL): a tap swells it in,
 # then it falls away by itself; a latched one switched so swells out. FX held: THROWS (shimmer, feedback, freeze, dip); let go, they
 # drift back; SAVE while holding keeps them, until FX is held and turned again. A white key held (PLAY):
-# BENDS VOX (bright, vibrato, shimmer, release); let go, back; SAVE while holding puts them into VOX's
-# sound. Audio in holds.wav.
+# BENDS VOX (bright, vibrato, shimmer, release), ALGO its pitch; let go, back; SAVE while holding puts
+# the bends into VOX's sound and keeps the pitch bent until the next note. Audio in holds.wav.
 autoplay 0
 wait 300
 wav holds.wav
@@ -90,6 +90,27 @@ expect vs1.1 76
 expect vs1.5 30
 expect perf4 0
 expect perf5 0
+key w5 down
+wait 100
+turn ALGO 4
+wait 100
+expect perf8 32
+expect set_bpm 90
+shot hold_pitch.png
+key w5 up
+wait 2500
+expect perf8 0
+key w5 down
+wait 100
+turn ALGO -6
+wait 100
+tap SAVE
+key w5 up
+wait 2500
+expect perf8 -48
+tapkey w1
+wait 2500
+expect perf8 0
 tapkey b1
 wait 30000
 wavstop

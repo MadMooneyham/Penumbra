@@ -25,7 +25,8 @@ typedef struct {
     uint8_t out_loud;                    /* 1: the output 6 dB hotter (the codec's full scale) */
     uint8_t usb_full;                    /* 1: USB audio at full level, MASTER for the FM-1's own outputs */
     uint8_t autoplay;                    /* 1: the journey plays at power-on */
-    uint8_t rsv[6];
+    uint8_t bend;                        /* PITCH's range either way: 0 2, 1 5, 2 7, 3 12 semitones (BEND_SEMIS) */
+    uint8_t rsv[5];
     uint8_t voice14[EV_N][4];            /* 0.14's VOICES page (level, tone, character, send): read once,
                                           * into an older journey's sound (settings.c), then unused */
     uint8_t fx[EF_N];                    /* the FX page (engine.h EF_*) */
@@ -33,6 +34,8 @@ typedef struct {
 } settings_t;
 
 extern settings_t cfg;
+#define BEND_RANGES 4
+extern const uint8_t BEND_SEMIS[BEND_RANGES];
 void settings_defaults(void);
 int settings_load(void);                 /* 0 = loaded; else the defaults are in place */
 int settings_save(void);                 /* 0 = saved */

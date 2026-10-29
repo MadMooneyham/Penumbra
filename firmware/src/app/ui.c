@@ -78,6 +78,10 @@ typedef struct {
     float thr[4], bend[4];             /* THROWS 0..127 (PF_SHIMMER..), BENDS -64..64 (PF_BRIGHT..) */
     int16_t sent[PF_N];                /* what the engine has */
     uint8_t thr_kept, thr_back, bend_back;
+    float pitch;                       /* PITCH (ALGO, a white key held): -127 .. 127 of the bend range */
+    uint8_t pitch_kept, pitch_back;    /* SAVE: it stays until the next note */
+    uint8_t sleep, sleep_step;         /* SLEEP's choice; how far its letting go has got */
+    uint32_t sleep_at;                 /* when it is all gone */
     uint32_t perf_t;                   /* the last drift */
 } ui_t;
 static ui_t ui;
@@ -145,9 +149,14 @@ static int wrap_i(int v, int n) { return ((v % n) + n) % n; }
 
 /* ================================================================ settings === */
 /* SYSTEM's rows: a setting, its choices, and what a change does */
-enum { R_CLKOUT, R_CLKIN, R_MIDICH, R_CORES, R_DRNCORE, R_OUTLOUD, R_USBFULL, R_AUTOPLAY, R_ABOUT, NROWS };
+enum { R_CLKOUT, R_CLKIN, R_MIDICH, R_CORES, R_DRNCORE, R_OUTLOUD, R_USBFULL, R_AUTOPLAY, R_BEND, R_SLEEP, R_ABOUT,
+       NROWS };
 static const char *const ROW_N[NROWS] = {"MIDI CLOCK OUT", "FOLLOW CLOCK IN", "VOX MIDI CH", "2ND CORE",
-                                         "DRONE CORE", "OUTPUT LEVEL", "USB AUDIO", "PLAY AT POWER-ON", "ABOUT"};
+                                         "DRONE CORE", "OUTPUT LEVEL", "USB AUDIO", "PLAY AT POWER-ON",
+                                         "BEND RANGE", "SLEEP", "ABOUT"};
+/* SLEEP: in so many minutes it lets everything go (this session's: not saved) */
+#define SLEEPS 5
+static const uint8_t SLEEP_MIN[SLEEPS] = {0, 20, 40, 60, 90};
 static const char *const ONOFF_N[] = {"OFF", "ON"};
 static const char *const CORE_N[] = {"1ST", "2ND", "SPLIT"};
 static const char *const LOUD_N[] = {"NORMAL", "LOUD"};
@@ -155,7 +164,7 @@ static const char *const USB_N[] = {"MASTER", "FULL"};
 
 static int row_n(int r)                           /* choices; 0: not a setting */
 {
-    return r == R_MIDICH ? 17 : r == R_DRNCORE ? 3 : r == R_ABOUT ? 0 : 2;
+    return r == R_MIDICH ? 17 : r == R_DRNCORE ? 3 : r == R_BEND ? BEND_RANGES : r == R_SLEEP ? SLEEPS : r == R_ABOUT ? 0 : 2;
 }
 static int row_get(int r)
 {
@@ -168,6 +177,8 @@ static int row_get(int r)
     case R_OUTLOUD: return cfg.out_loud;
     case R_USBFULL: return cfg.usb_full;
     case R_AUTOPLAY: return cfg.autoplay;
+    case R_BEND: return cfg.bend % BEND_RANGES;
+    case R_SLEEP: return ui.sleep;
     default: return 0;
     }
 }
@@ -184,6 +195,13 @@ static void row_text(int r, char *b)
     case R_DRNCORE: put_s(b, CORE_N[v]); break;
     case R_OUTLOUD: put_s(b, LOUD_N[v]); break;
     case R_USBFULL: put_s(b, USB_N[v]); break;
+    case R_BEND: put_s(put_i(b, BEND_SEMIS[v]), " SEMITONES"); break;
+    case R_SLEEP:
+        if (v)
+            put_s(put_i(b, SLEEP_MIN[v]), " MIN");
+        else
+            put_s(b, "OFF");
+        break;
     case R_ABOUT: put_s(put_s(put_s(b, FW_NAME), " "), PEN_VERSION); break;
     default: put_s(b, ONOFF_N[v ? 1 : 0]); break;
     }
@@ -206,10 +224,18 @@ static void row_set(int r, int v)
     case R_OUTLOUD: cfg.out_loud = (uint8_t)v; break;
     case R_USBFULL: cfg.usb_full = (uint8_t)v; break;
     case R_AUTOPLAY: cfg.autoplay = (uint8_t)v; break;
+    case R_BEND: cfg.bend = (uint8_t)v; break;
+    case R_SLEEP:                                 /* (now: from now) */
+        ui.sleep = (uint8_t)v;
+        ui.sleep_at = plat_ms() + (uint32_t)SLEEP_MIN[v] * 60000u;
+        ui.sleep_step = 0;
+        break;
     default: break;
     }
-    settings_apply();
-    changed();
+    if (r != R_SLEEP) {
+        settings_apply();
+        changed();
+    }
     row_text(r, b);
     if (r == R_CORES)
         say(v ? "2ND CORE ON" : "2ND CORE OFF", ": AT THE NEXT POWER-ON");
@@ -556,9 +582,25 @@ static void bend_knob(int k, int e)
     put_s(put_s(put_s(t, BEND_N[k]), " "), b);
     say(t, 0);
 }
+static void pitch_text(char *b)                   /* "+1.5" semitones */
+{
+    int c = round_i(ui.pitch * (float)BEND_SEMIS[cfg.bend % BEND_RANGES] * (10.0f / 127.0f)), a = c < 0 ? -c : c;
+    put_d1(put_s(b, c < 0 ? "-" : c > 0 ? "+" : ""), (uint32_t)a);
+}
+static void pitch_knob(int e)                     /* ALGO, a white key held: every VOX note up or down */
+{
+    char t[24], b[12];
+    ui.pitch = fm_clampf(ui.pitch + 8.0f * (float)e, -127.0f, 127.0f);
+    ui.pitch_back = ui.pitch_kept = 0;
+    pitch_text(b);
+    put_s(put_s(t, "PITCH "), b);
+    say(t, 0);
+}
 static void perf_send(void)                       /* the moves to the engine, when they change */
 {
     int k;
+    if (round_i(ui.pitch) != ui.sent[PF_PITCH])
+        engine_perf(PF_PITCH, ui.sent[PF_PITCH] = (int16_t)round_i(ui.pitch));
     for (k = 0; k < 4; k++) {
         int a = round_i(ui.thr[k]), b = round_i(ui.bend[k]);
         if (a != ui.sent[PF_SHIMMER + k])
@@ -577,6 +619,11 @@ static void perf_tick(void)                       /* let go: back, over BACK_S f
         for (k = left = 0; k < 4; k++)
             left |= (ui.thr[k] = fm_maxf(ui.thr[k] - dt * (127.0f / BACK_S), 0.0f)) > 0.0f;
         ui.thr_back = (uint8_t)left;
+    }
+    if (ui.pitch_back) {
+        float s = dt * (127.0f / BACK_S);
+        ui.pitch = ui.pitch > s ? ui.pitch - s : ui.pitch < -s ? ui.pitch + s : 0.0f;
+        ui.pitch_back = ui.pitch != 0.0f;
     }
     if (ui.bend_back) {
         for (k = left = 0; k < 4; k++) {
@@ -602,9 +649,13 @@ static int keep_hold(void)
             ui.bend[k] = 0.0f;
         }
         ui.bend_back = 0;
+        if (ui.pitch != 0.0f) {                   /* the pitch: bent until the next note */
+            ui.pitch_kept = 1;
+            ui.pitch_back = 0;
+        }
         perf_send();
         changed_jr();
-        say("KEPT IN VOX", 0);
+        say(ui.pitch_kept ? "KEPT, BENT TILL THE NEXT NOTE" : "KEPT IN VOX", 0);
         return 1;
     }
     if (layer() == L_THROW) {
@@ -803,6 +854,10 @@ static void input(void)
         if (kd >> i & 1u) {
             if (w >= 0) {
                 ui.wheld |= (uint16_t)(1u << w);
+                if (ui.pitch_kept) {              /* a kept bend: the next note eases it back */
+                    ui.pitch_kept = 0;
+                    ui.pitch_back = 1;
+                }
                 engine_white_key(w, 1, ui.oct);
                 if (ui.stars < 8u)
                     ui.stars++;
@@ -822,6 +877,8 @@ static void input(void)
             ui.wheld &= (uint16_t)~(1u << w);
             if (!ui.wheld && (ui.bend[0] != 0.0f || ui.bend[1] != 0.0f || ui.bend[2] != 0.0f || ui.bend[3] != 0.0f))
                 ui.bend_back = 1;                 /* the note let go: its bends drift back */
+            if (!ui.wheld && ui.pitch != 0.0f && !ui.pitch_kept)
+                ui.pitch_back = 1;
         } else if ((ku >> i & 1u) && bk >= 0 && bk < ENG_DRONES) {
             if (!(ui.dturned >> bk & 1u) && !(eng_jr.dswell >> bk & 1u))
                 engine_drone_key(bk);
@@ -869,6 +926,8 @@ static void input(void)
         ui.touch_t = now;
         if (layer() == L_DRONE) {
             drone_mode(e);
+        } else if (layer() == L_BEND) {
+            pitch_knob(e);
         } else if (ui.view == V_SHAPE) {
             shape_turn(-1, e);
         } else {
@@ -1515,7 +1574,12 @@ static void draw_knobs(void)
                 put_sgn(a, round_i(ui.bend[k]));
             cell(k, th ? (k == 1 ? "FEEDBK" : THR_N[k]) : (k == 1 ? "VIB" : BEND_N[k]), a, C_AMB);
         }
-        hint(th ? "THROWS" : "BEND VOX", "SAVE: KEEP   LET GO: BACK");
+        if (!th) {
+            char p[12];
+            pitch_text(p);
+            put_s(put_s(b, "PITCH "), p);         /* (ALGO's) */
+        }
+        hint(th ? "THROWS" : b, "SAVE: KEEP   LET GO: BACK");
         cv_commit(2, 0, KNOB_Y);
         return;
     }

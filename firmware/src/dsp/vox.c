@@ -155,6 +155,8 @@ void vox_note_off(vox_t *x, int note)
         }
 }
 
+void vox_bend(vox_t *x, float semitones) { x->bend = semitones; }
+
 void vox_all_off(vox_t *x)
 {
     int i;
@@ -174,6 +176,10 @@ static void control(vox_t *x)
     if (x->vib_ph >= 1.0f)
         x->vib_ph -= 1.0f;
     vib = fm_sin_turns(x->vib_ph) * x->vib * 0.01f;
+    x->bend_s += (x->bend - x->bend_s) * 0.03f;     /* (a control step is 0.36 ms: ~12 ms to get there) */
+    if (fm_fabsf(x->bend - x->bend_s) < 1e-4f)
+        x->bend_s = x->bend;
+    vib += x->bend_s;
     for (i = 0; i < VOX_VOICES; i++) {
         vox_voice_t *v = &x->v[i];
         float n, fc, g, k;

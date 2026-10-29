@@ -142,7 +142,7 @@ static void guard_apply(void)
 /* ------------------------------------------------------- command queue --- */
 /* uint32 commands, single producer (main loop) / single consumer (audio ISR): type:4 | a:8 | b:8 | c:12 */
 enum { C_DRONE_KEY, C_VOX_ON, C_VOX_OFF, C_TEST, C_MIDI_CH, C_PULSE, C_WHITE, C_LOOPER, C_TRAVEL, C_LOADED,
-       C_PERF, C_FX, C_FREEZE, C_MORPH };
+       C_PERF, C_FX, C_FREEZE, C_MORPH, C_BRANGE };
 #define CQ 256u
 static uint32_t cq[CQ];
 static volatile uint32_t cq_w, cq_r;
@@ -169,6 +169,8 @@ void engine_white_key(int w, int down, int oct) { cq_put(C_WHITE, (uint32_t)w, (
 void engine_looper(int op) { cq_put(C_LOOPER, (uint32_t)op, 0, 0); }
 void engine_freeze(void) { cq_put(C_FREEZE, 0, 0, 0); }
 void engine_morph(int detents) { cq_put(C_MORPH, 0, 0, (uint32_t)(detents + 2048)); }
+void engine_bend_range(int semitones) { cq_put(C_BRANGE, (uint32_t)semitones, 0, 0); }
+static float bend_range = 2.0f, midi_bend;      /* semitones either way; MIDI's bend now, semitones */
 void engine_travel(int scene) { cq_put(C_TRAVEL, (uint32_t)scene, 0, 0); }
 void engine_journey_loaded(void) { cq_put(C_LOADED, 0, 0, 0); }
 void engine_perf(int i, int value) { cq_put(C_PERF, (uint32_t)i, 0, (uint32_t)(value + 128)); }
@@ -404,6 +406,7 @@ static void conduct(void)
         vox_set(&vox, VX_RELEASE, x);
     if (moved(K_VVIB, x = clamp127((float)(vs[VS_VIB] + perf[PF_VIB]))))
         vox_set(&vox, VX_VIB, x);
+    vox_bend(&vox, (float)perf[PF_PITCH] * bend_range * (1.0f / 127.0f) + midi_bend);
     {
         static const uint8_t VX_OF[] = {VX_WAVE, VX_FMODE, VX_RESO, VX_GLIDE, VX_DETUNE, VX_OCTB, VX_MIXB, VX_ENVAMT};
         for (v = 0; v < 8; v++)
@@ -591,6 +594,8 @@ static void midi_in(uint32_t pkt)
         hand_on(d1, d2);
     else if (ty == 0x80)
         hand_off(d1);
+    else if (ty == 0xE0)                         /* pitch bend: 14 bits, 8192 the middle */
+        midi_bend = (float)((int)(d2 << 7 | d1) - 8192) * (1.0f / 8192.0f) * bend_range;
 }
 
 /* a white key plays VOX in the scene's key; let go, it ends the note it started. FREEZE keeps the
@@ -672,6 +677,8 @@ static void drain(void)
             freeze();
         else if (type == C_MORPH)
             jr_morph(&jr, (int)(c & 0xFFFu) - 2048);
+        else if (type == C_BRANGE)
+            bend_range = (float)(a >= 1u && a <= 24u ? a : 2u);
         else if (type == C_TRAVEL)
             jr_travel(&jr, (int)a);
         else if (type == C_LOADED) {

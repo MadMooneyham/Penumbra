@@ -41,6 +41,7 @@ typedef struct {
     uint8_t pot[VX_NPARAMS];
     float det, octb, mixb, cutoff, reso, envamt, keytrk, atk_c, dec_c, sus, rel_c, vib, spread, level;
     float wmix, pw, bp, glide_c, last_note;
+    float bend, bend_s;                   /* pitch bend, semitones: where it is going, where it is */
     vox_voice_t v[VOX_VOICES];
     float vib_ph;
     uint32_t clock;                       /* notes so far, for the voices' ages */
@@ -51,6 +52,7 @@ void vox_init(vox_t *x);
 void vox_note_on(vox_t *x, int note, float vel);
 void vox_note_off(vox_t *x, int note);
 void vox_all_off(vox_t *x);
+void vox_bend(vox_t *x, float semitones);   /* every voice, sliding there (~10 ms) */
 int vox_active(const vox_t *x);           /* any voice sounding */
 int vox_held(const vox_t *x, int note);   /* (tests) a voice holds the note */
 /* adds the voices into l and r (the caller clears them) */

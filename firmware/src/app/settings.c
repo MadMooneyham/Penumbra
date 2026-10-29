@@ -4,6 +4,7 @@
 #include "penumbra.h"
 
 settings_t cfg;
+const uint8_t BEND_SEMIS[BEND_RANGES] = {2, 5, 7, 12};
 
 #define VF_N 4                                   /* (0.14's voice fields: level, tone, character, send) */
 static const uint8_t VOICE_DEF[EV_N][VF_N] = {{100, 64, 20, 64}, {100, 64, 80, 64}, {80, 64, 80, 64},
@@ -42,7 +43,7 @@ void settings_defaults(void)
 
 int settings_load(void)
 {
-    union { settings_t s; uint8_t b[SET_V2_LEN]; } u;
+    union { settings_t s; uint8_t b[SET_V2_LEN]; } u = {{0}};
     settings_t s;
     int n = plat_store_load(OBJ_SET, u.b, sizeof u.b), i, f;
     s = u.s;
@@ -70,6 +71,7 @@ int settings_load(void)
         s.midi_ch = 1;
     if (s.drone_core > DRONE_SPLIT)
         s.drone_core = DRONE_SPLIT;
+    s.bend %= BEND_RANGES;
     for (i = 0; i < EV_N; i++)
         for (f = 0; f < VF_N; f++)
             if (s.voice14[i][f] > 127)
@@ -94,6 +96,7 @@ void settings_apply(void)
     engine_out_loud(cfg.out_loud);
     engine_usb_full(cfg.usb_full);
     engine_drone_core(cfg.drone_core);
+    engine_bend_range(BEND_SEMIS[cfg.bend % BEND_RANGES]);
     for (v = 0; v < EF_N; v++)
         engine_fx(v, cfg.fx[v]);
 }

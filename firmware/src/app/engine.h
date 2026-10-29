@@ -57,9 +57,11 @@ _Static_assert(VS_N <= JR_VS, "a VOX sound fits its bytes");
 /* the hands' moves, on top of the sound and gone when they spring back (the UI glides them):
  *   THROWS (FX held)        SHIMMER, FEEDBACK (the delay's), FREEZE (the reverb holds, the sends close),
  *                           DIP (the whole mix's low-pass): 0 none .. 127 all the way
- *   BENDS (a white key held) VOX's BRIGHT, VIBRATO, SHIMMER, RELEASE: -64 .. +64 */
-enum { PF_SHIMMER, PF_FDBK, PF_FREEZE, PF_DIP, PF_BRIGHT, PF_VIB, PF_VSEND, PF_VREL, PF_N };
+ *   BENDS (a white key held) VOX's BRIGHT, VIBRATO, SHIMMER, RELEASE: -64 .. +64
+ *   PITCH (a white key held, ALGO) every VOX note's: -127 .. +127, the bend range either way */
+enum { PF_SHIMMER, PF_FDBK, PF_FREEZE, PF_DIP, PF_BRIGHT, PF_VIB, PF_VSEND, PF_VREL, PF_PITCH, PF_N };
 void engine_perf(int i, int value);
+void engine_bend_range(int semitones);           /* PITCH's and MIDI pitch bend's, either way */
 /* the effects, as the FX page sets them */
 enum { EF_RV_DECAY, EF_RV_SIZE, EF_RV_SHIMMER, EF_RV_TONE, EF_DL_TIME, EF_DL_FDBK, EF_DL_TONE, EF_DL_WEAR, EF_N };
 void engine_fx(int i, int value);
