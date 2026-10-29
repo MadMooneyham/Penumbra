@@ -1,14 +1,11 @@
 # From 0.13: its settings (five voices, LINE's second) and its journeys (three loops, LINE's first)
-# carry over less LINE: PULSE's level (into the journey's sound now), the journey playing with its mode
-# and its captured VOX, the user slot.
+# carry over less LINE: PULSE's level (into the journey's sound now), the journey playing (in the scene it
+# was in), the user slot.
 legacy013
 wait 500
 expect shape30 60
 expect shape20 100
 expect journey 3
-expect mode 1
-expect loop1 1
-expect loop2 0
 expect slot1 1
 expect jr_playing 1
 expect clips 0

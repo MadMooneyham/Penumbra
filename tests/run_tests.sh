@@ -36,6 +36,7 @@ run vox sh -c "$CC $W -Wno-double-promotion -D_DEFAULT_SOURCE -o $OUT/vox_test t
 run texture sh -c "$CC $W -Wno-double-promotion -o $OUT/texture_test tests/host/texture_test.c firmware/src/dsp/texture.c -lm && \
     $OUT/texture_test $OUT/texture_test.wav && python3 tests/click_check.py $OUT/texture_test.wav"
 run journey sh -c "$CC $W -o $OUT/journey_test tests/host/journey_test.c firmware/src/seq/journey.c && $OUT/journey_test"
+run looper sh -c "$CC $W -o $OUT/looper_test tests/host/looper_test.c firmware/src/seq/looper.c && $OUT/looper_test"
 python3 tools/gen_dsp_tables.py build/gen/dsp_tables.h >/dev/null
 run stereo sh -c "$CC -O2 -ffp-contract=off -w -Ifirmware/src/dsp -Ifirmware/src -Ibuild/gen -o $OUT/stereo_test tests/host/stereo_test.c firmware/src/dsp/master.c firmware/src/dsp/fxbus.c firmware/src/dsp/spacevb.c firmware/src/dsp/dsp_tables.c -lm && $OUT/stereo_test"
 run master sh -c "$CC $W -Wno-double-promotion -o $OUT/master_test tests/host/master_test.c firmware/src/dsp/master.c -lm && $OUT/master_test"

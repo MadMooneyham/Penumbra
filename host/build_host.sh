@@ -12,7 +12,8 @@ python3 tools/gen_logo.py build/gen/logo.h >/dev/null
 python3 tools/gen_words.py firmware/words.tsv web/words build/gen/ann_words.h >/dev/null
 U="firmware/src/dsp/drone.c firmware/src/dsp/vox.c firmware/src/dsp/pulse.c firmware/src/dsp/texture.c
    firmware/src/dsp/fxbus.c firmware/src/dsp/spacevb.c firmware/src/dsp/dsp_tables.c firmware/src/dsp/master.c
-   firmware/src/seq/clock.c firmware/src/seq/journey.c firmware/src/app/engine.c"
+   firmware/src/seq/clock.c firmware/src/seq/journey.c firmware/src/seq/looper.c
+   firmware/src/app/engine.c"
 # shellcheck disable=SC2086
 $CC -O2 -ffp-contract=off -std=c99 -Wall -Wextra -Wno-unused-function -Wno-unused-parameter \
     -DPEN_HOST ${PEN_HOST_DEFS:-} -Ifirmware/src -Ifirmware/src/dsp -Ibuild/gen -o ${PEN_HOST_OUT:-build/host/penumbra_host} \

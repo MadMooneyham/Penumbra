@@ -109,7 +109,6 @@ static void journey_sane(journey_t *j)          /* a loaded one: every field in 
         if (j->name[i] && (j->name[i] < ' ' || j->name[i] > 'Z'))
             j->name[i] = ' ';
     j->name[JR_NAME - 1] = 0;
-    j->mode %= NMODES;
     j->at %= j->nscenes;
     for (i = 0; i < NMACROS; i++)
         j->macro[i] &= 0x7Fu;
@@ -124,21 +123,15 @@ static void journey_sane(journey_t *j)          /* a loaded one: every field in 
         if (j->dvoice[i][DV_OCT] > 2)
             j->dvoice[i][DV_OCT] = 1;
     j->dswell &= (1u << ENG_DRONES) - 1u;
-    for (i = 0; i < JR_LOOPS; i++) {
-        loop_t *l = &j->loop[i];
-        l->len = (uint8_t)(l->len < 1 || l->len > JR_STEPS ? JR_STEPS : l->len);
-        l->div = (uint8_t)(l->div == 1 || l->div == 2 || l->div == 4 || l->div == 8 ? l->div : 2);
-        l->on = (uint8_t)(l->on > LOOP_RECORDED ? LOOP_CAPTURED : l->on);
-        l->mutate &= 0x7Fu;
-    }
 }
 
 /* older journeys. A 0.14 one (format 2) is this one up to its sound; a 0.13 one (format 1) had three
  * loops, LINE's first, before that. Both come over with the sound 0.14 had for everything: its VOICES
  * page's, in the settings (the drone no longer follows the scene: its FILTER where 0.14's scenes had it) */
+#define JR_LOOP_BYTES 20u                        /* (a captured loop, then) */
 #define JR_V2_SIZE __builtin_offsetof(journey_t, shape)
-#define JR_V1_SIZE (JR_V2_SIZE + sizeof(loop_t))
-#define JR_LOOPS_AT __builtin_offsetof(journey_t, loop)
+#define JR_V1_SIZE (JR_V2_SIZE + JR_LOOP_BYTES)
+#define JR_LOOPS_AT __builtin_offsetof(journey_t, old_loops)
 _Static_assert(JR_V1_SIZE != sizeof(journey_t) && JR_V1_SIZE < sizeof(journey_t), "the formats tell apart by size");
 static uint8_t clamp_u7(int v) { return (uint8_t)(v < 0 ? 0 : v > 127 ? 127 : v); }
 static void sound_from_v14(journey_t *j)
@@ -166,8 +159,8 @@ static int journey_from_old(const uint8_t *src, int n, journey_t *j)
         d[k] = 0;
     for (k = 0; k < JR_LOOPS_AT; k++)
         d[k] = src[k];
-    for (k = 0; k < JR_LOOPS * sizeof(loop_t); k++)
-        d[JR_LOOPS_AT + k] = src[JR_LOOPS_AT + (fmt == 1u ? sizeof(loop_t) : 0u) + k];
+    for (k = 0; k < JR_OLD_LOOPS; k++)
+        d[JR_LOOPS_AT + k] = src[JR_LOOPS_AT + (fmt == 1u ? JR_LOOP_BYTES : 0u) + k];
     if (j->magic != JR_MAGIC || j->format != fmt || j->size != (fmt == 1u ? JR_V1_SIZE : JR_V2_SIZE))
         return -1;
     for (k = 0; k < JR_SCENES; k++)              /* (0.14's scenes: no pedal) */

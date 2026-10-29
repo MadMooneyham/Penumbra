@@ -1,17 +1,19 @@
-# A made journey survives a power cut: its macros, its mode, a stored scene and a captured loop, saved
-# by SAVE (at once) and by itself once STOP's tails have gone; it carries on in the scene it was in.
+# A made journey survives a power cut: its macros, a stored scene, its sound, the scene it was in, saved
+# by SAVE (at once) and by itself once STOP's tails have gone.
 wait 1000
 turn K2 -10
 turn K4 6
 expect macro2 44
-tap ARP
-wait 12000
+turn PRESET 1
+wait 13000
+expect scene 2
 tap EDIT
 expect view 2
 tap SEL
 expect nscenes 5
-tap REC
-expect loop1 1
+tap ENV
+turn K1 5
+expect shape11 85
 tap SAVE
 expect dirty 0
 powercut
@@ -19,14 +21,14 @@ wait 500
 expect journey 1
 expect macro2 44
 expect macro4 76
-expect mode 1
 expect nscenes 5
-expect loop1 1
+expect scene 2
+expect shape11 85
 expect jr_playing 1
 tap HOME
 turn K3 -8
 expect macro3 48
-tap PLAY
+tap SEQ
 wait 40000
 expect dirty 0
 powercut

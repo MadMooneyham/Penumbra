@@ -1,5 +1,6 @@
-# PLAY AT POWER-ON: the journey plays by itself. Its drones latch, the moon waxes, VOX sings now and then,
-# the wind comes in; with DRIFT up, the director travels to the next scene. Audio in journey.wav.
+# PLAY AT POWER-ON: the clock starts and the scene's drones latch; nothing else plays by itself. PRESET
+# moves to the next scene, the one before: it glides there (12 s), the drone holding its pedal. HOME's
+# knobs are the macros DRONE, VOX, SPACE, TONE. SEQ: it all falls away. Audio in journey.wav.
 wav journey.wav
 wait 2000
 expect playing 1
@@ -7,22 +8,31 @@ expect jr_playing 1
 expect journey 1
 expect scene 1
 expect drone1 1
-expect moon 1
+expect vox_notes 0
 shot home.png
-wait 30000
-expect vox_notes >0
-expect clips 0
-turn K1 40
-expect macro1 127
-wait 70000
+wait 20000
+expect vox_notes 0
+turn K1 10
+expect macro1 84
+turn K2 -5
+expect macro2 54
+turn PRESET 1
+wait 200
 expect travelling 1
-wait 40000
+wait 13000
 expect scene 2
 expect travelling 0
 expect dnote1 33
 expect dmoving 0
 shot travelled.png
-tap PLAY
+turn PRESET -1
+wait 13000
+expect scene 1
+turn PRESET -1
+wait 13000
+expect scene 4
+expect dnote1 33
+tap SEQ
 wait 200
 expect playing 0
 expect jr_playing 0

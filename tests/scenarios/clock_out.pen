@@ -1,7 +1,7 @@
 # PLAY runs the internal clock: START, 24 clocks a quarter at the tempo (90), the 16ths counted; STOP
 autoplay 0
 wait 300
-tap PLAY
+tap SEQ
 wait 2000
 expect playing 1
 expect starts_out 1
@@ -9,7 +9,7 @@ expect clocks_out >66
 expect clocks_out <80
 expect steps >10
 shot playing.png
-tap PLAY
+tap SEQ
 wait 100
 expect playing 0
 expect stops_out 1

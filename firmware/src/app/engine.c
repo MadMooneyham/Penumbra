@@ -27,6 +27,8 @@ volatile uint32_t eng_kicks;
 journey_t eng_jr;
 static jrun_t jr;
 const jrun_t *engine_jr(void) { return &jr; }
+static looper_t lp POOL;
+const looper_t *engine_looper_state(void) { return &lp; }
 static fxbus_t fx POOL;
 static master_t mst;
 #define DLY_LEN 66150                            /* 1.5 s */
@@ -139,8 +141,8 @@ static void guard_apply(void)
 
 /* ------------------------------------------------------- command queue --- */
 /* uint32 commands, single producer (main loop) / single consumer (audio ISR): type:4 | a:8 | b:8 | c:12 */
-enum { C_DRONE_KEY, C_VOX_ON, C_VOX_OFF, C_TEST, C_MIDI_CH, C_PULSE, C_WHITE, C_LOOPS, C_TRAVEL, C_LOADED,
-       C_PERF, C_FX };
+enum { C_DRONE_KEY, C_VOX_ON, C_VOX_OFF, C_TEST, C_MIDI_CH, C_PULSE, C_WHITE, C_LOOPER, C_TRAVEL, C_LOADED,
+       C_PERF, C_FX, C_FREEZE };
 #define CQ 256u
 static uint32_t cq[CQ];
 static volatile uint32_t cq_w, cq_r;
@@ -164,7 +166,8 @@ int engine_load_testing(void) { return testing; }
 void engine_midi_ch(int ch) { cq_put(C_MIDI_CH, (uint32_t)ch, 0, 0); }
 void engine_pulse(int which, int vel) { cq_put(C_PULSE, (uint32_t)which, 0, (uint32_t)vel); }
 void engine_white_key(int w, int down, int oct) { cq_put(C_WHITE, (uint32_t)w, (uint32_t)(down != 0), (uint32_t)(oct + 8)); }
-void engine_loops(int op, uint32_t mask) { cq_put(C_LOOPS, (uint32_t)op, mask, 0); }
+void engine_looper(int op) { cq_put(C_LOOPER, (uint32_t)op, 0, 0); }
+void engine_freeze(void) { cq_put(C_FREEZE, 0, 0, 0); }
 void engine_travel(int scene) { cq_put(C_TRAVEL, (uint32_t)scene, 0, 0); }
 void engine_journey_loaded(void) { cq_put(C_LOADED, 0, 0, 0); }
 void engine_perf(int i, int value) { cq_put(C_PERF, (uint32_t)i, 0, (uint32_t)(value + 128)); }
@@ -314,17 +317,28 @@ static void js_drone_swell(void *x, int v)
     if (v >= 0 && v < DRONE_VOICES && dn.v[v].pot[DN_MODE] == DN_MODE_SWELL)
         drone_trigger(&dn, v, 1.0f);
 }
+static const jr_sink_t JSINK = {0, js_drone_note, js_drone_latch, js_drone_release, js_drone_swell};
+
+/* VOX's notes, the hands' (keys, MIDI) and the looper's: counted for the tests and the screen's stars */
 volatile uint32_t eng_vox_notes;
-static void js_vox_on(void *x, int midi, int vel)
+static void ls_on(void *x, int midi, int vel)
 {
     (void)x;
     vox_note_on(&vox, midi, (float)vel * (1.0f / 127.0f));
     eng_vox_notes++;
 }
-static void js_vox_off(void *x, int midi) { (void)x; vox_note_off(&vox, midi); }
-static void js_pulse(void *x, int which, int vel) { (void)x; hit(which, (float)vel * (1.0f / 127.0f)); }
-static const jr_sink_t JSINK = {0, js_drone_note, js_drone_latch, js_drone_release, js_drone_swell, js_vox_on, js_vox_off,
-                                js_pulse};
+static void ls_off(void *x, int midi) { (void)x; vox_note_off(&vox, midi); }
+static const lp_sink_t LSINK = {0, ls_on, ls_off};
+static void hand_on(int note, int vel)
+{
+    ls_on(0, note, vel);
+    looper_note(&lp, note, vel);
+}
+static void hand_off(int note)
+{
+    vox_note_off(&vox, note);
+    looper_note(&lp, note, 0);
+}
 
 /* the sound (the SHAPE pages, the drone voices' own), the scene, the HOME macros and the hands' moves
  * into the voices, each block. The drone is the backbone: only its sound and TONE move it, never the
@@ -348,16 +362,17 @@ static void conduct(void)
 {
     const jr_out_t *o = &jr.out;
     const uint8_t (*sh)[SH_N] = eng_jr.shape;
-    const float tone = jr.macro_s[MAC_TONE] - 64.0f, bright = o->bright + tone, freeze = (float)perf[PF_FREEZE] * (1.0f / 127.0f);
+    const float tone = jr.macro_s[MAC_TONE] - 64.0f, freeze = (float)perf[PF_FREEZE] * (1.0f / 127.0f);
+    const float dmac = jr.macro_s[MAC_DRONE] - 64.0f, bright = o->bright + tone + (jr.macro_s[MAC_VOX] - 64.0f) * 0.9f;
     int v, x, swarm = sh[EV_DRONE][SH_K3];
     for (v = 0; v < EV_N; v++)
         if (moved(K_LEVEL + v, sh[v][SH_LEVEL]))
             voice_level(v, sh[v][SH_LEVEL]);
-    /* DRONE */
-    if (moved(K_DCUT, x = clamp127((float)sh[EV_DRONE][SH_K1] + tone * 0.66f)))
+    /* DRONE: HOME's DRONE opens its filter and its body together */
+    if (moved(K_DCUT, x = clamp127((float)sh[EV_DRONE][SH_K1] + tone * 0.66f + dmac * 0.8f)))
         drone_set(&dn, DRONE_KIT, DB_CUTOFF, x);
-    if (moved(K_DRESO, sh[EV_DRONE][SH_K2]))
-        drone_set(&dn, DRONE_KIT, DB_RESO, sh[EV_DRONE][SH_K2]);
+    if (moved(K_DRESO, x = clamp127((float)sh[EV_DRONE][SH_K2] + dmac * 0.4f)))
+        drone_set(&dn, DRONE_KIT, DB_RESO, x);
     if (moved(K_SWARM, swarm))
         drone_set(&dn, DRONE_KIT, DB_SWARM, swarm);
     for (v = 0; v < DRONE_VOICES; v++) {
@@ -397,7 +412,7 @@ static void conduct(void)
     if (moved(K_ROOT, o->root_midi))
         pulse_root(&pulse, o->root_midi);
     /* TEXTURE */
-    if (moved(K_TLVL, x = clamp127(o->tex * o->fade * (0.6f + 0.4f * o->intensity))))
+    if (moved(K_TLVL, x = clamp127(o->tex * o->fade * 0.85f)))
         texture_set(&tex, TX_LEVEL, x);
     if (moved(K_TCOL, x = clamp127(o->colour + tone * 0.5f + (float)(sh[EV_TEX][SH_K1] - 64))))
         texture_set(&tex, TX_COLOUR, x);
@@ -462,10 +477,7 @@ static void test_set(int on)
         drone_set(&dn, DRONE_KIT, DB_WIND, 64);
         fxbus_ext_set(&fx, FXX_RV_SHIMMER, 127);
         texture_set(&tex, TX_LEVEL, 127);
-        if (jr.playing) {                        /* the journey waits (the test plays its own) */
-            jr.vox_note = -1;
-            jr.vox_ok = 0;
-        }
+        looper_quiet(&lp, &LSINK);               /* (the test plays its own) */
         test_left = test_i = 0;
         guard_enabled = 0;
     } else {
@@ -509,24 +521,44 @@ static void clk_midi(void *x, uint8_t st)
     (void)x;
     plat_midi_out(0x0Fu | ((uint32_t)st << 8));
 }
-/* the clock's 16ths are the journey's steps: PLAY (here, or a START from outside) starts it on the
- * downbeat, STOP lets it fall away */
+/* the clock (SEQ here, or a START from outside): its start swells the scene's drones in, the looper
+ * plays on its 16ths (LP_TPS ticks each, the frames since the last one counted between them), STOP
+ * lets everything fall away (a loop keeps, and plays again at the next start) */
+static uint32_t lp_frames, lp_last;            /* frames since the clock's last 16th; the looper's last tick */
 static void clk_step(void *x, uint32_t n)
 {
     (void)x;
     eng_steps = n + 1u;
+    lp_frames = 0;
     if (testing)
         return;                                  /* (the load test plays its own) */
-    if (!jr.playing)
+    if (!jr.playing) {
         jr_start(&jr, &JSINK);
-    jr_step(&jr, n, (uint32_t)(44100.0f * 15.0f / fm_maxf(tclock_tempo(&eng_clock), 20.0f)), &JSINK);
+        lp_last = 0;
+        looper_restart(&lp, &LSINK);
+    }
+    jr_step(&jr, n, &JSINK);
 }
 static void clk_stopped(void *x)
 {
     (void)x;
     drone_end_swells(&dn);
+    looper_quiet(&lp, &LSINK);
     if (jr.playing)
         jr_stop(&jr, &JSINK);
+}
+static void looper_tick(uint32_t n)             /* each block: the looper on to where the clock is */
+{
+    uint32_t step = (uint32_t)(44100.0f * 15.0f / fm_maxf(tclock_tempo(&eng_clock), 20.0f)), now, sub;
+    if (!eng_clock.playing || !eng_steps || testing)
+        return;
+    lp_frames += n;
+    sub = lp_frames * LP_TPS / (step ? step : 1u);
+    now = (eng_steps - 1u) * LP_TPS + (sub < LP_TPS - 1u ? sub : LP_TPS - 1u);
+    if (now > lp_last) {
+        looper_advance(&lp, now - lp_last, &LSINK);
+        lp_last = now;
+    }
 }
 static const tclock_sink_t CLK_SINK = {0, clk_midi, clk_step, clk_stopped};
 
@@ -545,43 +577,54 @@ static void midi_in(uint32_t pkt)
         return;
     if (ty == 0x90 && d2 == 0)
         ty = 0x80;
-    if (ty == 0x90) {
-        vox_note_on(&vox, d1, (float)d2 * (1.0f / 127.0f));
-        jr_vox_played(&jr, d1, 1);
-    } else if (ty == 0x80) {
-        vox_note_off(&vox, d1);
-        jr_vox_played(&jr, d1, 0);
-    }
+    if (ty == 0x90)
+        hand_on(d1, d2);
+    else if (ty == 0x80)
+        hand_off(d1);
 }
 
-/* a white key, by the journey's mode: PLAY plays VOX in the scene's key, GUIDE steers the lines,
- * DRIFT picks the scene to travel to. A key let go ends the note it started, whatever the mode is now */
+/* a white key plays VOX in the scene's key; let go, it ends the note it started. FREEZE keeps the
+ * notes held then sounding when their keys are let go (a frozen key pressed again is the hand's
+ * again); FREEZE again lets them ring out, and freezes what is held now */
 static int16_t white_note[16] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+static int16_t frozen[16] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+static volatile uint8_t n_frozen;
+int engine_frozen(void) { return n_frozen; }
 static void white_key(int w, int down, int oct)
 {
     if (w < 0 || w > 15)
         return;
     if (!down) {
-        if (white_note[w] >= 0) {
-            vox_note_off(&vox, white_note[w]);
-            jr_vox_played(&jr, white_note[w], 0);
-            white_note[w] = -1;
-        }
-        jr_guide(&jr, w, 0);
+        if (white_note[w] >= 0 && frozen[w] != white_note[w])
+            hand_off(white_note[w]);
+        white_note[w] = -1;
         return;
     }
-    if (eng_jr.mode == MODE_GUIDE) {
-        jr_guide(&jr, w, 1);
-    } else if (eng_jr.mode == MODE_DRIFT) {
-        jr_travel(&jr, w);
-    } else {
-        int note = jr_key_note(&jr, w, oct);
-        if (white_note[w] >= 0)
-            vox_note_off(&vox, white_note[w]);
-        white_note[w] = (int16_t)note;
-        vox_note_on(&vox, note, 100.0f / 127.0f);
-        jr_vox_played(&jr, note, 1);
+    if (frozen[w] >= 0) {                        /* (frozen: back in the hand) */
+        hand_off(frozen[w]);
+        frozen[w] = -1;
+        n_frozen--;
     }
+    if (white_note[w] >= 0)
+        hand_off(white_note[w]);
+    white_note[w] = (int16_t)jr_key_note(&jr, w, oct);
+    hand_on(white_note[w], 100);
+}
+static void freeze(void)
+{
+    int w;
+    for (w = 0; w < 16; w++)
+        if (frozen[w] >= 0) {
+            if (white_note[w] != frozen[w])
+                hand_off(frozen[w]);
+            frozen[w] = -1;
+        }
+    n_frozen = 0;
+    for (w = 0; w < 16; w++)
+        if (white_note[w] >= 0) {
+            frozen[w] = white_note[w];
+            n_frozen++;
+        }
 }
 
 static void drain(void)
@@ -606,14 +649,18 @@ static void drain(void)
             midi_ch = (uint8_t)(a <= 16u ? a : 0u);
         else if (type == C_WHITE)
             white_key((int)a, (int)b, (int)(c & 0xFFFu) - 8);
-        else if (type == C_LOOPS) {
-            if (a == LOOP_CAPTURE)
-                jr_capture(&jr, b);
-            else if (a == LOOP_RELEASE)
-                jr_release(&jr, b);
+        else if (type == C_LOOPER && !testing) {
+            if (a == LOOPER_REC)
+                looper_rec(&lp, &LSINK);
+            else if (a == LOOPER_PLAY)
+                looper_play(&lp, &LSINK);
+            else if (a == LOOPER_UNDO)
+                looper_undo(&lp, &LSINK);
             else
-                jr_record(&jr);
-        } else if (type == C_TRAVEL)
+                looper_clear(&lp, &LSINK);
+        } else if (type == C_FREEZE)
+            freeze();
+        else if (type == C_TRAVEL)
             jr_travel(&jr, (int)a);
         else if (type == C_LOADED) {
             jr_restart(&jr, &JSINK);
@@ -858,7 +905,8 @@ void engine_render(int32_t *out_lr, uint32_t n)
         tclock_advance(&eng_clock, k, &CLK_SINK);
     }
     fxbus_set_bpm(&fx, tclock_tempo(&eng_clock));
-    if (!testing) {                              /* the director, then the scene into the voices */
+    looper_tick(n);
+    if (!testing) {                              /* the scene's glides, then the sound into the voices */
         jr_tick(&jr, n, &JSINK);
         conduct();
     }
@@ -997,5 +1045,6 @@ void engine_init(void)
     conduct_reset();
     jr_preset(0, &eng_jr);                       /* (until settings.c loads the saved one: journey_load_work) */
     jr_init(&jr, &eng_jr);
+    looper_init(&lp);
     jr_restart(&jr, &JSINK);                     /* the drone in its key */
 }

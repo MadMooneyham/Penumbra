@@ -26,6 +26,7 @@
 #include <stdint.h>
 #include "../seq/clock.h"
 #include "../seq/journey.h"
+#include "../seq/looper.h"
 
 extern tclock_t eng_clock;
 #define ENG_DRONES 5                           /* the drone voices (dsp/drone.h): black keys 1-5 */
@@ -80,7 +81,7 @@ extern volatile uint32_t eng_guard_count;                   /* times it engaged 
 extern volatile uint16_t eng_level;                         /* the output's peak, Q15, held for the UI to fall */
 extern volatile uint32_t eng_steps;                         /* 16ths since PLAY (the clock's), for the screen */
 extern volatile uint32_t eng_kicks;                         /* PULSE's kicks so far (the corona flares on each) */
-extern volatile uint32_t eng_vox_notes;                     /* the journey's VOX notes so far */
+extern volatile uint32_t eng_vox_notes;                     /* VOX's notes so far (the hands', the looper's) */
 extern uint32_t eng_out_clips;                              /* output samples past full scale, since power-on */
 
 void engine_init(void);
@@ -88,10 +89,13 @@ void engine_render(int32_t *out_lr, uint32_t n);   /* ISR: n stereo frames (<= 2
 void engine_volume(int32_t *out_lr, uint32_t n);   /* ISR, after engine_render (and the USB tap) */
 
 /* main loop -> ISR */
-void engine_white_key(int w, int down, int oct);   /* a white key (0..15): by the journey's mode */
-void engine_loops(int op, uint32_t mask);          /* LOOP_CAPTURE, LOOP_RELEASE (bit LP_*), LOOP_RECORD */
-enum { LOOP_CAPTURE, LOOP_RELEASE, LOOP_RECORD };
-void engine_travel(int scene);                     /* the director goes there */
+void engine_white_key(int w, int down, int oct);   /* a white key (0..15): VOX in the scene's key */
+void engine_looper(int op);                        /* seq/looper.h: REC, PLAY, UNDO, CLEAR */
+enum { LOOPER_REC, LOOPER_PLAY, LOOPER_UNDO, LOOPER_CLEAR };
+const looper_t *engine_looper_state(void);         /* (main loop, read only) */
+void engine_freeze(void);                          /* the notes held keep sounding (again: they let go) */
+int engine_frozen(void);                           /* (main loop) notes frozen */
+void engine_travel(int scene);                     /* the scene glides there */
 void engine_journey_loaded(void);                  /* eng_jr is a new journey: start it from its scene */
 void engine_drone_key(int voice);                  /* a black key: the voice by its MODE (HOLD: latch) */
 int engine_drone_on(int voice);                    /* (main loop) the voice is on: latched, or in its swell */

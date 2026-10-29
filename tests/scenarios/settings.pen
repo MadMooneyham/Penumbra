@@ -3,7 +3,7 @@
 autoplay 0
 wait 300
 tap GLO
-expect view 6
+expect view 5
 turn K1 1
 expect set_clk_out 0
 expect dirty 1
@@ -20,7 +20,7 @@ reboot
 wait 300
 expect set_clk_out 0
 expect set_midi_ch 3
-tap PLAY
+tap SEQ
 wait 1000
 expect playing 1
 expect clocks_out 0

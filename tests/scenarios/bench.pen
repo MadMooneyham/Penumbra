@@ -5,7 +5,7 @@ wait 300
 tapkey b1
 tap GLO
 tap GLO
-expect view 7
+expect view 6
 wait 1500
 expect bench 1
 expect bench_avg10 >0

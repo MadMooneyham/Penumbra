@@ -479,16 +479,16 @@ static int expect(const char *what, const char *val)
         got = eng_jr.nscenes;
     else if (!strcmp(what, "travelling"))
         got = engine_jr()->travelling;
-    else if (!strcmp(what, "moon"))                 /* 0 NEW, 1 WAXING, 2 FULL, 3 WANING */
-        got = engine_jr()->moon;
-    else if (!strcmp(what, "mode"))                 /* 0 PLAY, 1 GUIDE, 2 DRIFT */
-        got = eng_jr.mode;
+    else if (!strcmp(what, "looper"))               /* the looper: 0 empty, 1 recording, 2 playing, 3 overdub, 4 stopped */
+        got = engine_looper_state()->state;
+    else if (!strcmp(what, "layers"))
+        got = engine_looper_state()->layers;
+    else if (!strcmp(what, "looplen"))              /* its length, 16ths */
+        got = (int)(engine_looper_state()->len / LP_TPS);
+    else if (!strcmp(what, "frozen"))               /* VOX's notes frozen */
+        got = engine_frozen();
     else if (!strncmp(what, "macro", 5))            /* macroN: 1 DRIFT .. 4 TONE */
         got = eng_jr.macro[(atoi(what + 5) - 1) & 3];
-    else if (!strncmp(what, "loop", 4))             /* loopN: 1 VOX, 2 PULSE: 0 off, 1 captured, 2 recorded */
-        got = eng_jr.loop[(atoi(what + 4) - 1) % JR_LOOPS].on;
-    else if (!strcmp(what, "rec"))
-        got = engine_jr()->rec;
     else if (!strcmp(what, "vox_notes")) {          /* the journey's VOX notes since the last check */
         static uint32_t last;
         got = (int)(eng_vox_notes - last);
@@ -653,8 +653,8 @@ int main(int argc, char **argv)
             boot();
         } else if (!strcmp(cmd, "legacy013")) {       /* 0.13's flash: settings format 2 (LINE's voice second),
                                                        * the journey playing and user slot 1 as format 1 (three loops) */
-            uint8_t s[56] = {0}, jb[__builtin_offsetof(journey_t, shape) + sizeof(loop_t)];
-            uint32_t at = __builtin_offsetof(journey_t, loop), k;
+            uint8_t s[56] = {0}, jb[__builtin_offsetof(journey_t, shape) + 20u];
+            uint32_t at = __builtin_offsetof(journey_t, old_loops), k;
             journey_t j;
             settings_defaults();
             memcpy(s, &cfg, 24);
@@ -672,12 +672,11 @@ int main(int argc, char **argv)
             jr_preset(2, &j);
             j.format = 1;
             j.size = (uint16_t)sizeof jb;
-            j.mode = MODE_GUIDE;
-            j.loop[LP_VOX].on = 1;
-            j.loop[LP_VOX].step[0] = ST_ON | ST_MK(2);
+            j.mode = 1;
+            j.at = 1;                                 /* (it carries on in its second scene) */
             memcpy(jb, &j, at);
-            memset(jb + at, 0, sizeof(loop_t));       /* (LINE's) */
-            memcpy(jb + at + sizeof(loop_t), j.loop, sizeof j.loop);
+            memset(jb + at, 0, 20u);                  /* (LINE's loop) */
+            memcpy(jb + at + 20u, j.old_loops, sizeof j.old_loops);
             plat_store_save(OBJ_WORK, jb, sizeof jb);
             {
                 static uint8_t slots[JR_USER * sizeof jb];
@@ -700,7 +699,7 @@ int main(int argc, char **argv)
             jr_preset(1, &j);
             j.format = 2;
             j.size = (uint16_t)n;
-            j.mode = MODE_GUIDE;
+            j.mode = 1;
             j.scene[0].pedal = 0x55;                  /* (0.14's spare byte, anything: it comes over as none) */
             plat_store_save(OBJ_WORK, &j, n);
             memset(slots, 0, sizeof slots);

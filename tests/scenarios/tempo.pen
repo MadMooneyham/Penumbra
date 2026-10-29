@@ -4,11 +4,11 @@ autoplay 0
 wait 300
 turn ALGO 30
 expect set_bpm 120
-tap PLAY
+tap SEQ
 wait 2000
 expect clocks_out >88
 expect clocks_out <102
-tap PLAY
+tap SEQ
 wait 3000
 expect dirty 1
 wait 35000

@@ -3,36 +3,34 @@
  *
  *   HOME     the corona: the Lunar Eclipse Forge mark on the eclipsed moon, its corona pulsing with
  *            the music, a bead on the rim for each drone voice, a star for each note you play. Under
- *            it the scene, the moon's phase, the mode and the loops. KNOBS 1-4: the macros DRIFT,
- *            DENSITY, SPACE, TONE.
+ *            it the scene, the looper, FREEZE. KNOBS 1-4: the macros DRONE (its filter and body), VOX
+ *            (its brightness), SPACE, TONE.
  *   SHAPE    a voice's sound, four knobs each, ALGO its level (ENV again, or SELECT: the next voice):
  *            DRONE filter, body, swarm, wave; VOX bright, attack, release, shimmer; PULSE drop, decay,
  *            tick, space; TEXTURE colour, sweep, rate, width. Saved with the journey
  *   SCENE    the journey's scenes, field by field (SELECT: the field, KNOB 1: the scene, 2-4: change
  *            it); SEL stores the moment as a new scene
- *   LOOP     a captured loop's steps (SELECT: VOX, PULSE; KNOB 1 the step, 2 its note, 3 on
- *            or tied, 4 MUTATE); SEL captures or lets go
  *   FX       the reverb and the delay (SELECT: which)
  *   JOURNEY  the 6 presets and 8 user slots: SEL opens one, SAVE stores the one playing in a slot
  *   SYSTEM   the settings, a list: SELECT moves, any knob (or SEL) changes the row
  *   BENCH    the benchmark: each stage of the render, average and worst block; SEL: the load test
  *
  * Buttons, one job each (they act when let go; held, they say what they do instead):
- *   HOME home, ENV SHAPE, EDIT SCENE, SEQ LOOP, FX FX, LFO JOURNEY, GLO SYSTEM then BENCH,
- *   ARP the mode (PLAY, GUIDE, DRIFT), PLAY starts and stops (with a fade), REC loops what plays (PLAY
- *   mode: records VOX from the keys for a bar; pressed with loops on: lets them go), SAVE saves now,
- *   SEL the page's action, OCT- / OCT+ the white keys' octave.
- * Keys: black 1-5 latch the drone voices (when let go), 6 and 7 hit PULSE; the white keys follow the mode.
- * ALGO: the tempo (SHAPE: the voice's level). PRESET: the journeys (opens JOURNEY). Every page but
- * BENCH goes home after 30 s idle.
+ *   HOME home, ENV SHAPE, EDIT SCENE, FX FX, LFO JOURNEY, GLO SYSTEM then BENCH, SEQ the clock (starts
+ *   and stops, with a fade), SAVE saves now, SEL the page's action, OCT- / OCT+ the white keys' octave.
+ *   The looper: REC records (again: it plays; again: a layer over it), PLAY plays or stops it (held:
+ *   the last layer undone), REC with PLAY clears it. ARP: FREEZE, the notes held keep sounding.
+ * Keys: white VOX in the scene's key; black 1-5 latch the drone voices (when let go; a SWELL voice:
+ * played when pressed), 6 and 7 hit PULSE. ALGO: the tempo (SHAPE: the voice's level). PRESET: the
+ * next scene, or the one before (on JOURNEY: the list). Every page but BENCH goes home after 30 s idle.
  *
  * Holds: the knobs play something else while one is held, on any page.
- *   a drone key   that voice's LEVEL, TONE, DETUNE, OCTAVE; it stays (and the key does not latch)
+ *   a drone key   that voice's LEVEL, TONE, DETUNE, OCTAVE, ALGO HELD or SWELL; it stays (the key
+ *                 does not latch)
  *   FX            THROWS: SHIMMER, FEEDBACK, FREEZE, DIP; let go, they drift back
- *   a white key   (PLAY, GUIDE) BENDS VOX: BRIGHT, VIBRATO, SHIMMER, RELEASE; let go, they drift back
+ *   a white key   BENDS VOX: BRIGHT, VIBRATO, SHIMMER, RELEASE; let go, they drift back
  * SAVE while holding FX or a white key keeps what the knobs did: the bends go into VOX's sound, the
  * throws stay where they are until FX is held again.
- *
  *
  * The screen is three bands (header, main, knob strip), each drawn into Felucca's canvas and
  * blitted only where its pixels changed: SPI time is the scarce thing. */
@@ -44,8 +42,8 @@ static const int8_t KEY_WHITE[NKEYS] = {0, -1, 1, -1, 2, -1, 3, 4, -1, 5, -1, 6,
 static const int8_t KEY_BLACK[NKEYS] = {-1, 0, -1, 1, -1, 2, -1, -1, 3, -1, 4, -1, -1, 5, -1, 6, -1, 7, -1, -1, 8, -1, 9, -1, -1, 10, -1};
 static uint8_t BLACK_KEY[11], WHITE_KEY[16];
 
-enum { V_HOME, V_SHAPE, V_SCENE, V_LOOP, V_FX, V_JOURNEY, V_SYSTEM, V_BENCH, NVIEWS };
-static const char *const VIEW_N[NVIEWS] = {"HOME", "SHAPE", "SCENE", "LOOP", "FX", "JOURNEY", "SYSTEM", "BENCH"};
+enum { V_HOME, V_SHAPE, V_SCENE, V_FX, V_JOURNEY, V_SYSTEM, V_BENCH, NVIEWS };
+static const char *const VIEW_N[NVIEWS] = {"HOME", "SHAPE", "SCENE", "FX", "JOURNEY", "SYSTEM", "BENCH"};
 
 #define HELP_MS 600u                       /* held this long, a button says what it does instead */
 #define HELP_HOLD_MS 1500u                 /* (FX, a hold too: later, and not once the knobs have moved) */
@@ -58,7 +56,8 @@ typedef struct {
     uint8_t view;
     int8_t oct;                        /* the white keys' octave, -2..+2 */
     uint8_t row;                       /* SYSTEM's row */
-    uint8_t vsel, ssel, srow, lsel, lstep, fxrow, jrow;
+    uint8_t vsel, ssel, srow, fxrow, jrow;
+    int8_t sdest;                      /* the scene PRESET sent it to (-1: none) */
     uint32_t btn, keys;                /* held, as last seen */
     uint32_t press_t[NB], helped;      /* when each button went down; held long enough to say its job */
     char msg[28];
@@ -248,32 +247,24 @@ static void autosave(void)
 
 /* ============================================================ the journey === */
 static const scene_t *scene_sel(void) { return &eng_jr.scene[ui.ssel % (eng_jr.nscenes ? eng_jr.nscenes : 1)]; }
-static int loops_on(void) { return eng_jr.loop[LP_VOX].on || eng_jr.loop[LP_PULSE].on; }
-static const char *const LOOP_N[JR_LOOPS] = {"VOX", "PULSE"};
-static const char *const MACRO_N[NMACROS] = {"DRIFT", "DENSITY", "SPACE", "TONE"};
+static const char *const MACRO_N[NMACROS] = {"DRONE", "VOX", "SPACE", "TONE"};
 
 /* SCENE's fields */
-/* (the scene's swarm is no longer heard: the drone's sound is SHAPE's, not the scene's) */
-enum { SF_KEY, SF_SCALE, SF_CHORDS, SF_PEDAL, SF_VOICING, SF_DENSITY, SF_PULSE, SF_BRIGHT, SF_SPACE, SF_WIND,
-       SF_COLOUR, SF_REG, SF_PENTA, NSF };
-static const char *const SF_N[NSF] = {"KEY", "SCALE", "CHORDS", "DRONE ROOT", "VOICING", "DENSITY", "PULSE",
-                                      "VOX BRIGHTNESS", "SPACE", "WIND", "WIND COLOUR", "REGISTER", "PENTATONIC"};
+enum { SF_KEY, SF_SCALE, SF_PEDAL, SF_VOICING, SF_BRIGHT, SF_REG, SF_SPACE, SF_WIND, SF_COLOUR, NSF };
+static const char *const SF_N[NSF] = {"KEY", "SCALE", "DRONE ROOT", "VOICING", "VOX BRIGHTNESS", "VOX REGISTER",
+                                      "SPACE", "WIND", "WIND COLOUR"};
 static uint8_t *sf_ptr(scene_t *s, int f)
 {
     switch (f) {
     case SF_KEY: return &s->root;
     case SF_SCALE: return &s->scale;
-    case SF_CHORDS: return &s->prog;
     case SF_PEDAL: return &s->pedal;
     case SF_VOICING: return &s->voicing;
-    case SF_DENSITY: return &s->density;
-    case SF_PULSE: return &s->pulse;
     case SF_BRIGHT: return &s->bright;
+    case SF_REG: return &s->reg;
     case SF_SPACE: return &s->space;
     case SF_WIND: return &s->tex;
-    case SF_COLOUR: return &s->colour;
-    case SF_REG: return &s->reg;
-    default: return &s->penta;
+    default: return &s->colour;
     }
 }
 static void sf_text(const scene_t *s, int f, char *b)
@@ -281,11 +272,9 @@ static void sf_text(const scene_t *s, int f, char *b)
     switch (f) {
     case SF_KEY: put_s(b, jr_root_name(s->root)); break;
     case SF_SCALE: put_s(b, jr_scale_name(s->scale)); break;
-    case SF_CHORDS: put_s(b, jr_prog_name(s->prog)); break;
     case SF_PEDAL: put_s(b, s->pedal ? jr_root_name(s->pedal - 1) : "THE KEY"); break;
     case SF_VOICING: put_s(b, jr_voicing_name(s->voicing)); break;
     case SF_REG: put_i(b, s->reg); break;
-    case SF_PENTA: put_s(b, ONOFF_N[s->penta ? 1 : 0]); break;
     default: put_i(b, *sf_ptr((scene_t *)s, f)); break;
     }
 }
@@ -297,11 +286,9 @@ static void sf_turn(int f, int e)
     switch (f) {
     case SF_KEY: *p = (uint8_t)wrap_i(*p + e, 12); break;
     case SF_SCALE: *p = (uint8_t)wrap_i(*p + e, NSCALES); break;
-    case SF_CHORDS: *p = (uint8_t)wrap_i(*p + e, jr_nprogs()); break;
     case SF_PEDAL: *p = (uint8_t)wrap_i(*p + e, 13); break;   /* (a root not in the key: the key's) */
     case SF_VOICING: *p = (uint8_t)wrap_i(*p + e, NVOICINGS); break;
     case SF_REG: *p = (uint8_t)clamp_i(*p + e, 2, 6); break;
-    case SF_PENTA: *p = (uint8_t)(e > 0); break;
     default: *p = (uint8_t)clamp_i(*p + 2 * e, 0, 127); break;
     }
     changed_jr();
@@ -327,85 +314,49 @@ static void store_scene(void)
     changed_jr();
 }
 
+/* ------------------------------------------------------------ the looper --- */
+/* (what it says is what it will be: the engine takes the command at its next block) */
 static void rec_button(void)
 {
+    const looper_t *l = engine_looper_state();
+    if (!eng_clock.playing)                       /* it plays on the clock: the clock starts */
+        tclock_play(&eng_clock);
+    engine_looper(LOOPER_REC);
+    say(l->state == LS_EMPTY ? "LOOP: RECORDING" : l->state == LS_REC ? "LOOP: PLAYING" :
+        l->state == LS_DUB ? "LAYER KEPT" : l->layers >= LP_LAYERS ? "LAYERS FULL" : "LOOP: OVERDUB", 0);
+}
+static void loop_play(void)
+{
+    const looper_t *l = engine_looper_state();
+    if (l->state == LS_EMPTY) {
+        warn("NO LOOP: REC FIRST", 0);
+        return;
+    }
+    if (l->state == LS_STOP && !eng_clock.playing)
+        tclock_play(&eng_clock);
+    engine_looper(LOOPER_PLAY);
+    say(l->state == LS_PLAY ? "LOOP STOPPED" : "LOOP: PLAYING", 0);
+}
+static void loop_text(char *b)                     /* HOME's: what it is doing, its layers */
+{
+    const looper_t *l = engine_looper_state();
+    static const char *const LS_N[] = {"LOOP -", "REC", "LOOP", "DUB", "LOOP STOPPED"};
+    char *q = put_s(b, LS_N[l->state % 5u]);
+    if (l->state != LS_EMPTY && l->state != LS_REC)
+        put_s(put_i(put_s(q, " x"), l->layers), "");
+}
+
+static void scene_step(int e)                      /* PRESET: the next scene, or the one before */
+{
     const jrun_t *r = engine_jr();
-    if (loops_on() || r->rec) {
-        engine_loops(LOOP_RELEASE, 7u);
-        say("LOOPS LET GO", 0);
-    } else if (!eng_clock.playing) {
-        warn("PLAY FIRST", 0);
-        return;
-    } else if (eng_jr.mode == MODE_PLAY) {
-        engine_loops(LOOP_RECORD, 0);
-        say("RECORDING VOX: NEXT BAR", 0);
-    } else {
-        engine_loops(LOOP_CAPTURE, 7u);
-        say("CAPTURED", 0);
-    }
-    changed_jr();
-}
-
-static void loop_sel(void)                         /* LOOP's SEL: the voice it shows, captured or let go */
-{
-    const int v = ui.lsel;
-    if (eng_jr.loop[v].on || (v == LP_VOX && engine_jr()->rec)) {
-        engine_loops(LOOP_RELEASE, 1u << v);
-        say(LOOP_N[v], " LET GO");
-    } else if (!eng_clock.playing) {
-        warn("PLAY FIRST", 0);
-        return;
-    } else if (v == LP_VOX && eng_jr.mode == MODE_PLAY) {
-        engine_loops(LOOP_RECORD, 0);
-        say("RECORDING VOX: NEXT BAR", 0);
-    } else {
-        engine_loops(LOOP_CAPTURE, 1u << v);
-        say(LOOP_N[v], " CAPTURED");
-    }
-    changed_jr();
-}
-
-static void loop_knob(int k, int e)
-{
-    loop_t *l = &eng_jr.loop[ui.lsel];
-    uint8_t *st;
-    if (k == 3) {
-        l->mutate = (uint8_t)clamp_i(l->mutate + 2 * e, 0, 127);
-        say_n("MUTATE ", l->mutate);
-        changed_jr();
-        return;
-    }
-    if (k == 0) {
-        ui.lstep = (uint8_t)clamp_i(ui.lstep + e, 0, (l->len ? l->len : 16) - 1);
-        say_n("STEP ", ui.lstep + 1);
-        return;
-    }
-    if (!l->on) {
-        warn("SEL: CAPTURE FIRST", 0);
-        return;
-    }
-    st = &l->step[ui.lstep % JR_STEPS];
-    if (ui.lsel == LP_PULSE) {
-        uint8_t bit = k == 1 ? PS_KICK : PS_TICK;
-        *st = (uint8_t)(e > 0 ? *st | bit : *st & ~bit);
-        say(k == 1 ? "KICK " : "TICK ", *st & bit ? "ON" : "OFF");
-    } else if (k == 1) {
-        int d = (*st & ST_ON) ? ST_DEG(*st) + e : 0;
-        *st = (uint8_t)((*st & ST_TIE) | ST_ON | ST_MK(clamp_i(d, -24, 39)));
-        {
-            char t[8];
-            put_sgn(t, ST_DEG(*st));
-            say("NOTE ", t);
-        }
-    } else {
-        int s = !(*st & ST_ON) ? 0 : (*st & ST_TIE) ? 2 : 1;
-        static const char *const SN[3] = {"OFF", "ON", "TIE"};
-        int was_on = (*st & ST_ON) != 0;
-        s = clamp_i(s + e, 0, 2);
-        *st = (uint8_t)(s == 0 ? 0u : (uint8_t)(ST_ON | (s == 2 ? ST_TIE : 0u) | (was_on ? *st & 0x3Fu : ST_MK(0))));
-        say(SN[s], 0);
-    }
-    changed_jr();
+    int n = eng_jr.nscenes ? eng_jr.nscenes : 1, from, to;
+    char b[40];
+    from = ui.sdest >= 0 && (r->travelling || r->cur != ui.sdest) ? ui.sdest : r->cur;   /* (on the way: from there) */
+    to = wrap_i(from + (e > 0 ? 1 : -1), n);
+    ui.sdest = (int8_t)to;
+    engine_travel(to);
+    put_s(put_s(put_s(put_i(put_s(b, "TO SCENE "), to + 1), "  "), jr_root_name(eng_jr.scene[to].root)), " ");
+    say(b, jr_scale_name(eng_jr.scene[to].scale));
 }
 
 /* JOURNEY's rows: the presets, then the user slots */
@@ -483,7 +434,7 @@ static int layer(void)
         return L_DRONE;
     if (ui.btn >> B_FX & 1u)
         return L_THROW;
-    if (ui.wheld && eng_jr.mode != MODE_DRIFT)
+    if (ui.wheld)
         return L_BEND;
     return L_PAGE;
 }
@@ -629,10 +580,10 @@ static void set_view(int v)
 
 static const char *const HELP[NB] = {
     [B_FX] = "FX. HELD, KNOBS: THROWS", [B_SEL] = "THE PAGE'S ACTION", [B_ENV] = "SHAPE: EACH VOICE",
-    [B_LFO] = "JOURNEYS",           [B_EDIT] = "SCENE: KEY, CHORDS", [B_GLO] = "SYSTEM, BENCH",
-    [B_HOME] = "HOME",              [B_SAVE] = "SAVE. IN A HOLD: KEEP IT", [B_ARP] = "MODE: PLAY GUIDE DRIFT",
-    [B_SEQ] = "LOOP: CAPTURE, STEPS", [B_PLAY] = "START, STOP: FADES", [B_REC] = "LOOP WHAT PLAYS",
-    [B_OCTDN] = "WHITE KEYS DOWN",  [B_OCTUP] = "WHITE KEYS UP"};
+    [B_LFO] = "JOURNEYS",           [B_EDIT] = "SCENE: KEY, DRONE", [B_GLO] = "SYSTEM, BENCH",
+    [B_HOME] = "HOME",              [B_SAVE] = "SAVE. IN A HOLD: KEEP IT", [B_ARP] = "FREEZE THE NOTES HELD",
+    [B_SEQ] = "CLOCK: START, STOP", [B_REC] = "LOOP: RECORD, LAYER",
+    [B_OCTDN] = "WHITE KEYS DOWN",  [B_OCTUP] = "WHITE KEYS UP"};   /* (PLAY held: the undo) */
 
 static void button(int i)
 {
@@ -651,22 +602,21 @@ static void button(int i)
             ui.ssel = engine_jr()->cur;
         set_view(V_SCENE);
         break;
-    case B_SEQ: set_view(V_LOOP); break;
-    case B_FX: set_view(V_FX); break;
-    case B_LFO: set_view(V_JOURNEY); break;
-    case B_GLO: set_view(ui.view == V_SYSTEM ? V_BENCH : V_SYSTEM); break;
-    case B_ARP:
-        eng_jr.mode = (uint8_t)((eng_jr.mode + 1) % NMODES);
-        say("MODE ", jr_mode_name(eng_jr.mode));
-        changed_jr();
-        break;
-    case B_PLAY:
+    case B_SEQ:
         if (eng_clock.playing)
             tclock_stop(&eng_clock);
         else
             tclock_play(&eng_clock);
         say(eng_clock.playing ? "STOP" : "PLAY", 0);
         break;
+    case B_FX: set_view(V_FX); break;
+    case B_LFO: set_view(V_JOURNEY); break;
+    case B_GLO: set_view(ui.view == V_SYSTEM ? V_BENCH : V_SYSTEM); break;
+    case B_ARP:
+        say(engine_frozen() ? "LET GO" : ui.wheld ? "FROZEN" : "NOTHING HELD", 0);
+        engine_freeze();
+        break;
+    case B_PLAY: loop_play(); break;
     case B_REC: rec_button(); break;
     case B_SAVE:
         if (!keep_hold())
@@ -689,8 +639,6 @@ static void button(int i)
             say(on ? "LOAD TEST ON" : "LOAD TEST OFF", 0);
         } else if (ui.view == V_SCENE)
             store_scene();
-        else if (ui.view == V_LOOP)
-            loop_sel();
         else if (ui.view == V_JOURNEY)
             journey_sel();
         break;
@@ -717,11 +665,6 @@ static void select_turn(int e)
         sf_text(scene_sel(), ui.srow, v);
         put_s(put_s(put_s(t, SF_N[ui.srow]), " "), v);
         ann_say(t, 0, ANN_NOW);
-        break;
-    case V_LOOP:
-        ui.lsel = (uint8_t)clamp_i(ui.lsel + e, 0, JR_LOOPS - 1);
-        ui.lstep = 0;
-        ann_say(LOOP_N[ui.lsel], 0, ANN_NOW);
         break;
     case V_FX:
         ui.fxrow = (uint8_t)clamp_i(ui.fxrow + e, 0, 1);
@@ -755,10 +698,9 @@ static void knob_turn(int k, int e)
         uint8_t *m = &eng_jr.macro[k];
         *m = (uint8_t)clamp_i(*m + 2 * e, 0, 127);
         changed_jr();
-        if (k == MAC_DRIFT && *m < 2)
-            say("DRIFT FROZEN", 0);
-        else
-            say_n(k == MAC_DRIFT ? "DRIFT " : k == MAC_DENSITY ? "DENSITY " : k == MAC_SPACE ? "SPACE " : "TONE ", *m);
+        put_sgn(v, *m - 64);
+        put_s(put_s(put_s(t, MACRO_N[k]), " "), v);
+        say(t, 0);
         break;
     }
     case V_SHAPE: shape_turn(k, e); break;
@@ -771,7 +713,6 @@ static void knob_turn(int k, int e)
             sf_turn(ui.srow, e);
         }
         break;
-    case V_LOOP: loop_knob(k, e); break;
     case V_FX: {
         int i = ui.fxrow * 4 + k, step = engine_fx_max(i) < 127 ? 1 : 2;
         cfg.fx[i] = (uint8_t)clamp_i(cfg.fx[i] + step * e, 0, engine_fx_max(i));
@@ -801,10 +742,8 @@ static void input(void)
             if (w >= 0) {
                 ui.wheld |= (uint16_t)(1u << w);
                 engine_white_key(w, 1, ui.oct);
-                if (eng_jr.mode == MODE_PLAY && ui.stars < 8u)
+                if (ui.stars < 8u)
                     ui.stars++;
-                if (eng_jr.mode == MODE_DRIFT && w < eng_jr.nscenes && w != engine_jr()->cur)
-                    say_n("TO SCENE ", w + 1);
             } else if (bk >= 0 && bk < ENG_DRONES) {
                 ui.dheld |= (uint8_t)(1u << bk);  /* (held: it latches when let go, unless the knobs shaped it) */
                 if (eng_jr.dswell >> bk & 1u)
@@ -828,14 +767,24 @@ static void input(void)
     for (i = 0; i < NB; i++) {                    /* a button acts when let go; held, it says its job */
         uint32_t bit = 1u << i;
         if (down & bit) {
+            const uint32_t both = 1u << B_REC | 1u << B_PLAY;
             ui.press_t[i] = now;
             ui.helped &= ~bit;
             ui.used &= ~bit;
+            if ((i == B_REC || i == B_PLAY) && (b & both) == both) {   /* REC with PLAY: the loop gone */
+                engine_looper(LOOPER_CLEAR);
+                ui.used |= both;
+                say("LOOP CLEARED", 0);
+            }
         } else if ((b & bit) && !(ui.helped & bit) && !(ui.used & bit) &&
                    now - ui.press_t[i] >= (i == B_FX ? HELP_HOLD_MS : HELP_MS)) {
             ui.helped |= bit;
-            if (HELP[i])
+            if (i == B_PLAY) {                    /* PLAY held: the last layer undone */
+                engine_looper(LOOPER_UNDO);
+                say(engine_looper_state()->layers > 1 ? "LAYER UNDONE" : "LOOP CLEARED", 0);
+            } else if (HELP[i]) {
                 say(HELP[i], 0);
+            }
         }
         if (up & bit) {
             if (!(ui.helped & bit) && !(ui.used & bit))
@@ -863,15 +812,16 @@ static void input(void)
             say_n("TEMPO ", bpm);
         }
     }
-    if ((e = plat_enc(EN_PRESET)) != 0) {         /* the journeys */
+    if ((e = plat_enc(EN_PRESET)) != 0) {         /* the scenes (on JOURNEY: the list) */
         char v[24];
         ui.touch_t = now;
-        if (ui.view != V_JOURNEY)
-            set_view(V_JOURNEY);
-        else
+        if (ui.view == V_JOURNEY) {
             ui.jrow = (uint8_t)clamp_i(ui.jrow + e, 0, JROWS - 1);
-        jrow_name(ui.jrow, v);
-        say(v, 0);
+            jrow_name(ui.jrow, v);
+            say(v, 0);
+        } else {
+            scene_step(e);
+        }
     }
     for (i = EN_K1; i <= EN_K4; i++)
         if ((e = plat_enc(i)) != 0) {
@@ -1057,18 +1007,6 @@ static void disc(float cx, float cy, float r, uint16_t c)
 }
 static void dot(int32_t x, int32_t y, int32_t r, uint16_t c) { disc((float)x + 0.5f, (float)y + 0.5f, (float)r + 0.3f, c); }
 
-/* the moon's phase, small: lit on the right waxing, all of it full, on the left waning, a rim new */
-static void moon_glyph(int cx, int cy, int r, int phase, uint16_t lit)
-{
-    int x, y;
-    for (y = -r - 1; y <= r + 1; y++)
-        for (x = -r - 1; x <= r + 1; x++) {
-            float d = fm_sqrtf((float)(x * x + y * y)), a = fm_clampf((float)r - d + 0.5f, 0.0f, 1.0f);
-            int on = phase == MOON_FULL || (phase == MOON_WAX && x >= 0) || (phase == MOON_WANE && x <= 0);
-            if (a > 0.0f)
-                px_blend(cx + x, cy + y, on ? lit : RGB(28, 30, 48), (uint32_t)(a * 16.0f + 0.5f));
-        }
-}
 
 /* atan2 in turns, 0..1 from +x going clockwise on screen (y down) */
 static float turns(float y, float x)
@@ -1249,23 +1187,29 @@ static int same(const char *a, const char *b)
 static void draw_home(void)
 {
     const jrun_t *r = engine_jr();
+    const looper_t *l = engine_looper_state();
     char b[40], *q;
-    int v, x;
+    int x;
     draw_corona();
     q = scene_line(b, r->cur);
     if (r->travelling)                            /* on the way to the next */
         put_i(put_s(q, "  > "), r->dest + 1);
     cv_text(6, 112, &FONT_XS, b, C_HI);
-    moon_glyph(222, 116, 5, r->moon, r->playing ? RGB(226, 224, 236) : C_DIM);
-    text_r(213, 112, &FONT_XS, r->playing ? jr_moon_name(r->moon) : "STOPPED", r->playing ? C_GRAY : C_DIM);
-    put_s(put_s(b, "MODE "), jr_mode_name(eng_jr.mode));
-    cv_text(6, 126, &FONT_XS, b, eng_jr.mode == MODE_PLAY ? C_GRAY : C_AMB);
-    for (v = 0, x = 112; v < JR_LOOPS; v++) {     /* the loops: lit when captured */
-        int on = eng_jr.loop[v].on, recording = v == LP_VOX && r->rec;
-        uint16_t c = recording ? ((ui.frame >> 4) & 1u ? C_RED : dim(C_RED, 6)) : on ? C_AMB : C_DIM;
-        cv_text(x, 126, &FONT_XS, LOOP_N[v], c);
-        x += text_w(&FONT_XS, LOOP_N[v]) + 10;
+    text_r(234, 112, &FONT_XS, eng_clock.playing ? "PLAYING" : "STOPPED", eng_clock.playing ? C_GRAY : C_DIM);
+    {   /* the looper: what it does, its layers, where it is in the loop */
+        int rec = l->state == LS_REC || l->state == LS_DUB;
+        uint16_t c = rec ? ((ui.frame >> 4) & 1u ? C_RED : dim(C_RED, 8)) : l->state == LS_PLAY ? C_AMB
+                                                                                                  : C_DIM;
+        loop_text(b);
+        cv_text(6, 126, &FONT_XS, b, c);
+        x = 8 + text_w(&FONT_XS, b);
+        if (l->len && l->state != LS_EMPTY) {
+            cv_rect(x, 131, 60, 2, C_LINE);
+            cv_rect(x, 131, (int)((uint64_t)l->pos * 60u / l->len), 2, c);
+        }
     }
+    if (engine_frozen())                          /* notes frozen */
+        cv_text(150, 126, &FONT_XS, "FROZEN", C_AMB);
     if (any_thrown())                             /* a throw kept (or drifting back) */
         text_r(234, 126, &FONT_XS, "THROW", ui.thr_kept ? C_AMB : C_DIM);
 }
@@ -1355,45 +1299,6 @@ static void draw_scene(void)
     }
 }
 
-static void draw_loop(void)
-{
-    const jrun_t *r = engine_jr();
-    const loop_t *l = &eng_jr.loop[ui.lsel];
-    const loop_t *m = l->on ? l : &r->g[ui.lsel].m;
-    char b[32];
-    int i, len = m->len ? m->len : 16, div = m->div ? m->div : 1;
-    int play = eng_clock.playing && eng_steps ? (int)(((eng_steps - 1u) / (uint32_t)div) % (uint32_t)len) : -1;
-    put_s(put_s(b, LOOP_N[ui.lsel]), (ui.lsel == LP_VOX && r->rec) ? ": RECORDING" : l->on ? ": CAPTURED" : ": GENERATOR");
-    cv_text(10, 2, &FONT_XS, b, (ui.lsel == LP_VOX && r->rec) ? C_RED : l->on ? C_AMB : C_GRAY);
-    put_s(put_i(put_s(b, "MUTATE "), l->mutate), "");
-    text_r(230, 2, &FONT_XS, b, C_DIM);
-    for (i = 0; i < JR_STEPS; i++) {
-        int x = 8 + i * 14, st = i < len ? m->step[i] : 0, cur = l->on && i == ui.lstep;
-        uint16_t c = i >= len ? C_LINE : l->on ? C_AMB : C_GRAY;
-        if (cur)
-            cv_rect(x - 2, 16, 13, 116, dim(C_AMB, 3));
-        if (i == play)
-            cv_rect(x, 128, 9, 2, C_WHITE);
-        if (ui.lsel == LP_PULSE) {
-            dot(x + 4, 50, (st & PS_KICK) ? 4 : 1, (st & PS_KICK) ? c : C_DIM);
-            dot(x + 4, 96, (st & PS_TICK) ? 2 : 1, (st & PS_TICK) ? c : C_DIM);
-            continue;
-        }
-        if (st & ST_ON) {
-            int d = clamp_i(ST_DEG(st), -10, 18), y = 110 - (d + 10) * 3;
-            cv_rect(x, y, 9, 5, c);
-            if (st & ST_TIE)
-                cv_rect(x - 5, y + 2, 5, 1, c);
-        } else {
-            cv_rect(x + 3, 112, 3, 1, C_DIM);
-        }
-    }
-    if (ui.lsel == LP_PULSE) {
-        cv_text(10, 62, &FONT_XS, "KICK", C_DIM);
-        cv_text(10, 104, &FONT_XS, "TICK", C_DIM);
-    }
-}
-
 static void draw_fx(void)
 {
     int row, k;
@@ -1464,7 +1369,6 @@ static void draw_main(void)
     case V_HOME: draw_home(); break;
     case V_SHAPE: draw_shape(); break;
     case V_SCENE: draw_scene(); break;
-    case V_LOOP: draw_loop(); break;
     case V_FX: draw_fx(); break;
     case V_JOURNEY: draw_journey(); break;
     case V_SYSTEM: draw_system(); break;
@@ -1525,17 +1429,11 @@ static void draw_knobs(void)
     switch (ui.view) {
     case V_HOME:
         for (k = 0; k < NMACROS; k++) {
-            if (k == MAC_DRIFT && eng_jr.macro[k] < 2)
-                put_s(a, "STILL");
-            else if (k == MAC_TONE)
-                put_sgn(a, eng_jr.macro[k] - 64);
-            else
-                put_i(a, eng_jr.macro[k]);
+            put_sgn(a, eng_jr.macro[k] - 64);     /* (each from as made, 0) */
             cell(k, MACRO_N[k], a, C_HI);
         }
         put_sgn(put_s(a, "OCTAVE "), ui.oct);
-        hint(eng_jr.mode == MODE_PLAY ? "WHITE KEYS: VOX" : eng_jr.mode == MODE_GUIDE ? "WHITE KEYS: GUIDE"
-                                                                                       : "WHITE KEYS: SCENES",
+        hint("PRESET: SCENE",
              a);
         break;
     case V_SHAPE:
@@ -1559,27 +1457,6 @@ static void draw_knobs(void)
         cell(3, "SEL", "STORE", C_DIM);
         hint("SELECT: FIELD   KNOBS 2-4: CHANGE", 0);
         break;
-    case V_LOOP: {
-        const loop_t *l = &eng_jr.loop[ui.lsel];
-        const int st = l->step[ui.lstep % JR_STEPS];
-        put_i(a, ui.lstep + 1);
-        cell(0, "STEP", a, l->on ? C_HI : C_DIM);
-        if (ui.lsel == LP_PULSE) {
-            cell(1, "KICK", st & PS_KICK ? "ON" : "OFF", l->on ? C_HI : C_DIM);
-            cell(2, "TICK", st & PS_TICK ? "ON" : "OFF", l->on ? C_HI : C_DIM);
-        } else {
-            if (st & ST_ON)
-                put_sgn(b, ST_DEG(st));
-            else
-                put_s(b, "-");
-            cell(1, "NOTE", b, l->on ? C_HI : C_DIM);
-            cell(2, "STATE", !(st & ST_ON) ? "OFF" : (st & ST_TIE) ? "TIE" : "ON", l->on ? C_HI : C_DIM);
-        }
-        put_i(d, l->mutate);
-        cell(3, "MUTATE", d, C_HI);
-        hint("SELECT: VOICE", l->on ? "SEL: LET GO" : ui.lsel == LP_VOX && eng_jr.mode == MODE_PLAY ? "SEL: RECORD" : "SEL: CAPTURE");
-        break;
-    }
     case V_FX:
         for (k = 0; k < 4; k++) {
             fx_text(ui.fxrow * 4 + k, a);
@@ -1628,18 +1505,20 @@ static void draw_knobs(void)
 /* ------------------------------------------------------------------- lights --- */
 static void leds(void)
 {
-    static const uint8_t VIEW_BTN[NVIEWS] = {B_HOME, B_ENV, B_EDIT, B_SEQ, B_FX, B_LFO, B_GLO, B_GLO};
-    const jrun_t *r = engine_jr();
+    static const uint8_t VIEW_BTN[NVIEWS] = {B_HOME, B_ENV, B_EDIT, B_FX, B_LFO, B_GLO, B_GLO};
+    const looper_t *l = engine_looper_state();
     uint32_t btn = 1u << VIEW_BTN[ui.view], keys = 0, kdim = 0;
     int i;
     if (eng_clock.playing)
+        btn |= 1u << B_SEQ;
+    if (l->state == LS_PLAY || l->state == LS_DUB)
         btn |= 1u << B_PLAY;
-    if (eng_jr.mode != MODE_PLAY)
+    if ((l->state == LS_REC || l->state == LS_DUB) && ((ui.frame >> 4) & 1u))
+        btn |= 1u << B_REC;                       /* (blinking: recording) */
+    if (engine_frozen())
         btn |= 1u << B_ARP;
     if (any_thrown())
         btn |= 1u << B_FX;                        /* (a throw out, held or kept) */
-    if (loops_on() || (r->rec && ((ui.frame >> 4) & 1u)))
-        btn |= 1u << B_REC;                       /* (blinking: recording, or waiting for the bar) */
     kdim |= (1u << BLACK_KEY[ENG_DRONES]) | (1u << BLACK_KEY[ENG_DRONES + 1]);   /* PULSE's keys, dim */
     for (i = 0; i < ENG_DRONES; i++) {          /* the drone keys: lit while the voice sounds, dim else */
         if (engine_drone_on(i))
@@ -1647,13 +1526,6 @@ static void leds(void)
         else
             kdim |= 1u << BLACK_KEY[i];
     }
-    if (eng_jr.mode == MODE_DRIFT)               /* the scenes: dim, the one playing lit, the next blinking */
-        for (i = 0; i < eng_jr.nscenes && i < 16; i++) {
-            if (i == r->cur || (r->travelling && i == r->dest && ((ui.frame >> 4) & 1u)))
-                keys |= 1u << WHITE_KEY[i];
-            else
-                kdim |= 1u << WHITE_KEY[i];
-        }
     keys |= ui.keys;
     plat_glow(1);
     plat_keys_dim(kdim);
@@ -1676,9 +1548,8 @@ static void speak_where(void)
         q = put_s(put_s(q, eng_jr.name), ", SCENE ");
         scene_line(v, r->cur);
         q = put_s(put_s(q, v), ". ");
-        if (r->playing)
-            q = put_s(put_s(q, jr_moon_name(r->moon)), ". ");
-        q = put_s(put_s(put_s(q, "MODE "), jr_mode_name(eng_jr.mode)), ". DRONES ON:");
+        loop_text(v);
+        q = put_s(put_s(q, v), engine_frozen() ? ". FROZEN. DRONES ON:" : ". DRONES ON:");
         for (k = 0; k < ENG_DRONES; k++)
             if (engine_drone_on(k))
                 q = put_i(put_s(q, " "), k + 1);
@@ -1697,9 +1568,6 @@ static void speak_where(void)
     case V_SCENE:
         sf_text(scene_sel(), ui.srow, v);
         q = put_s(put_s(put_s(put_s(put_i(put_s(q, "SCENE "), ui.ssel + 1), ". "), SF_N[ui.srow]), " "), v);
-        break;
-    case V_LOOP:
-        q = put_s(put_s(q, LOOP_N[ui.lsel]), eng_jr.loop[ui.lsel].on ? " CAPTURED" : " GENERATOR");
         break;
     case V_FX:
         q = put_s(q, ui.fxrow ? "DELAY" : "REVERB");
@@ -1727,6 +1595,7 @@ void ui_init(void)
             WHITE_KEY[KEY_WHITE[i]] = (uint8_t)i;
     }
     ui.view = V_HOME;
+    ui.sdest = -1;
     ui.touch_t = plat_ms();
     for (i = 0; i < 3; i++)
         blit_hash[i] = 0;
