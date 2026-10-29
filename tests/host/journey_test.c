@@ -107,6 +107,24 @@ int main(void)
         play_steps(steps / 2u);
         CHECK(R.cur == 2 && !R.travelling, "there in JR_TRAVEL_S");
     }
+    {   /* the looper's notes: the same note back in its scene; in another, the same degree of that one's key */
+        int w, o, same = 1, follows = 1, chroma = 1, code[16];
+        start(0);
+        for (o = -1; o <= 1; o++)
+            for (w = 0; w < 16; w++) {
+                int m = jr_key_note(&R, w, o);
+                same &= jr_code_note(&R, jr_note_code(&R, m)) == m;
+                chroma &= jr_code_note(&R, jr_note_code(&R, m + 1)) == m + 1;   /* (out of the key too) */
+            }
+        for (w = 0; w < 16; w++)
+            code[w] = jr_note_code(&R, jr_key_note(&R, w, 0));
+        jr_travel(&R, 2);                          /* A aeolian to F lydian */
+        play_steps((uint32_t)(JR_TRAVEL_S * 44100.0f / (float)STEP_FRAMES) + 4u);
+        for (w = 0; w < 16; w++)
+            follows &= jr_code_note(&R, code[w]) == jr_key_note(&R, w, 0);
+        CHECK(same && chroma, "a loop's note: as played, in its scene (in the key or not)");
+        CHECK(R.cur == 2 && follows, "in another scene: the same degree of that key (the loop follows the scene)");
+    }
     {   /* MORPH: by hand, the key past the middle, back is back, all the way is there */
         int k;
         start(0);

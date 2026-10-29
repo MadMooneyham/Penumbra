@@ -98,8 +98,10 @@ void engine_volume(int32_t *out_lr, uint32_t n);   /* ISR, after engine_render (
 
 /* main loop -> ISR */
 void engine_white_key(int w, int down, int oct);   /* a white key (0..15): VOX in the scene's key */
-void engine_looper(int op);                        /* seq/looper.h: REC, PLAY, UNDO, CLEAR */
-enum { LOOPER_REC, LOOPER_PLAY, LOOPER_UNDO, LOOPER_CLEAR };
+void engine_looper(int op);                        /* seq/looper.h: REC, PLAY, UNDO, CLEAR, its speed */
+enum { LOOPER_REC, LOOPER_PLAY, LOOPER_UNDO, LOOPER_CLEAR, LOOPER_SLOWER, LOOPER_FASTER };
+uint32_t engine_looper_save(void *dst, uint32_t max);   /* (main loop) the loop as it is, to keep: bytes (0: not now) */
+int engine_looper_load(const void *src, uint32_t n);    /* (before the audio, or between blocks) */
 const looper_t *engine_looper_state(void);         /* (main loop, read only) */
 void engine_freeze(void);                          /* the notes held keep sounding (again: they let go) */
 int engine_frozen(void);                           /* (main loop) notes frozen */

@@ -1,0 +1,54 @@
+# The loop, more: PULSE's hits loop with VOX's notes; PLAY held with ALGO: half speed, double (no undo
+# then); the loop follows the scene (its notes are the key's degrees: a new scene, the same tune in its
+# key); it is saved, and after a power cut it is back, playing when the clock starts.
+autoplay 0
+wait 300
+tap REC
+wait 100
+tapkey b5
+wait 600
+key w0 down
+wait 600
+key w0 up
+wait 1500
+tap REC
+wait 100
+expect looper 2
+expect looplen 16
+expect kicks 1
+wait 2800
+expect kicks 2
+press PLAY
+wait 200
+turn ALGO -1
+wait 800
+release PLAY
+wait 100
+expect layers 1
+expect looper 2
+shot loop_half.png
+expect vox_notes >-1
+wait 5600
+expect kicks 3
+press PLAY
+turn ALGO 2
+release PLAY
+wait 100
+expect layers 1
+turn PRESET 1
+wait 13000
+expect scene 2
+expect vox_notes >0
+tap SAVE
+expect dirty 0
+powercut
+wait 500
+expect looper 2
+expect layers 1
+expect looplen 16
+expect playing 0
+expect vox_notes >-1
+tap SEQ
+wait 3000
+expect vox_notes >0
+expect clips 0

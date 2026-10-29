@@ -29,6 +29,20 @@ static jrun_t jr;
 const jrun_t *engine_jr(void) { return &jr; }
 static looper_t lp POOL;
 const looper_t *engine_looper_state(void) { return &lp; }
+uint32_t engine_looper_save(void *dst, uint32_t max)   /* (a copy the ISR may change under: again, if it did) */
+{
+    uint32_t tries, e, n;
+    for (tries = 0; tries < 3u; tries++) {
+        e = lp.edits;
+        __asm__ volatile("" ::: "memory");
+        n = looper_save(&lp, dst, max);
+        __asm__ volatile("" ::: "memory");
+        if (e == lp.edits)
+            return n;
+    }
+    return 0;
+}
+int engine_looper_load(const void *src, uint32_t n) { return looper_load(&lp, src, n); }
 static fxbus_t fx POOL;
 static master_t mst;
 #define DLY_LEN 66150                            /* 1.5 s */
@@ -322,25 +336,35 @@ static void js_drone_swell(void *x, int v)
 }
 static const jr_sink_t JSINK = {0, js_drone_note, js_drone_latch, js_drone_release, js_drone_swell};
 
-/* VOX's notes, the hands' (keys, MIDI) and the looper's: counted for the tests and the screen's stars */
+/* VOX's notes, the hands' (keys, MIDI) and the looper's: counted for the tests and the screen's stars.
+ * The looper keeps a note as its degree in the scene (jr_note_code), and plays it in the scene playing
+ * then; what each of its notes sounds as is kept, so its off ends that one whatever the scene is now */
 volatile uint32_t eng_vox_notes;
-static void ls_on(void *x, int midi, int vel)
+static uint8_t lp_midi[256], hand_code[128];
+static void vox_on(int midi, int vel)
 {
-    (void)x;
     vox_note_on(&vox, midi, (float)vel * (1.0f / 127.0f));
     eng_vox_notes++;
 }
-static void ls_off(void *x, int midi) { (void)x; vox_note_off(&vox, midi); }
-static const lp_sink_t LSINK = {0, ls_on, ls_off};
+static void ls_on(void *x, int code, int vel)
+{
+    (void)x;
+    lp_midi[code & 255] = (uint8_t)jr_code_note(&jr, code);
+    vox_on(lp_midi[code & 255], vel);
+}
+static void ls_off(void *x, int code) { (void)x; vox_note_off(&vox, lp_midi[code & 255]); }
+static void ls_hit(void *x, int which, int vel) { (void)x; hit(which, (float)vel * (1.0f / 127.0f)); }
+static const lp_sink_t LSINK = {0, ls_on, ls_off, ls_hit};
 static void hand_on(int note, int vel)
 {
-    ls_on(0, note, vel);
-    looper_note(&lp, note, vel);
+    vox_on(note, vel);
+    hand_code[note & 127] = (uint8_t)jr_note_code(&jr, note);
+    looper_note(&lp, hand_code[note & 127], vel);
 }
 static void hand_off(int note)
 {
     vox_note_off(&vox, note);
-    looper_note(&lp, note, 0);
+    looper_note(&lp, hand_code[note & 127], 0);
 }
 
 /* the sound (the SHAPE pages, the drone voices' own), the scene, the HOME macros and the hands' moves
@@ -658,8 +682,10 @@ static void drain(void)
             vox_note_off(&vox, (int)b);
         else if (type == C_TEST)
             test_set((int)a);
-        else if (type == C_PULSE)
+        else if (type == C_PULSE) {
             hit((int)a, (float)(c & 127u) * (1.0f / 127.0f));
+            looper_hit(&lp, (int)a, (int)(c & 127u));
+        }
         else if (type == C_MIDI_CH)
             midi_ch = (uint8_t)(a <= 16u ? a : 0u);
         else if (type == C_WHITE)
@@ -671,6 +697,8 @@ static void drain(void)
                 looper_play(&lp, &LSINK);
             else if (a == LOOPER_UNDO)
                 looper_undo(&lp, &LSINK);
+            else if (a == LOOPER_SLOWER || a == LOOPER_FASTER)
+                looper_speed(&lp, a == LOOPER_FASTER ? 1 : -1);
             else
                 looper_clear(&lp, &LSINK);
         } else if (type == C_FREEZE)

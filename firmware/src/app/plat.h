@@ -44,10 +44,11 @@ void plat_midi_out(uint32_t pkt);      /* queue one (audio ISR or main loop) */
 int plat_store_load(uint32_t obj, void *dst, uint32_t max);   /* bytes loaded, < 0 = none / bad */
 int plat_store_save(uint32_t obj, const void *src, uint32_t len);   /* 0 = ok */
 #define PLAT_STORE_MAX 3840u           /* bytes per object */
-enum { OBJ_SET = 0, OBJ_PANEL = 4, OBJ_WORK = 8, OBJ_USER = 9 };
+enum { OBJ_SET = 0, OBJ_PANEL = 4, OBJ_WORK = 8, OBJ_USER = 9, OBJ_LOOP = 10 };
 /* flash: OBJ_SET 0xFC000, OBJ_PANEL 0xDC000, OBJ_WORK 0x97000 (the journey playing), OBJ_USER
- * 0x99000 (the 8 user journeys) (storage.c). 0x9B000..0x9EFFF and 0xDE000 are free. OBJ_WORK and
- * OBJ_USER are numbers X0X never used, so its old records there never load as journeys. */
+ * 0x99000 (the 8 user journeys), OBJ_LOOP 0x9B000 (the loop) (storage.c). 0x9D000..0x9EFFF and 0xDE000
+ * are free. OBJ_WORK and OBJ_USER are numbers X0X never used, so its old records there never load as
+ * journeys; the loop has its own magic too. */
 
 /* the audio render's load, in % of its budget, and the blocks it missed */
 uint32_t plat_cpu_pct(void);

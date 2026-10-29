@@ -45,6 +45,8 @@ void settings_apply(void);               /* into the engine and the clock */
  * power cut; 8 user slots (OBJ_USER) beside the 6 presets */
 int journey_load_work(void);             /* at power-on, after engine_init: 0 = the saved one is playing */
 int journey_save_work(void);             /* 0 = saved */
+int loop_load_work(void);                /* at power-on, after journey_load_work: 0 = the loop is back */
+int loop_save_work(void);                /* 0 = saved, 1 = not now (recording), else failed */
 int journey_slots_load(void);
 int journey_slot_used(int slot);
 const char *journey_slot_name(int slot);

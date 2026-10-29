@@ -157,6 +157,29 @@ int jr_key_note(const jrun_t *r, int w, int oct)
     return clampi(12 * reg_of(s) + s->root % 12 + deg_semi(scale_of(s), w + 7 * oct), 0, 127);
 }
 
+#define CODE_DEG 42                              /* degrees either way: six octaves (the code 3 a degree) */
+int jr_note_code(const jrun_t *r, int midi)
+{
+    const scene_t *s = sc(r);
+    int scale = scale_of(s), semi = midi - (12 * reg_of(s) + s->root % 12), o, pc, i = 6, d;
+    while (semi < -12 * 6)                       /* (past six octaves: an octave in) */
+        semi += 12;
+    while (semi >= 12 * 6)
+        semi -= 12;
+    o = semi >= 0 ? semi / 12 : -((11 - semi) / 12);
+    pc = semi - 12 * o;
+    while (i > 0 && SCALE[scale][i] > pc)        /* the degree at or under it */
+        i--;
+    d = clampi(7 * o + i, -CODE_DEG, CODE_DEG - 1);
+    return (d + CODE_DEG) * 3 + clampi(pc - SCALE[scale][i], 0, 2);
+}
+int jr_code_note(const jrun_t *r, int code)
+{
+    const scene_t *s = sc(r);
+    int d = code / 3 - CODE_DEG, over = code % 3;
+    return clampi(12 * reg_of(s) + s->root % 12 + deg_semi(scale_of(s), d) + over, 0, 127);
+}
+
 /* ------------------------------------------------------------------ the drone --- */
 #define DRONE_LO 21                              /* its range (dsp/drone.h NOTE: 9 .. 69) */
 #define DRONE_HI 69

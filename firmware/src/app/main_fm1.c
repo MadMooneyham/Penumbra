@@ -289,6 +289,7 @@ static void fm1_main(void)
     settings_load();                                /* (nothing saved yet, or another firmware's: the defaults) */
     settings_apply();
     journey_load_work();                            /* the journey that was playing (else ECLIPSE) */
+    loop_load_work();                               /* and its loop */
     if (plat_cpu2_barred() && !cfg.one_core) {      /* it crashed (or was given up) with two cores: one from now on */
         cfg.one_core = 1;
         settings_save();                            /* written now, on one core, not in the session that crashed;

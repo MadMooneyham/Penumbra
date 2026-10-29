@@ -125,7 +125,7 @@ int plat_store_load(uint32_t obj, void *dst, uint32_t max)
 }
 int plat_store_save(uint32_t obj, const void *src, uint32_t len)
 {
-    if ((obj != OBJ_SET && obj != OBJ_PANEL && obj != OBJ_WORK && obj != OBJ_USER) || len > PLAT_STORE_MAX)
+    if ((obj != OBJ_SET && obj != OBJ_PANEL && obj != OBJ_WORK && obj != OBJ_USER && obj != OBJ_LOOP) || len > PLAT_STORE_MAX)
         return -1;
     memcpy(store[obj], src, len);
     store_len[obj] = (int)len;
@@ -330,6 +330,7 @@ static void boot(void)
     settings_load();
     settings_apply();
     journey_load_work();
+    loop_load_work();
     plat_cpu2_set(!cfg.one_core);
     lcd_fill(0, 0, 240, 240, C_BG);
     ui_init();

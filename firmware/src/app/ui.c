@@ -82,6 +82,7 @@ typedef struct {
     uint8_t pitch_kept, pitch_back;    /* SAVE: it stays until the next note */
     uint8_t sleep, sleep_step;         /* SLEEP's choice; how far its letting go has got */
     uint32_t sleep_at;                 /* when it is all gone */
+    uint32_t lp_edits;                 /* the loop's, as last seen (a change: it is saved) */
     uint32_t perf_t;                   /* the last drift */
 } ui_t;
 static ui_t ui;
@@ -136,7 +137,7 @@ static void say_n(const char *a, int v)
     put_i(t, v);
     say(a, t);
 }
-enum { D_SET = 1, D_JR = 2 };                    /* what is not saved: the settings, the journey */
+enum { D_SET = 1, D_JR = 2, D_LOOP = 4 };        /* what is not saved: the settings, the journey, the loop */
 static void changed_as(int what)
 {
     ui.dirty |= (uint8_t)what;
@@ -253,7 +254,14 @@ static void row_set(int r, int v)
 #define SAVE_SILENT_MS 1000u
 static void save_now(void)                        /* what changed (SAVE with nothing changed: both) */
 {
-    int what = ui.dirty ? ui.dirty : D_SET | D_JR, bad = 0;
+    int what = ui.dirty ? ui.dirty : D_SET | D_JR | D_LOOP, bad = 0;
+    if (what & D_LOOP) {                          /* (recording: it waits for the next) */
+        int r = loop_save_work();
+        if (r == 0)
+            ui.dirty &= (uint8_t)~D_LOOP;
+        else if (r < 0)
+            bad = 1;
+    }
     if ((what & D_SET) && settings_save() == 0)
         ui.dirty &= (uint8_t)~D_SET;
     else if (what & D_SET)
@@ -373,7 +381,9 @@ static void loop_text(char *b)                     /* HOME's: what it is doing, 
     static const char *const LS_N[] = {"LOOP -", "REC", "LOOP", "DUB", "LOOP STOPPED"};
     char *q = put_s(b, LS_N[l->state % 5u]);
     if (l->state != LS_EMPTY && l->state != LS_REC)
-        put_s(put_i(put_s(q, " x"), l->layers), "");
+        q = put_i(put_s(q, " x"), l->layers);
+    if (l->state != LS_EMPTY && l->speed != LP_AS_PLAYED)
+        put_s(q, l->speed == LP_HALF ? " HALF" : " DOUBLE");
 }
 
 static void scene_step(int e)                      /* PRESET: the next scene, or the one before */
@@ -900,19 +910,19 @@ static void input(void)
                 ui.used |= both;
                 say("LOOP CLEARED", 0);
             }
-        } else if ((b & bit) && !(ui.helped & bit) && !(ui.used & bit) &&
+        } else if ((b & bit) && !(ui.helped & bit) && !(ui.used & bit) && i != B_PLAY &&
                    now - ui.press_t[i] >= (i == B_FX ? HELP_HOLD_MS : HELP_MS)) {
             ui.helped |= bit;
-            if (i == B_PLAY) {                    /* PLAY held: the last layer undone */
-                engine_looper(LOOPER_UNDO);
-                say(engine_looper_state()->layers > 1 ? "LAYER UNDONE" : "LOOP CLEARED", 0);
-            } else if (HELP[i]) {
+            if (HELP[i])
                 say(HELP[i], 0);
-            }
         }
         if (up & bit) {
-            if (!(ui.helped & bit) && !(ui.used & bit))
+            if (i == B_PLAY && !(ui.used & bit) && now - ui.press_t[i] >= HELP_MS) {
+                engine_looper(LOOPER_UNDO);       /* PLAY held (and ALGO not turned): the last layer undone */
+                say(engine_looper_state()->layers > 1 ? "LAYER UNDONE" : "LOOP CLEARED", 0);
+            } else if (!(ui.helped & bit) && !(ui.used & bit)) {
                 button(i);
+            }
             if (i == B_FX && (ui.used & bit) && !ui.thr_kept)
                 ui.thr_back = 1;                  /* FX let go: the throws drift back */
             ui.used &= ~bit;
@@ -924,7 +934,17 @@ static void input(void)
     }
     if ((e = plat_enc(EN_ALGO)) != 0) {           /* the tempo, wherever you are (SHAPE: the voice's level) */
         ui.touch_t = now;
-        if (layer() == L_DRONE) {
+        if (ui.btn >> B_PLAY & 1u) {              /* PLAY held: the loop's speed */
+            const looper_t *l = engine_looper_state();
+            int s = clamp_i((int)l->speed + (e > 0 ? 1 : -1), LP_HALF, LP_DOUBLE);
+            ui.used |= 1u << B_PLAY;
+            if (l->state == LS_EMPTY || l->state == LS_REC) {
+                warn("NO LOOP YET", 0);
+            } else {
+                engine_looper(e > 0 ? LOOPER_FASTER : LOOPER_SLOWER);
+                say(s == LP_HALF ? "LOOP HALF SPEED" : s == LP_DOUBLE ? "LOOP DOUBLE SPEED" : "LOOP AS PLAYED", 0);
+            }
+        } else if (layer() == L_DRONE) {
             drone_mode(e);
         } else if (layer() == L_BEND) {
             pitch_knob(e);
@@ -1761,6 +1781,7 @@ void ui_init(void)
     }
     ui.view = V_HOME;
     ui.sdest = -1;
+    ui.lp_edits = engine_looper_state()->edits;
     ui.touch_t = plat_ms();
     for (i = 0; i < 3; i++)
         blit_hash[i] = 0;
@@ -1777,6 +1798,10 @@ void ui_frame(void)
 {
     input();
     perf_tick();
+    if (engine_looper_state()->edits != ui.lp_edits) {   /* the loop changed: it is saved with the rest */
+        ui.lp_edits = engine_looper_state()->edits;
+        changed_as(D_LOOP);
+    }
     for (; ui.stars; ui.stars--)
         ec_star_new();
     autosave();

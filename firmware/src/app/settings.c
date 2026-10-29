@@ -231,6 +231,22 @@ int journey_load_work(void)
     return 0;
 }
 
+/* the loop (OBJ_LOOP): kept with the journey playing, so a session survives a power cut */
+static uint8_t lp_buf[16u + LP_EVENTS * 8u] __attribute__((aligned(4))) PEN_POOL;
+_Static_assert(sizeof lp_buf <= PLAT_STORE_MAX, "the loop fits one object");
+int loop_load_work(void)
+{
+    int n = plat_store_load(OBJ_LOOP, lp_buf, sizeof lp_buf);
+    return n > 0 ? engine_looper_load(lp_buf, (uint32_t)n) : -1;
+}
+int loop_save_work(void)                          /* 1: not now (recording) */
+{
+    uint32_t n = engine_looper_save(lp_buf, sizeof lp_buf);
+    if (!n)
+        return 1;
+    return plat_store_save(OBJ_LOOP, lp_buf, n);
+}
+
 int journey_save_work(void)
 {
     journey_t j = eng_jr;

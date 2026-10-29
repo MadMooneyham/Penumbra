@@ -133,4 +133,9 @@ void jr_travel(jrun_t *r, int scene);             /* PRESET: go there */
 #define JR_MORPH_STEPS 32
 void jr_morph(jrun_t *r, int detents);
 int jr_key_note(const jrun_t *r, int w, int oct); /* a white key's note in the scene's key */
+/* the looper's notes: a played note as a degree of the scene's key over VOX's register (and the
+ * semitones over that degree, 0..2: a note out of the key), 0..251; and back, in the scene playing now.
+ * So a loop goes where the scene goes */
+int jr_note_code(const jrun_t *r, int midi);
+int jr_code_note(const jrun_t *r, int code);
 void jr_scene_now(const jrun_t *r, scene_t *s);   /* the moment, as a scene (SCENE: store) */

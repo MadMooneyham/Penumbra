@@ -24,7 +24,9 @@ static void s_on(void *x, int n, int v)
         S.at[S.nat++] = now;
 }
 static void s_off(void *x, int n) { (void)x; S.on[n & 127]--; S.offs++; }
-static const lp_sink_t O = {0, s_on, s_off};
+static int hits;
+static void s_hit(void *x, int w, int v) { (void)x; (void)w; (void)v; hits++; }
+static const lp_sink_t O = {0, s_on, s_off, s_hit};
 static int sounding(void)
 {
     int k, n = 0;
@@ -96,6 +98,39 @@ int main(void)
     CHECK(L.state == LS_EMPTY && L.n == 0 && sounding() == 0, "CLEAR: gone, nothing sounding");
     looper_undo(&L, &O);
     CHECK(L.state == LS_EMPTY, "UNDO with nothing: nothing");
+    {   /* PULSE's hits loop too; the speed; and the loop saved and back */
+        static uint8_t buf[16 + LP_EVENTS * 8];
+        uint32_t n, len;
+        int before;
+        looper_rec(&L, &O);
+        looper_hit(&L, 0, 110);
+        run(LP_BEAT);
+        hand(62, LP_BEAT, LP_BEAT);
+        looper_rec(&L, &O);
+        len = L.len;
+        hits = 0;
+        S.ons = 0;
+        run(2u * len);                             /* (two rounds from anywhere: each event twice) */
+        CHECK(hits == 2 && S.ons == 2, "a PULSE hit loops with the notes");
+        looper_speed(&L, -1);
+        hits = 0;
+        run(2u * len);
+        CHECK(L.speed == LP_HALF && hits == 1, "half speed: once round in twice the time");
+        looper_speed(&L, 1);
+        looper_speed(&L, 1);
+        hits = 0;
+        run(2u * len);
+        CHECK(L.speed == LP_DOUBLE && hits == 4, "double: twice round in the time");
+        n = looper_save(&L, buf, sizeof buf);
+        before = L.n;
+        looper_clear(&L, &O);
+        CHECK(n == 16u + (uint32_t)before * 8u && looper_load(&L, buf, n) == 0 && L.n == before && L.len == len &&
+                  L.state == LS_PLAY && L.speed == LP_DOUBLE, "saved and loaded: the same loop, playing, its speed");
+        buf[0] ^= 1u;
+        CHECK(looper_load(&L, buf, n) != 0, "something else: not loaded");
+        looper_rec(&L, &O);
+        CHECK(looper_save(&L, buf, sizeof buf) == 0, "overdubbing: not saved (not now)");
+    }
     printf(fails ? "%d FAILED\n" : "all passed\n", fails);
     return fails != 0;
 }
