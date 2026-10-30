@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""Make Penumbra's site (served locally for now: python3 -m http.server in OUT_DIR):
+"""Make Penumbra's site (GitHub Pages, .github/workflows/pages.yml; locally: python3 -m http.server in OUT_DIR):
 
   index.html                     what Penumbra is, and the way in
   install/index.html             the web installer (web/installer.html, with fm1pkg.js, fm1ota.js and the
                                  package's metadata inlined; Chrome or Edge, Web MIDI)
   firmware/penumbra-VERSION.fwsc the package the installer writes; also the download
   words/                         the screen reader's words files (fm1-reader), every one ever made
+  cheatsheet/                    one printable page (web/cheatsheet), with its PDF
+  emu/                           Penumbra in the browser, when build/emu exists (web/emu/build.sh, first)
 
   tools/make_pages.py build/penumbra-0.7-beta.fwsc 0.7-beta OUT_DIR
 
@@ -47,7 +49,9 @@ LANDING = """<!doctype html>
 <p>A deep five-voice drone held on a pedal, VOX far back in the shimmer, a looper that follows the scene,
 and holds that let you play the sound itself: throws, bends, freeze, morph. Switch it on and the drone
 swells in; you play over it.</p>
-<p><a class="go" href="install/">Install __VERSION__</a> &nbsp; <a href="firmware/__PKG__">download the package</a></p>
+<p><a class="go" href="emu/">Play it in the browser</a> &nbsp; <a class="go" href="install/">Install __VERSION__</a></p>
+<p><a href="cheatsheet/">Cheat sheet</a> &nbsp;·&nbsp; <a href="https://github.com/MadMooneyham/Penumbra/blob/main/MANUAL.md">Manual</a>
+&nbsp;·&nbsp; <a href="firmware/__PKG__">Download the package</a> &nbsp;·&nbsp; <a href="https://github.com/MadMooneyham/Penumbra">Source</a></p>
 <p class="small">To go back to the official firmware, the installer can write it, or use M-VAVE's updater, M-UPGRADE,
 from <a href="https://www.m-vave.com/download">m-vave.com/download</a>. M-VAVE and FM-1 are trademarks of their owners.</p>
 </main>
@@ -81,8 +85,15 @@ def main(pkg, version, out):
     (out / "index.html").write_text(LANDING.replace("__VERSION__", html.escape(version)).replace("__PKG__", name),
                                     encoding="utf-8")
     shutil.copytree(SRC / "web" / "words", out / "words")
+    shutil.copytree(SRC / "web" / "cheatsheet", out / "cheatsheet")
+    emu = SRC / "build" / "emu"
+    if (emu / "penumbra.wasm").is_file():
+        shutil.copytree(emu, out / "emu")
+    else:
+        print("note: no build/emu/penumbra.wasm (web/emu/build.sh, needs emcc): the site has no emulator")
     (out / ".nojekyll").write_text("")
-    print(f"site: {out}: index.html, install/ ({product}), firmware/{name} ({len(raw)} B), words/")
+    print(f"site: {out}: index.html, install/ ({product}), firmware/{name} ({len(raw)} B), words/, cheatsheet/"
+          + (", emu/" if (out / "emu").is_dir() else ""))
 
 
 if __name__ == "__main__":

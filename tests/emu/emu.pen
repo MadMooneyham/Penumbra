@@ -1,0 +1,9 @@
+# The browser build's twin (tests/host/emu_test.mjs plays the same in penumbra.wasm): the drone from power-on,
+# a VOX note and a BLOOM. Not in tests/scenarios: run_tests.sh runs it only when emcc is there.
+load 0
+wav emu.wav
+wait 500
+tapkey w4
+tapkey b6
+wait 3000
+wavstop

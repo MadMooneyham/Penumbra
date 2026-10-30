@@ -61,6 +61,15 @@ for s in tests/scenarios/*.pen; do
     mkdir -p "build/scenarios/$n"
     run "scenario-$n" build/host/penumbra_host "$s" "build/scenarios/$n"
 done
+# the browser build (web/emu): the same sound as the simulator's (needs emcc and node)
+if command -v emcc >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
+    mkdir -p build/scenarios/emu
+    run emu-build sh web/emu/build.sh
+    run emu-host build/host/penumbra_host tests/emu/emu.pen build/scenarios/emu
+    run emu node tests/host/emu_test.mjs build/emu/penumbra.wasm build/scenarios/emu/emu.wav
+else
+    echo "  skip emu (needs emcc and node: the Emscripten SDK)"
+fi
 [ -f build/scenarios/guard/guard.wav ] && run guard-clicks python3 tests/click_check.py build/scenarios/guard/guard.wav
 [ -f build/scenarios/drones/drones.wav ] && run drone-clicks python3 tests/click_check.py build/scenarios/drones/drones.wav
 [ -f build/scenarios/vox/vox.wav ] && run vox-clicks python3 tests/click_check.py build/scenarios/vox/vox.wav

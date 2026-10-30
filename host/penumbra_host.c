@@ -47,9 +47,11 @@ static void lcd_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
         for (i = x; i < x + w && i < 240u; i++)
             fb[j * 240u + i] = sc;
 }
+static uint32_t blits;                  /* the browser build sends the screen only when it changed */
 static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *px)
 {
     uint32_t i, j;
+    blits++;
     for (j = 0; j < h; j++)
         for (i = 0; i < w; i++)
             if (x + i < 240u && y + j < 240u)
@@ -177,8 +179,15 @@ uint32_t plat_irq_stack_size(void) { return 0; }
 #include "../firmware/src/announce.c"
 static char said_log[16384];                         /* every SAY since the last "said" check */
 static uint32_t said_len;
+#ifdef PEN_WEB
+static void web_said(const uint8_t *p, uint32_t n);
+#endif
 static int ann_wire_send(const uint8_t *p, uint32_t n)
 {
+#ifdef PEN_WEB
+    web_said(p, n);
+    return 0;
+#endif
     if (n >= 7u && p[4] == ANN_SAY) {
         char t[ANN_MAX + 1];
         uint32_t i, k = 0;
@@ -357,11 +366,18 @@ static void run_ms(uint32_t ms)
             double dt;
             engine_render(blk, 256);
             engine_volume(blk, 256);
+#ifdef PEN_WEB
+            web_audio(blk, 256);                         /* the browser build: to the AudioWorklet */
+#endif
             dt = (double)(host_ns() - t0);
             cpu_pct = (uint32_t)(100.0 * dt / (256.0 * 1e9 / 44100.0));
             if (cpu_pct > cpu_peak)
                 cpu_peak = cpu_pct;
+#ifdef PEN_WEB
+            engine_load(load_force >= 0 ? (uint32_t)load_force : 0u, 256);   /* a browser's timing is not the FM-1's */
+#else
             engine_load(load_force >= 0 ? (uint32_t)load_force : cpu_pct, 256);
+#endif
             for (k = 0; k < 256; k++) {
                 float l = (float)blk[2 * k] / 8388608.0f, r = (float)blk[2 * k + 1] / 8388608.0f;
                 int16_t s[2];
@@ -555,6 +571,7 @@ static int expect(const char *what, const char *val)
     return 0;
 }
 
+#ifndef PEN_WEB
 int main(int argc, char **argv)
 {
     FILE *sc;
@@ -792,3 +809,4 @@ int main(int argc, char **argv)
         printf("%d expectation(s) failed\n", fails);
     return fails ? 1 : 0;
 }
+#endif /* PEN_WEB */

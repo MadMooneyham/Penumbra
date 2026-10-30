@@ -87,6 +87,22 @@ cd build/pages && python3 -m http.server 8000
 # open http://localhost:8000/install/
 ```
 
+## The site: emulator and cheat sheet
+
+The emulator is the simulator compiled to WebAssembly with [Emscripten](https://emscripten.org/) (`emcc` on the
+PATH: `source ~/emsdk/emsdk_env.sh`). Build it before the site, and `make_pages.py` puts it in `emu/`:
+
+```
+PEN_VERSION=1.0 sh web/emu/build.sh               # -> build/emu/penumbra.wasm and its page
+python3 tools/make_pages.py build/penumbra-1.0.fwsc 1.0 build/pages
+```
+
+`tests/run_tests.sh` checks the wasm against the simulator, sample for sample, when `emcc` and `node` are there.
+The cheat sheet is `web/cheatsheet/index.html`; its PDF is printed from that page in Chrome or Edge (landscape,
+no headers) and kept beside it. The card picture is `tools/gen_card.py`.
+
+On GitHub, `.github/workflows/pages.yml` builds and publishes the site at each release.
+
 Installing firmware is at your own risk. If the FM-1 no longer starts but reaches the chip's
 update mode (4C4A:8057 on USB), `tools/fm1_rescue.sh` puts stock V15 back from a Mac; otherwise recovery
 needs [FM-1-transporter](https://github.com/kurogedelic/FM-1-transporter).

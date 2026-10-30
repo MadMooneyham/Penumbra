@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Penumbra Cheat Sheet</title>
+<meta name="description" content="Penumbra 1.0 for the M-VAVE FM-1 on one page: every control, the holds, the looper and the sound pages.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap">
+<style>
+/* paper first: it is made to be printed (one landscape page, A4 or Letter); a night version on screen when asked */
+:root { --paper: #fbfaf7; --ink: #17182a; --muted: #5d6078; --rule: #cfd0dc; --accent: #b4520a; --face: #fff; --fill: #eeedf3;
+        --key: #fff; --keyb: #2a2c3a; --keyb-ink: #fff; color-scheme: light; }
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --paper: #07080f; --ink: #ecebf6; --muted: #9a9fbd; --rule: #2a2d44; --accent: #ff9646; --face: #10121e;
+        --fill: #181a2a; --key: #e6e5f0; --keyb: #3a3d52; --keyb-ink: #fff; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --paper: #07080f; --ink: #ecebf6; --muted: #9a9fbd; --rule: #2a2d44; --accent: #ff9646; --face: #10121e;
+        --fill: #181a2a; --key: #e6e5f0; --keyb: #3a3d52; --keyb-ink: #fff; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 400 13px/1.38 "Barlow", "Helvetica Neue", Arial, sans-serif; }
+.sheet { max-width: 1120px; margin: 0 auto; padding: 22px 16px 28px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: .2rem 1rem; border-bottom: 2px solid var(--ink); padding-bottom: .35rem; }
+h1 { font: 700 26px/1 "Barlow Semi Condensed", sans-serif; letter-spacing: .14em; margin: 0; }
+header .sub { color: var(--muted); font-size: 14px; }
+header .links { margin-left: auto; display: flex; gap: 1rem; font-size: 13px; }
+a { color: var(--accent); }
+h2 { font: 700 12px/1.2 "Barlow Semi Condensed", sans-serif; letter-spacing: .14em; text-transform: uppercase; color: var(--accent);
+     margin: 0 0 .3rem; }
+svg.panel { display: block; width: 100%; height: auto; margin: 10px 0 6px; }
+svg text { font-family: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif; }
+.p-body { fill: var(--fill); stroke: var(--rule); stroke-width: 1.5; }
+.p-tray { fill: none; stroke: var(--rule); stroke-width: 1.2; stroke-dasharray: 3 3; }
+.p-ctl { fill: var(--face); stroke: var(--ink); stroke-width: 1.4; }
+.p-key { fill: var(--key); stroke: var(--ink); stroke-width: 1.2; }
+.p-keyb { fill: var(--keyb); stroke: var(--keyb); }
+.p-screen { fill: #07080f; stroke: var(--ink); stroke-width: 1.4; }
+.t-name { fill: var(--ink); font-weight: 700; font-size: 13px; letter-spacing: .05em; }
+.t-does { fill: var(--accent); font-weight: 600; font-size: 11.5px; }
+.t-small { fill: var(--muted); font-weight: 500; font-size: 10.5px; }
+.t-keyb { fill: var(--keyb-ink); font-weight: 700; font-size: 10.5px; }
+.t-scr { fill: #ecebf6; font-weight: 600; font-size: 11px; letter-spacing: .06em; }
+.t-scr2 { fill: #ff9646; font-weight: 600; font-size: 10px; }
+.cols { display: grid; grid-template-columns: 1.55fr 1fr 1fr; gap: 14px 22px; }
+@media screen and (max-width: 860px) { .cols { grid-template-columns: 1fr; } .panelbox { overflow-x: auto; } svg.panel { min-width: 760px; } }
+table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+th, td { text-align: left; padding: 2px 6px 2px 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font: 600 11px "Barlow Semi Condensed", sans-serif; letter-spacing: .06em; color: var(--muted); text-transform: uppercase; }
+td b { font-weight: 600; }
+section { break-inside: avoid; }
+section + section { margin-top: 10px; }
+.note { color: var(--muted); font-size: 12px; margin: .3rem 0 0; }
+ul.tight { margin: 0; padding-left: 1rem; }
+ul.tight li { margin: 0 0 1px; }
+footer { margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--rule); color: var(--muted); font-size: 11.5px; display: flex; flex-wrap: wrap; gap: .2rem 1.2rem; }
+@media print {
+  @page { size: landscape; margin: 9mm; }
+  body { font-size: 11.2px; background: #fff; }
+  .sheet { max-width: none; padding: 0; zoom: .82; }        /* one landscape page, A4 or Letter */
+  header .links { display: none; }
+  table { font-size: 10.8px; }
+  .note, footer { font-size: 10px; }
+  svg.panel { width: 78%; margin: 4px auto 2px; }
+}
+</style>
+</head>
+<body>
+<div class="sheet">
+<header>
+  <h1>PENUMBRA</h1>
+  <span class="sub">1.0 · a space-drone instrument for the M-VAVE FM-1 · cheat sheet</span>
+  <nav class="links" aria-label="Penumbra pages"><a href="../emu/">Play it in the browser</a><a href="https://github.com/MadMooneyham/Penumbra/blob/main/MANUAL.md">Manual</a><a href="penumbra-cheatsheet.pdf">PDF</a></nav>
+</header>
+
+<div class="panelbox">
+<svg class="panel" viewBox="0 0 1000 508" role="img" aria-labelledby="panel-t panel-d">
+  <title id="panel-t">The FM-1's panel, labelled for Penumbra</title>
+  <desc id="panel-d">MASTER is volume. SELECT morphs on HOME. PRESETS moves scene. ALGORITHM sets the tempo. Knobs 1 to 4 on HOME are DRONE, VOX, SPACE and TONE.
+    OCT minus and plus move the white keys' octave. Buttons: FX the FX page, held for throws; SEL chooses; ENV SHAPE; LFO JOURNEY; EDIT SCENE; GLO SYSTEM;
+    HOME; SAVE, which keeps a hold; ARP freezes; SEQ starts the clock; PLAY plays or stops the loop; REC records it.
+    Black keys 1 to 5 are the drone voices, 6 the kick, 7 BLOOM, 8 to 11 VOX's sounds GLASS, REED, HALO and LOW. The white keys play VOX in the scene's key.</desc>
+  <rect class="p-body" x="2" y="2" width="996" height="504" rx="34"/>
+
+  <!-- the left knobs -->
+  <g>
+    <circle class="p-ctl" cx="95" cy="70" r="20"/><text class="t-name" x="95" y="40" text-anchor="middle">MASTER</text>
+    <text class="t-does" x="95" y="106" text-anchor="middle">volume</text>
+    <circle class="p-ctl" cx="215" cy="70" r="20"/><text class="t-name" x="215" y="40" text-anchor="middle">SELECT</text>
+    <text class="t-does" x="215" y="106" text-anchor="middle">HOME: MORPH</text><text class="t-small" x="215" y="119" text-anchor="middle">pages: the row</text>
+    <circle class="p-ctl" cx="95" cy="176" r="20"/><text class="t-name" x="95" y="147" text-anchor="middle">PRESETS</text>
+    <text class="t-does" x="95" y="212" text-anchor="middle">scene ‹ ›</text><text class="t-small" x="95" y="225" text-anchor="middle">glides 12 s</text>
+    <circle class="p-ctl" cx="215" cy="176" r="20"/><text class="t-name" x="215" y="147" text-anchor="middle">ALGORITHM</text>
+    <text class="t-does" x="215" y="212" text-anchor="middle">tempo</text><text class="t-small" x="215" y="225" text-anchor="middle">SHAPE: level · holds: extra</text>
+  </g>
+  <g>
+    <rect class="p-ctl" x="52" y="244" width="78" height="28" rx="7"/><text class="t-name" x="91" y="263" text-anchor="middle">OCT−</text>
+    <rect class="p-ctl" x="156" y="244" width="78" height="28" rx="7"/><text class="t-name" x="195" y="263" text-anchor="middle">OCT+</text>
+    <text class="t-does" x="143" y="290" text-anchor="middle">white keys' octave, ±2</text>
+    <text class="t-small" x="143" y="303" text-anchor="middle">both 5 s: update mode</text>
+  </g>
+
+  <!-- the screen -->
+  <rect class="p-screen" x="300" y="26" width="236" height="236" rx="18"/>
+  <text class="t-scr" x="418" y="66" text-anchor="middle">HOME</text>
+  <circle cx="418" cy="128" r="34" fill="none" stroke="#ff9646" stroke-width="1.2" opacity=".85"/>
+  <circle cx="418" cy="128" r="28" fill="#07080f" stroke="#e2e0ec" stroke-width="1"/>
+  <g fill="#ff9646"><circle cx="386" cy="112" r="3"/><circle cx="402" cy="96" r="3"/><circle cx="436" cy="96" r="3"/><circle cx="451" cy="116" r="3"/><circle cx="445" cy="150" r="3"/></g>
+  <text class="t-scr2" x="418" y="182" text-anchor="middle">a bead per drone voice</text>
+  <text class="t-scr" x="418" y="204" text-anchor="middle">SCENE · KEY · LOOP</text>
+  <text class="t-scr2" x="418" y="236" text-anchor="middle">DRONE  VOX  SPACE  TONE</text>
+  <text class="t-small" x="418" y="282" text-anchor="middle">any page goes back to HOME after 30 s</text>
+
+  <!-- the four knobs -->
+  <g>
+    <text class="t-small" x="767" y="22" text-anchor="middle">on HOME · in a hold, what the hold plays</text>
+    <circle class="p-ctl" cx="610" cy="70" r="19"/><text class="t-name" x="610" y="44" text-anchor="middle">KNOB 1</text><text class="t-does" x="610" y="106" text-anchor="middle">DRONE</text>
+    <circle class="p-ctl" cx="714" cy="70" r="19"/><text class="t-name" x="714" y="44" text-anchor="middle">KNOB 2</text><text class="t-does" x="714" y="106" text-anchor="middle">VOX</text>
+    <circle class="p-ctl" cx="818" cy="70" r="19"/><text class="t-name" x="818" y="44" text-anchor="middle">KNOB 3</text><text class="t-does" x="818" y="106" text-anchor="middle">SPACE</text>
+    <circle class="p-ctl" cx="922" cy="70" r="19"/><text class="t-name" x="922" y="44" text-anchor="middle">KNOB 4</text><text class="t-does" x="922" y="106" text-anchor="middle">TONE</text>
+  </g>
+
+  <!-- the buttons: name, then what it does -->
+  <g id="btns"></g>
+
+  <!-- the keys -->
+  <g id="keys"></g>
+  <text class="t-small" x="40" y="497">Hold any button a moment: the screen says what it does.</text>
+  <text class="t-does" x="960" y="497" text-anchor="end">white keys: VOX, always in the scene's key · held: bend</text>
+</svg>
+</div>
+
+<div class="cols">
+  <div>
+    <section>
+      <h2>The holds: hold one, the knobs play it</h2>
+      <table>
+        <thead><tr><th>Hold</th><th>K1</th><th>K2</th><th>K3</th><th>K4</th><th>Also</th></tr></thead>
+        <tbody>
+          <tr><td><b>Drone</b> b1–5</td><td>LEVEL</td><td>TONE</td><td>DETUNE</td><td>OCTAVE</td><td>ALGO: HELD/SWELL</td></tr>
+          <tr><td><b>VOX sound</b> b8–11</td><td>BRIGHT</td><td>WAVE</td><td>FILTER</td><td>RELEASE</td><td></td></tr>
+          <tr><td><b>BLOOM</b> b7</td><td>LEVEL</td><td>LENGTH</td><td>HEIGHT</td><td>FIFTH</td><td></td></tr>
+          <tr><td><b>FX</b></td><td>SHIMMER</td><td>FEEDBACK</td><td>FREEZE</td><td>DIP</td><td>throws</td></tr>
+          <tr><td><b>White key</b></td><td>BRIGHT</td><td>VIBRATO</td><td>SHIMMER</td><td>RELEASE</td><td>ALGO: PITCH</td></tr>
+        </tbody>
+      </table>
+      <p class="note">Key holds stay as set. FX throws and white-key bends ease back when you let go;
+        <b>SAVE while holding</b> keeps them.</p>
+    </section>
+    <section>
+      <h2>SHAPE (ENV): four knobs a page · ALGO the part's level</h2>
+      <table>
+        <thead><tr><th>Page</th><th>K1</th><th>K2</th><th>K3</th><th>K4</th></tr></thead>
+        <tbody>
+          <tr><td><b>DRONE</b></td><td>FILTER</td><td>BODY</td><td>SWARM</td><td>WAVE</td></tr>
+          <tr><td><b>VOX</b></td><td>BRIGHT</td><td>ATTACK</td><td>RELEASE</td><td>SHIMMER</td></tr>
+          <tr><td><b>VOX 2</b></td><td>WAVE</td><td>FILTER</td><td>RESO</td><td>GLIDE</td></tr>
+          <tr><td><b>VOX 3</b></td><td>DETUNE</td><td>B OCT</td><td>B MIX</td><td>ENV</td></tr>
+          <tr><td><b>PULSE</b></td><td>DROP</td><td>DECAY</td><td>CLICK</td><td>SPACE</td></tr>
+          <tr><td><b>TEXTURE</b></td><td>COLOUR</td><td>SWEEP</td><td>RATE</td><td>WIDTH</td></tr>
+        </tbody>
+      </table>
+      <p class="note">ENV again or SELECT: the next page. <b>SEL twice</b>: the page back as made.</p>
+    </section>
+  </div>
+  <div>
+    <section>
+      <h2>The looper: VOX, kick and BLOOM, on the clock</h2>
+      <table>
+        <tbody>
+          <tr><td><b>REC</b></td><td>record · again: close the loop</td></tr>
+          <tr><td><b>REC</b> while it plays</td><td>overdub a layer · again: keep it</td></tr>
+          <tr><td><b>PLAY</b></td><td>stop the loop, or play it from its start</td></tr>
+          <tr><td><b>PLAY</b> held, let go</td><td>undo the last layer</td></tr>
+          <tr><td><b>PLAY</b> held + ALGO</td><td>½ speed · as played · 2×</td></tr>
+          <tr><td><b>REC + PLAY</b></td><td>clear the loop</td></tr>
+        </tbody>
+      </table>
+      <p class="note">Up to 16 bars, 8 layers. It follows the scene's key, and is saved with the journey.</p>
+    </section>
+    <section>
+      <h2>Moving through it</h2>
+      <ul class="tight">
+        <li><b>SEQ</b> starts and stops the clock; the drone swells in and fades out with it.</li>
+        <li><b>PRESETS</b>: the next scene. Drone notes move one voice at a time.</li>
+        <li><b>SELECT on HOME</b>: MORPH by hand; halfway, the key changes.</li>
+        <li><b>ARP</b>: FREEZE what you hold; again to let it ring out.</li>
+        <li><b>Black 6</b> the kick, <b>black 7</b> BLOOM, <b>8–11</b> GLASS · REED · HALO · LOW.</li>
+      </ul>
+    </section>
+  </div>
+  <div>
+    <section>
+      <h2>Pages</h2>
+      <table>
+        <tbody>
+          <tr><td><b>FX</b></td><td>REVERB: DECAY SIZE SHIMMER TONE · DELAY: TIME FEEDBACK TONE WEAR</td></tr>
+          <tr><td><b>EDIT</b></td><td>SCENE: SELECT field, K1 scene, K2–K4 value · SEL stores the moment</td></tr>
+          <tr><td><b>LFO</b></td><td>JOURNEY: 6 presets, 8 user slots · SEL opens · SAVE stores</td></tr>
+          <tr><td><b>GLO</b></td><td>SYSTEM: clock, MIDI, bend range, SLEEP, RESET SOUND · again: BENCH</td></tr>
+          <tr><td><b>HOME</b></td><td>the corona, the scene, the loop, the macros</td></tr>
+        </tbody>
+      </table>
+    </section>
+    <section>
+      <h2>Good to know</h2>
+      <ul class="tight">
+        <li>It saves itself once the sound rests; <b>SAVE</b> saves now.</li>
+        <li>A dot in the header: not saved yet.</li>
+        <li><b>SLEEP</b> (SYSTEM): everything lets go over 20–90 min.</li>
+        <li>VOX plays from MIDI too (channel 1), with pitch bend.</li>
+        <li>Leave space: the silence is part of it.</li>
+      </ul>
+    </section>
+  </div>
+</div>
+<footer>
+  <span>Penumbra by Lunar Eclipse Forge · GPL-3.0 · github.com/MadMooneyham/Penumbra</span>
+  <span>Built on Felucca (Hügelton Instruments) and X0X (Charles Vestal). M-VAVE and FM-1 are trademarks of their owners.</span>
+</footer>
+</div>
+
+<script>
+// the buttons and keys, drawn from two lists (the same places as the emulator's panel)
+(function () {
+  const NS = "http://www.w3.org/2000/svg";
+  function el(parent, tag, attrs, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  }
+  const ROW1 = [["FX", "FX", "held: throws"], ["SEL", "choose", "×2: reset"], ["ENV", "SHAPE", "again: next"],
+                ["LFO", "JOURNEY", ""], ["EDIT", "SCENE", ""], ["GLO", "SYSTEM", "again: BENCH"]];
+  const ROW2 = [["HOME", "HOME", ""], ["SAVE", "save", "in a hold: keep"], ["ARP", "FREEZE", ""],
+                ["SEQ", "clock", "start / stop"], ["PLAY", "loop", "play / stop"], ["REC", "loop", "rec / dub"]];
+  const btns = document.getElementById("btns");
+  el(btns, "rect", { class: "p-tray", x: 568, y: 126, width: 412, height: 186, rx: 14 });
+  [ROW1, ROW2].forEach((row, r) => row.forEach(([name, does, more], i) => {
+    const x = 578 + i * 67, y = 136 + r * 88;
+    el(btns, "rect", { class: "p-ctl", x, y, width: 58, height: 38, rx: 8 });
+    el(btns, "text", { class: "t-name", x: x + 29, y: y + 24, "text-anchor": "middle" }, name);
+    el(btns, "text", { class: "t-does", x: x + 29, y: y + 54, "text-anchor": "middle" }, does);
+    if (more) el(btns, "text", { class: "t-small", x: x + 29, y: y + 67, "text-anchor": "middle" }, more);
+  }));
+  const keys = document.getElementById("keys");
+  const x0 = 36, y0 = 340, w = 928, h = 138, pitch = (w - 24) / 16, kw = pitch * 0.8;
+  el(keys, "rect", { class: "p-tray", x: x0, y: y0, width: w, height: h, rx: 14 });
+  for (let i = 0; i < 16; i++)
+    el(keys, "rect", { class: "p-key", x: x0 + 12 + i * pitch + (pitch - kw) / 2, y: y0 + 68, width: kw, height: 60, rx: kw / 2 });
+  const AFTER = [0, 1, 2, 4, 5, 7, 8, 9, 11, 12, 14];
+  const NAMES = ["DRONE 1", "DRONE 2", "DRONE 3", "DRONE 4", "DRONE 5", "KICK", "BLOOM", "GLASS", "REED", "HALO", "LOW"];
+  AFTER.forEach((a, k) => {
+    const cx = x0 + 12 + (a + 1) * pitch;
+    el(keys, "rect", { class: "p-keyb", x: cx - kw / 2, y: y0 + 12, width: kw, height: 54, rx: kw / 2 });
+    const t = NAMES[k].split(" ");
+    el(keys, "text", { class: "t-keyb", x: cx, y: y0 + (t.length > 1 ? 36 : 43), "text-anchor": "middle" }, t[0]);
+    if (t[1]) el(keys, "text", { class: "t-keyb", x: cx, y: y0 + 50, "text-anchor": "middle" }, t[1]);
+  });
+  // what the groups of black keys are
+  const span = (a, b, label) => {
+    const xa = x0 + 12 + (AFTER[a] + 1) * pitch - kw / 2, xb = x0 + 12 + (AFTER[b] + 1) * pitch + kw / 2;
+    el(keys, "path", { d: `M${xa} ${y0 - 4} v-5 H${xb} v5`, fill: "none", stroke: "currentColor", class: "t-small", "stroke-width": 1 });
+    el(keys, "text", { class: "t-does", x: (xa + xb) / 2, y: y0 - 13, "text-anchor": "middle" }, label);
+  };
+  span(0, 4, "drone voices: on / off · held: shape");
+  span(5, 6, "kick · BLOOM");
+  span(7, 10, "VOX's four sounds · held: shape");
+})();
+</script>
+</body>
+</html>

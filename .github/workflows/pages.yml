@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# Penumbra's site on GitHub Pages: the web installer, the emulator, the cheat sheet and the screen reader's words.
+# Runs on each published release (and by hand): it takes the latest release's own .fwsc, so nothing is rebuilt
+# for the installer; the emulator is built here from this checkout with Emscripten.
+# Needs Settings > Pages > Source: GitHub Actions, once.
+name: Pages
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install Pillow
+      - uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 6.0.13
+      - name: The latest release's package
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName)
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern '*.fwsc' --dir build/release
+          echo "VERSION=${tag#v}" >> "$GITHUB_ENV"
+      - name: The emulator
+        run: PEN_VERSION="$VERSION" sh web/emu/build.sh
+      - name: The site
+        run: python3 tools/make_pages.py "build/release/penumbra-$VERSION.fwsc" "$VERSION" build/pages
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/pages
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

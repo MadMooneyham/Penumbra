@@ -17,13 +17,16 @@ silence between the notes is part of it.
 
 Version 1.0 · identity `FM-1_73010000` · GPL-3.0
 
+**[Play it in the browser](https://madmooneyham.github.io/Penumbra/emu/)** (the same code the FM-1 runs) ·
+**[Cheat sheet](https://madmooneyham.github.io/Penumbra/cheatsheet/)** (one printable page)
+
 ## Install
 
-- **The easy way:** install it in one click from [The Firmware Hub](https://thefirmwarehub.com/) once it is
-  listed there.
+- **The easy way:** install it in one click from [The Firmware Hub](https://thefirmwarehub.com/).
+- **In the browser:** the [web installer](https://madmooneyham.github.io/Penumbra/install/) writes it over USB
+  (Chrome or Edge).
 - **By hand:** download `penumbra-1.0.fwsc` from this repository's
   [Releases](https://github.com/MadMooneyham/Penumbra/releases), and write it with an FM-1 firmware installer.
-  BUILDING.md explains how to build and serve the web installer.
 
 Penumbra carries the update loader, so you can always go back to another firmware or to M-VAVE's own. If an
 install ever won't start, hold **OCT-** and **OCT+** for five seconds to put the FM-1 in update mode.
