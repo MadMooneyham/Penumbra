@@ -1,6 +1,6 @@
 # Penumbra
 
-![Penumbra's HOME screen](assets/card.png)
+![Penumbra: the Lunar Eclipse Forge mark in an eclipse's corona](assets/card.png)
 
 **A space-drone instrument for the M-VAVE FM-1**, by Lunar Eclipse Forge.
 
