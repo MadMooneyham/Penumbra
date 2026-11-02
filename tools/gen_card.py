@@ -2,13 +2,12 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Penumbra's card picture for The Firmware Hub (fmhub.json "image": square, 240 to 1024 px, 300 KB at most).
 
-  tools/gen_card.py [corona|drone|forge|avatar] [OUT.png] [SIZE]
+  tools/gen_card.py [corona|drone|forge] [OUT.png] [SIZE]
 
 Drawn, not captured: a total eclipse with its corona over a field of stars, and the name. Three looks:
   corona  the eclipse whole, centred, the name under it
   drone   the eclipse rising at the top, the five drone voices as beating threads of light under it
   forge   the corona round the Lunar Eclipse Forge mark (assets/logo.jpg), as on the boot screen
-  avatar  forge without the name, centred for a round crop: Lunar Eclipse Forge's profile picture
 Everything comes from a fixed seed, so the picture is the same each time."""
 import math
 import sys
@@ -165,15 +164,10 @@ def make(look, size):
         img = corona(img, cx, cy, R, rng, glow=1.1)
         img = mark(img, cx + R * 0.03, cy, R * 1.45)
         title_y, align, x = n * 0.73, "center", None
-    elif look == "avatar":                             # forge without the name, for a round profile picture
-        cx, cy, R = n * 0.5, n * 0.5, n * 0.3            # big: it is mostly seen at 40 px
-        img = corona(img, cx, cy, R, rng, glow=1.1)
-        img = mark(img, cx + R * 0.03, cy, R * 1.45)
     else:
-        raise SystemExit(f"unknown look {look}: corona, drone, forge or avatar")
+        raise SystemExit(f"unknown look {look}: corona, drone or forge")
     im = Image.fromarray(np.clip(img, 0, 255).astype(np.uint8), "RGB")
-    if look != "avatar":
-        words(im, n, title_y, sub, align, x, 0.115 if look == "drone" else 0.13)
+    words(im, n, title_y, sub, align, x, 0.115 if look == "drone" else 0.13)
     return im.resize((size, size), Image.LANCZOS)
 
 

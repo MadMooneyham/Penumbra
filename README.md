@@ -15,7 +15,7 @@ Switch it on and a deep drone swells in, five slowly beating voices held on a pe
 The sound it reaches for is the cinematic drone of the ELTA Solar 42: thick, slow, and full of space. The
 silence between the notes is part of it.
 
-Version 1.0 · identity `FM-1_73010000` · GPL-3.0
+Version 1.1 · identity `FM-1_73010100` · GPL-3.0
 
 **[Play it in the browser](https://madmooneyham.github.io/Penumbra/emu/)** (the same code the FM-1 runs) ·
 **[Cheat sheet](https://madmooneyham.github.io/Penumbra/cheatsheet/)** (one printable page)
@@ -25,7 +25,7 @@ Version 1.0 · identity `FM-1_73010000` · GPL-3.0
 - **The easy way:** install it in one click from [The Firmware Hub](https://thefirmwarehub.com/).
 - **In the browser:** the [web installer](https://madmooneyham.github.io/Penumbra/install/) writes it over USB
   (Chrome or Edge).
-- **By hand:** download `penumbra-1.0.fwsc` from this repository's
+- **By hand:** download `penumbra-1.1.fwsc` from this repository's
   [Releases](https://github.com/MadMooneyham/Penumbra/releases), and write it with an FM-1 firmware installer.
 
 Penumbra carries the update loader, so you can always go back to another firmware or to M-VAVE's own. If an
@@ -40,6 +40,8 @@ install ever won't start, hold **OCT-** and **OCT+** for five seconds to put the
 5. **Turn PRESET** to move to the next scene: everything glides there, and the loop follows the key.
 6. **Hold FX and turn K1** to throw the shimmer. Let go and it drifts back.
 7. **Hold a white key and turn ALGO** to bend the note's pitch.
+8. **Hold ENV and press OCT-** to keep the sound as A; change it, **hold ENV and press OCT+** for B; then
+   **hold ENV and turn SELECT** to walk between them.
 
 Everything else, from the drone voices to the looper, holds, scenes and sound pages, is in the
 **[manual](MANUAL.md)**. Its last section is a one-page cheat sheet.
@@ -51,9 +53,14 @@ Everything else, from the drone voices to the looper, holds, scenes and sound pa
   to a narrow pulse, a filter from low-pass to band-pass, and glide.
 - **PULSE**: a deep kick tuned to the key, and BLOOM.
 - **TEXTURE**: a bed of space wind, always under the rest.
-- **Effects**: a shimmer reverb, a worn tape delay, and a master stage.
-- **Journeys**: six preset banks of scenes, and eight user slots. The journey playing, with its loop, survives
-  a power cut.
+- **Movement**: TIDES, one slow swell under it all (8 seconds to 4 minutes a tide) through the drone, the space
+  and VOX; the drone's own drift and sweep.
+- **Effects**: a shimmer reverb (an octave, a fifth or a twelfth up), a worn ping-pong tape delay you can
+  WARP, a filter that dips both ways, and a master stage. Each scene has its own room, gliding with it.
+- **The sound, kept**: A/B (two versions of the sound, a blend between them) and a library of eight sounds
+  you can bring into any journey.
+- **Journeys**: six preset banks of scenes, and eight user slots. The journey playing, with its loop and its
+  A/B, survives a power cut.
 - **Extras**: MIDI clock in and out, VOX over MIDI (with pitch bend), USB audio, a SLEEP timer, and
   screen-reader support.
 
