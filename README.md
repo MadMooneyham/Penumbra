@@ -76,6 +76,9 @@ Penumbra grows from how people use it. I'd love to hear:
 or "An idea". For a problem, the steps you took matter most: the journey, the page, what you held and
 turned. Most problems can be replayed in Penumbra's simulator from those steps alone.
 
+To share a journey or a sound, ask how something works, or talk about how you play it, use
+**[Discussions](https://github.com/MadMooneyham/Penumbra/discussions)**.
+
 ## For developers
 
 Penumbra is written in C for the FM-1's JieLi AC791N. Its audio engine runs on both cores, and the whole app

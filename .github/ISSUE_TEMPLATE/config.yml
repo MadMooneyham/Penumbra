@@ -1,5 +1,8 @@
 blank_issues_enabled: true
 contact_links:
+  - name: Discussions
+    url: https://github.com/MadMooneyham/Penumbra/discussions
+    about: Share a journey or a sound, ask how something works, or talk about how you play it.
   - name: The manual
     url: https://github.com/MadMooneyham/Penumbra/blob/main/MANUAL.md
     about: How every page, hold and button works.
