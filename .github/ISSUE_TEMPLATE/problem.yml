@@ -1,0 +1,49 @@
+name: Something is wrong
+description: A sound, a control or a screen that does not do what it should.
+labels: ["problem"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. The more exactly you say what you did, the sooner it can be fixed:
+        most problems can be played again in Penumbra's simulator once the steps are known.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: SYSTEM (GLO) > ABOUT shows it.
+      placeholder: "1.1"
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      options:
+        - On the FM-1
+        - In the browser (the emulator)
+        - The web installer
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: What you did
+      description: The page you were on, the journey and scene, what you held and turned, step by step.
+      placeholder: |
+        1. ECLIPSE, scene 2, the clock running
+        2. Held FX, turned KNOB 4 right
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: happened
+    attributes:
+      label: What happened, and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: Does it happen every time? A photo of the screen, or a recording (USB audio), helps a lot.

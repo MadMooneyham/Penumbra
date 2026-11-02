@@ -64,6 +64,18 @@ Everything else, from the drone voices to the looper, holds, scenes and sound pa
 - **Extras**: MIDI clock in and out, VOX over MIDI (with pitch bend), USB audio, a SLEEP timer, and
   screen-reader support.
 
+## Tell me how you play it
+
+Penumbra grows from how people use it. I'd love to hear:
+
+- what you play with it, and what it makes you want to do next;
+- what felt unclear, or got in your way;
+- anything that sounds or behaves wrong.
+
+**[Open an issue](https://github.com/MadMooneyham/Penumbra/issues/new/choose)** and pick "Something is wrong"
+or "An idea". For a problem, the steps you took matter most: the journey, the page, what you held and
+turned. Most problems can be replayed in Penumbra's simulator from those steps alone.
+
 ## For developers
 
 Penumbra is written in C for the FM-1's JieLi AC791N. Its audio engine runs on both cores, and the whole app

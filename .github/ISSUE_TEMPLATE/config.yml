@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: The manual
+    url: https://github.com/MadMooneyham/Penumbra/blob/main/MANUAL.md
+    about: How every page, hold and button works.
+  - name: The cheat sheet
+    url: https://madmooneyham.github.io/Penumbra/cheatsheet/
+    about: Every control on one printable page.
+  - name: Play it in the browser
+    url: https://madmooneyham.github.io/Penumbra/emu/
+    about: Try something out (or show a problem) without an FM-1.

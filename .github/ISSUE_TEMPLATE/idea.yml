@@ -1,0 +1,27 @@
+name: An idea
+description: Something you wish Penumbra did, or did differently.
+labels: ["idea"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Penumbra is a drone you travel through and play over: it should stay calm, deep and playable by
+        hand. Ideas that make it more playable, more alive or more spacious are very welcome.
+  - type: textarea
+    id: playing
+    attributes:
+      label: How you play it
+      description: What you were doing when you wished for this (a performance, a long ambient set, sound design...).
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: The idea
+      description: What it would do, and which controls you imagine for it.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it matters to you
