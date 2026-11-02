@@ -1,6 +1,6 @@
 # BLOOM, black key 7: pressed, it swells in; held, the knobs shape it (LEVEL, LENGTH, HEIGHT: the root, an
-# octave over, two; FIFTH) and it stays so; PULSE's page reset (SEL twice) puts it back as made. No clicks,
-# no clips. Audio in bloom.wav.
+# octave over, two; FIFTH) and it stays so; ENV then opens PULSE's page (what the hands last shaped), and
+# its reset (SEL twice) puts it back as made. No clicks, no clips. Audio in bloom.wav.
 autoplay 0
 wait 300
 wav bloom.wav
@@ -29,7 +29,7 @@ expect bloom2 2
 tapkey b6
 wait 12000
 tap ENV
-turn SELECT 4
+expect page 5
 tap SEL
 tap SEL
 wait 100

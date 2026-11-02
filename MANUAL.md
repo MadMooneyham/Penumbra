@@ -58,7 +58,7 @@ Under the corona:
 The header carries the journey's name and the tempo. A small dot in the header means something has not been
 saved yet.
 
-**HOME's four knobs** are macros, each 0 as made:
+**HOME's four knobs** are macros, each 0% as made:
 
 | Knob | Macro | What it does |
 | --- | --- | --- |
@@ -124,8 +124,9 @@ While you hold one of these, the four knobs play something else, on any page.
 | A drone key (black 1-5) | LEVEL | TONE | DETUNE | OCTAVE | ALGO: HELD or SWELL |
 | A VOX sound key (black 8-11) | BRIGHT | WAVE | FILTER | RELEASE | |
 | BLOOM's key (black 7) | LEVEL | LENGTH | HEIGHT | FIFTH | |
-| **FX** | SHIMMER | FEEDBACK | FREEZE | DIP | Throws |
+| **FX** | SHIMMER | FEEDBACK | FREEZE | DIP | Throws; ALGO: WARP |
 | A white key | BRIGHT | VIBRATO | SHIMMER | RELEASE | Bends; ALGO: PITCH |
+| **ENV** | | | | | A/B: OCT- keeps A, OCT+ keeps B, SELECT blends |
 
 The knob strip shows what the knobs are playing while you hold.
 
@@ -138,12 +139,25 @@ The knob strip shows what the knobs are playing while you hold.
   - **SHIMMER** swells the shimmer.
   - **FEEDBACK** pushes the delay toward feedback, but never into a runaway.
   - **FREEZE** makes the reverb hold what it has while new sound stops going in.
-  - **DIP** closes a low-pass filter over the whole mix.
+  - **DIP** filters the whole mix, both ways: turn left and a low-pass closes, turn right and a
+    high-pass opens.
+  - **WARP** (turn **ALGO**) bends the delay's time: left and the echoes slow and dive, right and they
+    rise, like a tape slowing down and speeding up. DELAY 2's WARP sets how far.
 
   Let go and the throws drift back over a couple of seconds.
 - **A white key** bends VOX for the note you are holding: its brightness, vibrato, shimmer and release.
   Turning **ALGO** bends the pitch of every VOX note sounding, including frozen and looped ones. Let go and
   the bends ease back.
+
+- **ENV** holds two versions of the sound, **A** and **B**, and walks between them:
+  - Shape a sound, then hold ENV and press **OCT-**: it is kept as A.
+  - Shape it another way, hold ENV and press **OCT+**: that is B.
+  - Hold ENV and turn **SELECT**: the sound walks from A to B and back, gliding as it follows, the way
+    MORPH walks between scenes. Every value moves; an octave or HELD / SWELL changes at the middle.
+
+  The blend is the sound playing: what you hear is what is saved, and you can go on shaping it (keep it
+  again to make it A or B). A and B are saved with the journey playing. MORPH the scene and blend the
+  sound together for one long change of place and colour.
 
 **SAVE while holding keeps what the knobs did.**
 
@@ -199,12 +213,14 @@ A **scene** is a place to play in:
 - a key and scale;
 - the drone's root (its pedal) and voicing;
 - VOX's brightness and register;
-- the space, and the wind's level and colour.
+- the space: how much reverb and delay, and its own room (the reverb's size and decay) and halo (its
+  shimmer), so a journey travels from one space to the next;
+- the wind's level and colour.
 
 A **journey** is a bank of up to eight scenes, with a sound of its own.
 
-**PRESET** moves to the next scene, or the one before. Everything glides there over 12 seconds, and the key
-changes at the middle. Each preset journey keeps its drone's root from scene to scene, so the drone changes
+**PRESET** moves to the next scene, or the one before. Everything glides there over 12 seconds, the room
+too, and the key changes at the middle. Each preset journey keeps its drone's root from scene to scene, so the drone changes
 only its colour.
 
 **SCENE (EDIT)** edits the scenes:
@@ -226,6 +242,8 @@ The fields:
 | VOX BRIGHTNESS | How bright VOX is in this scene |
 | VOX REGISTER | VOX's octave |
 | SPACE | How much reverb and delay |
+| ROOM | The reverb's size and decay, over the FX page's (0%: as the FX page has them) |
+| HALO | The shimmer, over the FX page's (0%: as set) |
 | WIND | The wind's level |
 | WIND COLOUR | The wind's colour |
 
@@ -236,19 +254,39 @@ The fields:
 - SAVE on a user slot stores the journey playing there.
 - Opening a preset keeps the sound you have made. Opening a user journey brings back the sound saved with it.
 
+**SOUNDS (LFO again, from JOURNEY)** is a library of eight sounds, apart from the journeys. A sound is
+everything the SHAPE pages, the holds, DRONE 2 and TIDES set; not the scenes, and not the FX page.
+
+- **SAVE** on a slot stores the sound playing.
+- **SEL** brings a slot's sound into the journey playing, gliding in over two seconds, so it can be done
+  while you play.
+- So any of your sounds plays over any journey's scenes, and two of them can be A and B.
+
 ## 8. SHAPE: the sound
 
 **ENV** opens SHAPE: four knobs for each part of the sound, with **ALGO** setting that part's level. Press
 ENV again (or turn SELECT) for the next page. The VOX pages shape the VOX sound playing at the time.
+After you shape something through a hold (a drone key, a VOX sound key, BLOOM's key, a white key), ENV
+opens that part's page, so you can go on shaping it in depth.
+
+Values are shown as percentages: a share from 0 to 100%, an offset from as made as -/+% (0%: as made), and
+a LEVEL as 100% as made (up to 127%). Times, octaves and note lengths keep their own units.
 
 | Page | K1 | K2 | K3 | K4 |
 | --- | --- | --- | --- | --- |
 | DRONE | FILTER | BODY (resonance) | SWARM (the crowd, and the voices' detune) | WAVE (soft to reedy) |
+| DRONE 2 | RATE (its slow LFO, ~1 s to 100 s) | SWEEP (the LFO over the filter) | WIDTH (the voices swinging apart) | DRIFT (their tuning wandering) |
 | VOX | BRIGHT | ATTACK | RELEASE | SHIMMER (how far into the reverb) |
 | VOX 2 | WAVE (saw, square, narrow pulse) | FILTER (low-pass to band-pass) | RESO | GLIDE |
 | VOX 3 | DETUNE | B OCT (the second oscillator: -1, 0, +1) | B MIX | ENV (how far the envelope opens the filter) |
 | PULSE | DROP (the kick's fall in pitch) | DECAY | CLICK | SPACE |
 | TEXTURE | COLOUR | SWEEP | RATE | WIDTH |
+| TIDES | RATE (8 s to 4 min a tide) | DRONE (how far it moves the drone's filter) | SPACE (the sends) | VOX (its brightness) |
+
+**TIDES** is one slow swell under everything: the drone opens and closes, the space breathes in and out,
+VOX brightens and darkens, all on the same tide. On its page **ALGO** sets its SHAPE: from EVEN (a smooth
+sine) to WANDERING (it drifts to a new height each half tide). The line under the knobs shows where the
+tide is now. As made, it moves the drone and the space gently, about once every 50 seconds.
 
 BLOOM's settings are under its own hold (black key 7, above). PULSE's level sets the kick's and BLOOM's
 together.
@@ -258,6 +296,7 @@ together.
 - DRONE also resets the drone voices' own settings.
 - The VOX pages reset the VOX sound playing.
 - PULSE also resets BLOOM.
+- DRONE 2 and TIDES reset only their own page.
 
 The first press only asks, so you cannot reset by accident.
 
@@ -268,7 +307,12 @@ The first press only asks, so you cannot reset by accident.
 | Row | K1 | K2 | K3 | K4 |
 | --- | --- | --- | --- | --- |
 | REVERB | DECAY | SIZE | SHIMMER | TONE |
+| REVERB 2 | MOTION (how much its lines move) | LOW CUT (on what goes in) | INTERVAL (the shimmer: an octave, a fifth or a twelfth up) | LEVEL (its return) |
 | DELAY | TIME (a note length, on the tempo) | FEEDBACK | TONE | WEAR (the tape's age) |
+| DELAY 2 | LEVEL (its return) | LOW CUT | PING-PONG (on: the echoes go left, right) | WARP (how far the WARP throw bends it: up to two octaves) |
+
+A change of SIZE glides: the reverb's lines slide to the new size, so the room breathes and never clicks.
+Each scene can move the reverb further with its ROOM and HALO (section 7).
 
 **SYSTEM (GLO)**: SELECT moves through the list, and a knob or SEL changes the row shown.
 
@@ -301,7 +345,7 @@ SLEEP lasts only this session; it is not saved.
 - the FX page and HOME's macros;
 - any throw or bend that is out.
 
-Your scenes, the loop, the tempo and the other settings stay.
+Your scenes, the loop, the tempo, A and B, the sound library and the other settings stay.
 
 **BENCH**: press GLO again from SYSTEM. It shows what each part of the sound costs the processor. SEL there
 runs a load test that sets every voice at its heaviest.
@@ -330,11 +374,11 @@ ever won't take an install, hold **OCT-** and **OCT+** together for five seconds
 | PLAY | Loop: stop / play; held: undo; held + ALGO: speed |
 | REC + PLAY | Clear the loop |
 | ARP | FREEZE |
-| FX | FX page; held: throws |
-| ENV | SHAPE (again: next page; SEL twice: reset) |
-| EDIT | SCENE (SEL: store the moment) |
-| LFO | JOURNEY (SEL: open; SAVE: into a user slot) |
+| FX | FX page; held: throws (DIP both ways), + ALGO: WARP |
+| ENV | SHAPE, TIDES (again: next page; SEL twice: reset); held: A/B |
+| EDIT | SCENE, ROOM, HALO (SEL: store the moment) |
+| LFO | JOURNEY (SEL: open; SAVE: into a user slot); again: SOUNDS |
 | GLO | SYSTEM, then BENCH |
 | SAVE | Save now; in a hold: keep it |
-| OCT- / OCT+ | White keys' octave; both for 5 s: update mode |
+| OCT- / OCT+ | White keys' octave; both for 5 s: update mode; ENV held: keep A / B |
 | Any button, held | Says what it does |

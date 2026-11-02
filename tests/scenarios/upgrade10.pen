@@ -1,0 +1,26 @@
+# From 1.0: its settings (format 3) and journeys (format 5) come over. The FX page keeps its eight (SIZE
+# as it was set) and gets the new eight as made; the journey keeps its scene, its scenes take the FX
+# page's space (ROOM and HALO 0%: 1.0's unused bytes are not read), the drone moves as it did and TIDES
+# come as made. The user slot too.
+legacy10
+wait 500
+expect set_format 4
+expect fx1 70
+expect fx0 91
+expect fx8 64
+expect fx10 0
+expect fx11 106
+expect fx14 1
+expect fx15 64
+expect jr_format 6
+expect journey 2
+expect scene 2
+expect room1 64
+expect halo2 64
+expect dmotion0 41
+expect dmotion3 25
+expect tide0 64
+expect tide1 24
+expect slot1 1
+expect jr_playing 1
+expect clips 0

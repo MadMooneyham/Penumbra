@@ -76,6 +76,9 @@ fi
 [ -f build/scenarios/vox/vox.wav ] && run vox-clicks python3 tests/click_check.py build/scenarios/vox/vox.wav
 [ -f build/scenarios/pulse/pulse.wav ] && run pulse-clicks python3 tests/click_check.py build/scenarios/pulse/pulse.wav
 [ -f build/scenarios/journey/journey.wav ] && run journey-clicks python3 tests/click_check.py build/scenarios/journey/journey.wav
+[ -f build/scenarios/tides/tides.wav ] && run tides-clicks python3 tests/click_check.py build/scenarios/tides/tides.wav
+[ -f build/scenarios/fxmore/fxmore.wav ] && run fx-clicks python3 tests/click_check.py build/scenarios/fxmore/fxmore.wav
+[ -f build/scenarios/absounds/absounds.wav ] && run ab-clicks python3 tests/click_check.py build/scenarios/absounds/absounds.wav
 # the long run (design: each preset 30 minutes, no clips, clicks or stuck notes): LONG=1 tests/run_tests.sh
 if [ "${LONG:-0}" = 1 ]; then
     for p in 1 2 3 4 5 6; do

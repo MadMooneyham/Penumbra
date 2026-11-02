@@ -50,6 +50,15 @@ enum { DV_LEVEL, DV_TONE, DV_DETUNE, DV_OCT, DV_N };
 /* PULSE's BLOOM, black key 7 held (eng_jr.bloom; its level PULSE's SH_HIDE): LENGTH, HEIGHT (0 the root,
  * 1 an octave over, 2 two), FIFTH */
 enum { BL_LENGTH, BL_HEIGHT, BL_FIFTH, BL_N };
+/* the drone's own movement (eng_jr.dmotion, SHAPE's DRONE 2): its LFO's RATE (~1 s .. 100 s), SWEEP (the
+ * LFO over its filter), WIDTH (the voices swinging apart in the field), DRIFT (their tuning wandering) */
+enum { DM_RATE, DM_SWEEP, DM_WIDTH, DM_DRIFT, DM_N };
+/* TIDES (eng_jr.tide, SHAPE's TIDES): one slow swell under everything, RATE (8 s .. 4 min a tide) and how
+ * far it moves the DRONE's filter, the SPACE (every send) and VOX's brightness; SHAPE (ALGO): 0 an even
+ * sine, 127 a wandering, uneven one */
+enum { TD_RATE, TD_DRONE, TD_SPACE, TD_VOX, TD_SHAPE, TD_N };
+_Static_assert(DM_N == JR_DMOTION && TD_N == JR_TIDE, "the journey keeps the movement");
+float engine_tide(void);                         /* (main loop) the tide now, -1 .. 1 (the corona breathes with it) */
 _Static_assert(EV_N == JR_VOICES && SH_N == JR_SHAPE && DV_N == JR_DVOICE, "the journey keeps the sound");
 /* VOX's sounds (eng_jr.vsound[vcur]: VOX's row of shape is unused): its SHAPE pages are VOX (BRIGHT,
  * ATTACK, RELEASE, SHIMMER), VOX 2 (WAVE, FILTER: low-pass .. band-pass, RESO, GLIDE) and VOX 3 (DETUNE,
@@ -57,16 +66,22 @@ _Static_assert(EV_N == JR_VOICES && SH_N == JR_SHAPE && DV_N == JR_DVOICE, "the 
 enum { VS_LEVEL, VS_BRIGHT, VS_ATTACK, VS_RELEASE, VS_SHIMMER, VS_VIB, VS_WAVE, VS_FILTER, VS_RESO, VS_GLIDE,
        VS_DETUNE, VS_BOCT, VS_BMIX, VS_ENV, VS_N };
 _Static_assert(VS_N <= JR_VS, "a VOX sound fits its bytes");
+_Static_assert(DV_OCT == 3 && VS_BOCT == 11 && BL_HEIGHT == 1, "the switches jr_sound_mix knows by place");
 /* the hands' moves, on top of the sound and gone when they spring back (the UI glides them):
- *   THROWS (FX held)        SHIMMER, FEEDBACK (the delay's), FREEZE (the reverb holds, the sends close),
- *                           DIP (the whole mix's low-pass): 0 none .. 127 all the way
+ *   THROWS (FX held)        SHIMMER, FEEDBACK (the delay's), FREEZE (the reverb holds, the sends close):
+ *                           0 none .. 127 all the way; DIP: -127 a low-pass closed .. +127 a high-pass
+ *                           open; WARP (ALGO): the delay's time bent, -127 slower (the echoes dive) .. +127
  *   BENDS (a white key held) VOX's BRIGHT, VIBRATO, SHIMMER, RELEASE: -64 .. +64
  *   PITCH (a white key held, ALGO) every VOX note's: -127 .. +127, the bend range either way */
-enum { PF_SHIMMER, PF_FDBK, PF_FREEZE, PF_DIP, PF_BRIGHT, PF_VIB, PF_VSEND, PF_VREL, PF_PITCH, PF_N };
+enum { PF_SHIMMER, PF_FDBK, PF_FREEZE, PF_DIP, PF_BRIGHT, PF_VIB, PF_VSEND, PF_VREL, PF_PITCH, PF_WARP, PF_N };
 void engine_perf(int i, int value);
 void engine_bend_range(int semitones);           /* PITCH's and MIDI pitch bend's, either way */
-/* the effects, as the FX page sets them */
-enum { EF_RV_DECAY, EF_RV_SIZE, EF_RV_SHIMMER, EF_RV_TONE, EF_DL_TIME, EF_DL_FDBK, EF_DL_TONE, EF_DL_WEAR, EF_N };
+/* the effects, as the FX page sets them: REVERB, DELAY (1.0's), then REVERB 2 (MOTION: the lines'
+ * modulation, LOW CUT on its send, the shimmer's INTERVAL, the return's LEVEL) and DELAY 2 (its LEVEL,
+ * LOW CUT, PING-PONG, and how far the WARP throw bends its time) */
+enum { EF_RV_DECAY, EF_RV_SIZE, EF_RV_SHIMMER, EF_RV_TONE, EF_DL_TIME, EF_DL_FDBK, EF_DL_TONE, EF_DL_WEAR,
+       EF_RV_MOD, EF_RV_LOWCUT, EF_RV_INTERVAL, EF_RV_LEVEL, EF_DL_LEVEL, EF_DL_LOWCUT, EF_DL_PING, EF_DL_WARP,
+       EF_N };
 void engine_fx(int i, int value);
 int engine_fx_max(int i);
 const char *engine_fx_value_name(int i, int value);   /* a switch's label (the delay's time), else 0 */

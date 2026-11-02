@@ -127,7 +127,8 @@ int plat_store_load(uint32_t obj, void *dst, uint32_t max)
 }
 int plat_store_save(uint32_t obj, const void *src, uint32_t len)
 {
-    if ((obj != OBJ_SET && obj != OBJ_PANEL && obj != OBJ_WORK && obj != OBJ_USER && obj != OBJ_LOOP) || len > PLAT_STORE_MAX)
+    if ((obj != OBJ_SET && obj != OBJ_PANEL && obj != OBJ_WORK && obj != OBJ_USER && obj != OBJ_LOOP &&
+         obj != OBJ_SOUNDS) || len > PLAT_STORE_MAX)
         return -1;
     memcpy(store[obj], src, len);
     store_len[obj] = (int)len;
@@ -523,14 +524,38 @@ static int expect(const char *what, const char *val)
         got = eng_jr.vcur + 1;
     else if (!strncmp(what, "dvoice", 6))           /* dvoiceVF: drone voice V (1-5) field F (1 LEVEL .. 4 OCTAVE) */
         got = eng_jr.dvoice[(what[6] - '1') % ENG_DRONES][(what[7] - '1') % DV_N];
-    else if (!strncmp(what, "perf", 4))             /* perfN: the hands' move N (0-7, engine.h PF_*) the engine has */
+    else if (!strncmp(what, "perf", 4))             /* perfN: the hands' move N (engine.h PF_*) the engine has */
         got = ui.sent[atoi(what + 4) % PF_N];
     else if (!strncmp(what, "dnote", 5))            /* dnoteV: drone voice V's note (MIDI), the journey's */
         got = engine_jr()->drone[(atoi(what + 5) - 1) % ENG_DRONES];
     else if (!strcmp(what, "dmoving"))              /* the drone voices still to move to the scene's */
         got = engine_jr()->dpend;
-    else if (!strncmp(what, "fx", 2) && what[2] >= '0' && what[2] <= '7')   /* fxN: the FX page's setting N (engine.h EF_*) */
-        got = cfg.fx[what[2] - '0'];
+    else if (!strncmp(what, "fxrow", 5))            /* the FX page's row: 0 REVERB, 1 REVERB 2, 2 DELAY, 3 DELAY 2 */
+        got = ui.fxrow;
+    else if (!strncmp(what, "fx", 2) && what[2] >= '0' && what[2] <= '9')   /* fxN: the FX page's setting N (engine.h EF_*) */
+        got = cfg.fx[atoi(what + 2) % EF_N];
+    else if (!strcmp(what, "page"))                 /* SHAPE's page (ui.c PG_*: 0 DRONE, 1 DRONE 2, 2 VOX .. 7 TIDES) */
+        got = ui.vsel;
+    else if (!strncmp(what, "dmotion", 7))          /* dmotionN: the drone's movement, 0 RATE .. 3 DRIFT */
+        got = eng_jr.dmotion[atoi(what + 7) % JR_DMOTION];
+    else if (!strncmp(what, "tide", 4) && what[4] >= '0' && what[4] <= '9')   /* tideN: TIDES, 0 RATE .. 4 SHAPE */
+        got = eng_jr.tide[atoi(what + 4) % JR_TIDE];
+    else if (!strcmp(what, "tide_now"))             /* the tide now, -100 .. 100 */
+        got = (int)(engine_tide() * 100.0f);
+    else if (!strncmp(what, "room", 4))             /* roomS / haloS: scene S's (1..) */
+        got = eng_jr.scene[(atoi(what + 4) - 1) % JR_SCENES].room;
+    else if (!strncmp(what, "halo", 4))
+        got = eng_jr.scene[(atoi(what + 4) - 1) % JR_SCENES].halo;
+    else if (!strcmp(what, "ab_have"))              /* A/B: bit 0 A kept, bit 1 B */
+        got = sound_ab.have;
+    else if (!strcmp(what, "ab_t"))                 /* the blend, 0 A .. 127 B */
+        got = sound_ab.t;
+    else if (!strncmp(what, "snd", 3))              /* sndN: the library's slot N (1..) holds a sound */
+        got = sound_slot_used(atoi(what + 3) - 1);
+    else if (!strcmp(what, "jr_format"))            /* the journey playing's format */
+        got = eng_jr.format;
+    else if (!strcmp(what, "set_format"))
+        got = (int)cfg.format;
     else if (!strncmp(what, "bloom", 5))            /* bloomN: BLOOM's 0 level, 1 length, 2 height, 3 fifth */
         got = what[5] == '0' ? eng_jr.shape[EV_PULSE][SH_HIDE] : eng_jr.bloom[(what[5] - '1') % BL_N];
     else if (!strcmp(what, "sleep"))                /* SLEEP's choice: 0 off, 1 20 min .. */
@@ -676,6 +701,36 @@ int main(int argc, char **argv)
         } else if (!strcmp(cmd, "autoplay")) {        /* autoplay 0|1: PLAY AT POWER-ON saved, then power on again */
             cfg.autoplay = (uint8_t)atoi(a);
             settings_save();
+            store_writes = 0;
+            held_btn = held_keys = 0;
+            boot();
+        } else if (!strcmp(cmd, "legacy10")) {        /* 1.0's flash: settings format 3 (the FX page's 8 at byte 40, 0.14's
+                                                       * bytes before them), the journey playing and user slot 1 as format 5
+                                                       * (what are ROOM and HALO now: 1.0's old values; the movement's bytes spare) */
+            uint8_t s[52];
+            static journey_t slots[JR_USER];
+            journey_t j;
+            int k;
+            settings_defaults();
+            memcpy(s, &cfg, sizeof s);
+            ((uint32_t *)s)[1] = 3u;
+            for (k = 24; k < 40; k++)
+                s[k] = 64;                            /* (0.14's VOICES page, as 1.0 kept it) */
+            for (k = 0; k < 8; k++)
+                s[40 + k] = cfg.fx[k];
+            s[40 + EF_RV_SIZE] = 70;                  /* (one of them changed: it must come over) */
+            plat_store_save(OBJ_SET, s, sizeof s);
+            jr_preset(1, &j);
+            j.format = 5;
+            for (k = 0; k < JR_SCENES; k++)
+                j.scene[k].room = j.scene[k].halo = 90;   /* (1.0's density and swarm, unused) */
+            memset(j.dmotion, 0, sizeof j.dmotion);
+            memset(j.tide, 0, sizeof j.tide);
+            j.at = 1;
+            plat_store_save(OBJ_WORK, &j, sizeof j);
+            memset(slots, 0, sizeof slots);
+            slots[0] = j;
+            plat_store_save(OBJ_USER, slots, sizeof slots);
             store_writes = 0;
             held_btn = held_keys = 0;
             boot();

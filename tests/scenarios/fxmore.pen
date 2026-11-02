@@ -1,0 +1,52 @@
+# FX's four rows: REVERB 2 (MOTION, LOW CUT, INTERVAL: the shimmer an octave, a fifth or a twelfth up,
+# LEVEL) and DELAY 2 (LEVEL, LOW CUT, PING-PONG, WARP's range). The throws: DIP both ways (left a low-pass
+# closing, right a high-pass opening), WARP on ALGO (the delay's time bent), all drifting back. A scene's
+# ROOM (the reverb's size and decay) and HALO (its shimmer) over the page's, gliding with PRESET: the
+# lines slew, no click. Audio in fxmore.wav.
+wait 500
+tap FX
+turn SELECT 1
+expect fxrow 1
+turn K3 1
+expect fx10 1
+shot fx_rows.png
+turn SELECT 2
+expect fxrow 3
+turn K3 -1
+expect fx14 0
+turn K3 1
+expect fx14 1
+wav fxmore.wav
+tapkey w2
+wait 400
+tapkey w4
+press FX
+turn K4 -20
+wait 100
+expect perf3 <-60
+turn K4 40
+wait 100
+expect perf3 >60
+turn ALGO -10
+wait 100
+expect perf9 <-50
+shot throws.png
+release FX
+wait 3500
+expect perf3 0
+expect perf9 0
+tap EDIT
+turn SELECT 7
+turn K2 20
+expect room1 104
+turn SELECT 1
+turn K2 10
+expect halo1 84
+tapkey w5
+turn PRESET 1
+wait 13000
+expect scene 2
+tapkey w3
+wait 3000
+wavstop
+expect clips 0

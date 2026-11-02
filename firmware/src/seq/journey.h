@@ -23,7 +23,8 @@
 #define JR_USER 8
 #define JR_DRONES 5
 #define JR_MAGIC 0x314A4E50u                    /* "PNJ1" */
-#define JR_FORMAT 5u                            /* (the betas' formats 1 .. 4 do not load: the first preset plays) */
+#define JR_FORMAT 6u                            /* 5 (1.0): no ROOM, HALO, drone motion or TIDES (settings.c
+                                                 * converts it); the betas' 1 .. 4 do not load */
 #define JR_VSOUNDS 4                            /* VOX's sounds: black keys 8 .. 11 */
 #define JR_VS 16                                /* a VOX sound's bytes (engine.h VS_*) */
 #define JR_DRONE_GAP 3.0f                       /* seconds between the drone's voices moving to a new scene */
@@ -31,6 +32,8 @@
 #define JR_VOICES 4                             /* the sound: DRONE, VOX, PULSE, TEXTURE (engine.h EV_*) */
 #define JR_SHAPE 6                              /* each one's level, the SHAPE page's four knobs, one more (engine.h SH_*) */
 #define JR_DVOICE 4                             /* each drone voice's own, its black key held (engine.h DV_*) */
+#define JR_DMOTION 4                            /* the drone's movement (engine.h DM_*) */
+#define JR_TIDE 5                               /* TIDES (engine.h TD_*) */
 
 enum { SC_IONIAN, SC_DORIAN, SC_PHRYGIAN, SC_LYDIAN, SC_MIXOLYDIAN, SC_AEOLIAN, SC_HARMONIC, NSCALES };
 enum { VC_OPEN, VC_WARM, VC_HIGH, VC_CLUSTER, NVOICINGS };
@@ -41,7 +44,10 @@ typedef struct {
     uint8_t scale;                              /* SC_* */
     uint8_t prog;                               /* (0.15's chords: unused) */
     uint8_t voicing;                            /* VC_*: how the drone's five voices stack */
-    uint8_t density, bright, swarm, space, tex, colour, pulse;   /* 0..127 (density, swarm, pulse: unused) */
+    uint8_t room;                               /* the reverb's size and decay over the FX page's (64: as set) */
+    uint8_t bright;
+    uint8_t halo;                               /* the shimmer over the FX page's (64: as set) */
+    uint8_t space, tex, colour, pulse;          /* 0..127 (pulse: unused) */
     uint8_t reg;                                /* VOX's octave, less one: 2..6 (4: its root an octave over middle C's) */
     uint8_t drones;                             /* the drone voices PLAY latches (bit v) */
     uint8_t penta;                              /* (unused) */
@@ -58,7 +64,9 @@ typedef struct {
     uint8_t macro[NMACROS];
     uint8_t rsv;
     scene_t scene[JR_SCENES];
-    uint8_t rsv2[40];                           /* (0.15's two captured loops: spare) */
+    uint8_t dmotion[JR_DMOTION];                /* the drone's own movement: RATE, SWEEP, WIDTH, DRIFT (engine.h DM_*) */
+    uint8_t tide[JR_TIDE];                      /* TIDES: RATE, DRONE, SPACE, VOX, SHAPE (engine.h TD_*) */
+    uint8_t rsv2[40 - JR_DMOTION - JR_TIDE];    /* (0.15's two captured loops: spare) */
     /* the sound (0..127; nothing here reads it but dswell: the engine does) */
     uint8_t shape[JR_VOICES][JR_SHAPE];
     uint8_t dvoice[JR_DRONES][JR_DVOICE];
@@ -71,6 +79,25 @@ typedef struct {
     uint8_t rsv3[3];
 } journey_t;
 
+/* a journey's sound alone, without its scenes: what SHAPE, the holds and TIDES set (A/B and the sound
+ * library keep these). All bytes, laid out as in journey_t */
+typedef struct {
+    uint8_t shape[JR_VOICES][JR_SHAPE];
+    uint8_t dvoice[JR_DRONES][JR_DVOICE];
+    uint8_t dswell;
+    uint8_t bloom[3];
+    uint8_t vsound[JR_VSOUNDS][JR_VS];
+    uint8_t vcur;
+    uint8_t dmotion[JR_DMOTION];
+    uint8_t tide[JR_TIDE];
+} jr_sound_t;
+_Static_assert(sizeof(jr_sound_t) == 122, "a sound: bytes only");
+void jr_sound_get(const journey_t *j, jr_sound_t *s);
+void jr_sound_put(journey_t *j, const jr_sound_t *s);
+/* the way from a to b, t of it (0 .. 1): each value glides; a switch (an octave, HELD or SWELL, the VOX
+ * sound playing) changes at the middle */
+void jr_sound_mix(jr_sound_t *out, const jr_sound_t *a, const jr_sound_t *b, float t);
+
 typedef struct {
     void *ctx;
     void (*drone_note)(void *ctx, int voice, int midi);
@@ -81,7 +108,7 @@ typedef struct {
 
 /* the scene as it sounds now, gliding while it travels (0..127) */
 typedef struct {
-    float bright, space, tex, colour;
+    float bright, space, tex, colour, room, halo;
     int root_midi;                              /* the key's root in octave 1 (24..35): PULSE's tuning */
     float fade;                                 /* 0..1: PLAY fades in, STOP out */
 } jr_out_t;
@@ -111,6 +138,7 @@ const char *jr_preset_name(int i);
 void jr_sound_default(journey_t *j);             /* the sound as made (a preset's, an old journey's) */
 void jr_vsound_default(journey_t *j);            /* VOX's four sounds as made */
 void jr_bloom_default(journey_t *j);             /* BLOOM as made */
+void jr_motion_default(journey_t *j);            /* the drone's movement and TIDES as made */
 const char *jr_vsound_name(int i);               /* GLASS, REED, HALO, LOW */
 int jr_valid(const journey_t *j);                /* loaded from flash: is it one */
 

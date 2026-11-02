@@ -19,6 +19,8 @@ typedef struct {
 static const char *const fx_div_names[13] = {
     "1/32", "1/16T", "1/16", "1/8T", "1/16.", "1/8", "1/4T", "1/8.", "1/4", "1/2T", "1/4.", "1/2", "1/2."
 };
+static const char *const fx_onoff_names[2] = { "OFF", "ON" };
+static const char *const fx_interval_names[SV_INTERVALS] = { "OCTAVE", "FIFTH", "TWELFTH" };
 
 /* pot defaults: the positions 9W9 seeds from its defaults */
 static const fx_pspec_t fx_p[FX_NPARAMS] = {
@@ -32,12 +34,14 @@ static const fx_pspec_t fx_p[FX_NPARAMS] = {
     [FX_DL_LEVEL] = { { "DlLvl", 127, 85, 0 }, CV_LIN, 0, 0.0f, 1.2f },
     [FX_DL_HPF]   = { { "DlHPF", 127, 62, 0 }, CV_EXP, DSP_EXP_FX_HPF, 0.0f, 0.0f },
     [FX_DL_WEAR]  = { { "Wear", 127, 64, 0 }, CV_LIN, 0, 0.0f, 1.0f },
+    [FX_DL_PING]  = { { "Ping", 1, 1, fx_onoff_names }, CV_SW, 0, 0.0f, 0.0f },
 };
 
 static const param_t fx_ext_p[FXX_NPARAMS] = {
     [FXX_RV_SIZE] = { "Size", 127, 89, 0 },           /* 0.5 .. 1.5; 89 = 1.2 */
     [FXX_RV_MOD] = { "Mod", 127, 64, 0 },
     [FXX_RV_SHIMMER] = { "Shimmr", 127, 25, 0 },
+    [FXX_RV_INTERVAL] = { "Intvl", SV_INTERVALS - 1, SV_OCTAVE, fx_interval_names },
 };
 
 int fxbus_ext_nparams(void) { return FXX_NPARAMS; }
@@ -48,13 +52,14 @@ void fxbus_ext_set(fxbus_t *f, int i, int value)
     if (i < 0 || i >= FXX_NPARAMS)
         return;
     if (value < 0) value = 0;
-    if (value > 127) value = 127;
+    if (value > fx_ext_p[i].max) value = fx_ext_p[i].max;
     f->ext_pots[i] = (uint8_t)value;
     const float x = (float)value / 127.0f;
     switch (i) {
     case FXX_RV_SIZE: spacevb_size(&f->rv, x); break;
     case FXX_RV_MOD: spacevb_mod(&f->rv, x); break;
     case FXX_RV_SHIMMER: spacevb_shimmer(&f->rv, x); break;
+    case FXX_RV_INTERVAL: spacevb_interval(&f->rv, value); break;
     default: break;
     }
 }
@@ -92,6 +97,7 @@ static void fx_apply(fxbus_t *f, int i, float v)
     case FX_DL_LEVEL: f->dl_level = v; break;
     case FX_DL_HPF: d9_biquad_set(&f->dl_hp, D9_HP, v, 0.7071f); break;
     case FX_DL_WEAR: f->wear = v; break;
+    case FX_DL_PING: f->dl_ping = (int32_t)v; break;
     default: break;
     }
 }
@@ -141,6 +147,8 @@ void fxbus_init(fxbus_t *f, int16_t *dly_buf, int dly_len)
     d9_biquad_set(&f->dl_hp, D9_HP, 150.0f, 0.7071f);
     f->dl_quiet = dly_len;
     f->wear = 64.0f / 127.0f;
+    f->warp = 1.0f;
+    f->dl_ping = 1;
 
     for (int i = FX_RV_DECAY; i <= FX_RV_LEVEL; ++i)   /* the reverb's pots into spacevb (its own defaults differ) */
         fxbus_set(f, i, fx_p[i].ui.def);
@@ -159,6 +167,7 @@ void fxbus_reverb_buffers(fxbus_t *f, int16_t *rv, int16_t *ps)
     f->rv.hp_c = keep.hp_c;
     f->rv.mod = keep.mod;
     f->rv.level = keep.level;
+    f->rv.ps_inc = keep.ps_inc;
     spacevb_size(&f->rv, f->rv.size - 0.5f);     /* (recomputes the lines' gains) */
 }
 
@@ -192,8 +201,9 @@ static void fx_delay(fxbus_t *f, const float *in, float *out, float *out_r, int 
 {
     /* the caller may hear the returns dl_lead samples late (engine.c runs them a block behind): the
      * echo is read that much sooner, so it still lands on time */
-    const float target = fm_maxf(f->dl_time_ms * 0.001f * D9_SR - f->dl_lead, 1.0f);
     const int32_t len = f->dlen;
+    const float target = fm_minf(fm_maxf(f->dl_time_ms * 0.001f * D9_SR * f->warp - f->dl_lead, 1.0f),
+                                 (float)len - 8.0f);   /* (WARP: never past the line) */
     if (f->dl_quiet >= len) {
         int any = 0;
         for (int i = 0; i < n; ++i)
@@ -222,7 +232,7 @@ static void fx_delay(fxbus_t *f, const float *in, float *out, float *out_r, int 
     }
     int16_t *buf = f->dbuf;
     const float flen = (float)len;
-    const int ping = 2.0f * fm_maxf(f->dcur, target) + f->dl_lead + 4.0f < flen;
+    const int ping = f->dl_ping && 2.0f * fm_maxf(f->dcur, target) + f->dl_lead + 4.0f < flen;
     const float lvl = f->dl_level;
     int32_t quiet = f->dl_quiet;
     int32_t w = f->w;
@@ -286,3 +296,4 @@ void fxbus_wet_st(fxbus_t *f, const float *rev, const float *dly, float *wet_l, 
 }
 
 void fxbus_set_lead(fxbus_t *f, int samples) { f->dl_lead = (float)samples; }
+void fxbus_set_warp(fxbus_t *f, float factor) { f->warp = fm_clampf(factor, 0.25f, 4.0f); }

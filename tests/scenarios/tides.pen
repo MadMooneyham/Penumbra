@@ -1,0 +1,45 @@
+# TIDES (SHAPE's last page): its RATE, how far it moves the DRONE, the SPACE and VOX, ALGO its SHAPE (even ..
+# wandering); DRONE 2 (the drone's own movement: RATE, SWEEP, WIDTH, DRIFT). Pushed all the way, a short
+# tide sweeps the sound without a click or a clip. SEL twice puts a page back as made. Audio in tides.wav.
+wait 500
+tap ENV
+turn SELECT 7
+expect page 7
+turn K1 -40
+expect tide0 0
+turn ALGO -40
+expect tide4 0
+turn K2 60
+turn K3 60
+turn K4 60
+expect tide1 127
+expect tide3 120
+shot tides.png
+wav tides.wav
+tapkey w4
+wait 2000
+tapkey w6
+wait 14000
+wavstop
+expect tide_now >-101
+expect tide_now <101
+expect clips 0
+tap SEL
+tap SEL
+wait 100
+expect tide0 64
+expect tide1 24
+expect tide3 0
+turn SELECT -6
+expect page 1
+turn K1 -20
+turn K2 30
+shot drone2.png
+expect dmotion0 1
+expect dmotion1 85
+tap SEL
+tap SEL
+wait 100
+expect dmotion0 41
+expect dmotion1 25
+expect clips 0

@@ -12,7 +12,8 @@
 #define FW_NAME "PENUMBRA"               /* the name on the screen and in the reader's HELLO answer */
 
 #define SET_MAGIC 0x31534E50u            /* "PNS1": another firmware's settings load as defaults */
-#define SET_FORMAT 3u                    /* (the betas' formats 1 and 2 load as defaults) */
+#define SET_FORMAT 4u                    /* 3 (1.0): the FX page's first 8 at byte 40 (settings.c converts it);
+                                          * the betas' 1 and 2 load as defaults */
 typedef struct {
     uint32_t magic, format;
     uint16_t bpm_x10;                    /* the internal tempo */
@@ -26,9 +27,8 @@ typedef struct {
     uint8_t autoplay;                    /* 1: the journey plays at power-on */
     uint8_t bend;                        /* PITCH's range either way: 0 2, 1 5, 2 7, 3 12 semitones (BEND_SEMIS) */
     uint8_t rsv[5];
-    uint8_t rsv3[16];                    /* (0.14's VOICES page: spare) */
     uint8_t fx[EF_N];                    /* the FX page (engine.h EF_*) */
-    uint8_t rsv2[4];
+    uint8_t rsv2[28 - EF_N];
 } settings_t;
 
 extern settings_t cfg;
@@ -46,6 +46,21 @@ int journey_load_work(void);             /* at power-on, after engine_init: 0 = 
 int journey_save_work(void);             /* 0 = saved */
 int loop_load_work(void);                /* at power-on, after journey_load_work: 0 = the loop is back */
 int loop_save_work(void);                /* 0 = saved, 1 = not now (recording), else failed */
+/* A/B (ENV held): two sounds kept with the journey playing (saved after it in OBJ_WORK) and how far the
+ * sound is between them */
+typedef struct {
+    uint8_t have;                        /* bit 0: A kept, bit 1: B */
+    uint8_t t;                           /* the blend, 0 (A) .. 127 (B) */
+    uint8_t rsv[2];
+    jr_sound_t a, b;
+} sound_ab_t;
+extern sound_ab_t sound_ab;
+/* the sound library (SOUNDS, LFO from JOURNEY): 8 slots of sounds, beside the journeys */
+#define SND_SLOTS 8
+int sound_slots_load(void);
+int sound_slot_used(int slot);
+const jr_sound_t *sound_slot(int slot);          /* 0: empty */
+int sound_slot_save(int slot);           /* the sound playing into the slot; 0 = saved */
 int journey_slots_load(void);
 int journey_slot_used(int slot);
 const char *journey_slot_name(int slot);

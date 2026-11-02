@@ -1,0 +1,79 @@
+# A/B (ENV held): OCT- keeps the sound as A, OCT+ as B, SELECT walks from one to the other, gliding; the
+# octave does not move and SHAPE does not open. Blended, the sound playing is the way between (an octave, a
+# switch, at the middle), and it is saved with the journey, its A and B too. SOUNDS (LFO, from JOURNEY):
+# SAVE stores the sound playing in a slot, SEL brings one back, gliding in. No clicks, no clips. Audio in
+# absounds.wav.
+wait 500
+expect ab_have 0
+tap ENV
+turn K1 -20
+tap HOME
+press ENV
+tap OCT-
+release ENV
+expect ab_have 1
+expect view 0
+tap ENV
+turn K1 40
+turn K4 30
+tap HOME
+key b1 down
+turn K4 1
+key b1 up
+expect dvoice24 2
+press ENV
+tap OCT+
+release ENV
+expect ab_have 3
+expect ab_t 127
+expect view 0
+expect shape11 115
+wav absounds.wav
+tapkey w4
+press ENV
+wait 700
+turn SELECT -32 20
+wait 2500
+shot ab.png
+release ENV
+expect ab_t 0
+expect shape11 35
+expect shape14 44
+expect dvoice24 1
+expect view 0
+press ENV
+turn SELECT 16
+wait 2500
+release ENV
+expect ab_t >60
+expect ab_t <68
+expect shape11 75
+tap SAVE
+wait 100
+powercut
+wait 500
+expect ab_have 3
+expect ab_t >60
+expect shape11 75
+tap LFO
+tap LFO
+expect view 7
+tap SAVE
+wait 100
+expect snd1 1
+tap ENV
+turn K1 -30
+expect shape11 15
+tap LFO
+tap LFO
+tap SEL
+wait 2500
+shot sounds.png
+expect shape11 75
+tapkey w6
+wait 3000
+wavstop
+expect clips 0
+reboot
+wait 300
+expect snd1 1

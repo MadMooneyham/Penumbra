@@ -57,11 +57,11 @@ footer { margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--rule); 
 @media print {
   @page { size: landscape; margin: 9mm; }
   body { font-size: 11.2px; background: #fff; }
-  .sheet { max-width: none; padding: 0; zoom: .82; }        /* one landscape page, A4 or Letter */
+  .sheet { max-width: none; padding: 0; zoom: .84; }        /* one landscape page, A4 or Letter */
   header .links { display: none; }
   table { font-size: 10.8px; }
   .note, footer { font-size: 10px; }
-  svg.panel { width: 78%; margin: 4px auto 2px; }
+  svg.panel { width: 72%; max-width: 640px; margin: 4px auto 2px; }   /* (A4's wider page: no taller drawing) */
 }
 </style>
 </head>
@@ -97,7 +97,7 @@ footer { margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--rule); 
     <rect class="p-ctl" x="52" y="244" width="78" height="28" rx="7"/><text class="t-name" x="91" y="263" text-anchor="middle">OCT−</text>
     <rect class="p-ctl" x="156" y="244" width="78" height="28" rx="7"/><text class="t-name" x="195" y="263" text-anchor="middle">OCT+</text>
     <text class="t-does" x="143" y="290" text-anchor="middle">white keys' octave, ±2</text>
-    <text class="t-small" x="143" y="303" text-anchor="middle">both 5 s: update mode</text>
+    <text class="t-small" x="143" y="303" text-anchor="middle">ENV held: keep A / B · both 5 s: update</text>
   </g>
 
   <!-- the screen -->
@@ -140,12 +140,13 @@ footer { margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--rule); 
           <tr><td><b>Drone</b> b1–5</td><td>LEVEL</td><td>TONE</td><td>DETUNE</td><td>OCTAVE</td><td>ALGO: HELD/SWELL</td></tr>
           <tr><td><b>VOX sound</b> b8–11</td><td>BRIGHT</td><td>WAVE</td><td>FILTER</td><td>RELEASE</td><td></td></tr>
           <tr><td><b>BLOOM</b> b7</td><td>LEVEL</td><td>LENGTH</td><td>HEIGHT</td><td>FIFTH</td><td></td></tr>
-          <tr><td><b>FX</b></td><td>SHIMMER</td><td>FEEDBACK</td><td>FREEZE</td><td>DIP</td><td>throws</td></tr>
+          <tr><td><b>FX</b></td><td>SHIMMER</td><td>FEEDBACK</td><td>FREEZE</td><td>DIP ±</td><td>ALGO: WARP</td></tr>
           <tr><td><b>White key</b></td><td>BRIGHT</td><td>VIBRATO</td><td>SHIMMER</td><td>RELEASE</td><td>ALGO: PITCH</td></tr>
+          <tr><td><b>ENV</b> (A/B)</td><td colspan="5">OCT− keeps the sound as A · OCT+ as B · SELECT blends A ↔ B, gliding</td></tr>
         </tbody>
       </table>
-      <p class="note">Key holds stay as set. FX throws and white-key bends ease back when you let go;
-        <b>SAVE while holding</b> keeps them.</p>
+      <p class="note">Key holds stay as set, and ENV then opens that part's page. Throws and bends ease back
+        when you let go; <b>SAVE while holding</b> keeps them. DIP: left low-pass, right high-pass.</p>
     </section>
     <section>
       <h2>SHAPE (ENV): four knobs a page · ALGO the part's level</h2>
@@ -153,14 +154,17 @@ footer { margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--rule); 
         <thead><tr><th>Page</th><th>K1</th><th>K2</th><th>K3</th><th>K4</th></tr></thead>
         <tbody>
           <tr><td><b>DRONE</b></td><td>FILTER</td><td>BODY</td><td>SWARM</td><td>WAVE</td></tr>
+          <tr><td><b>DRONE 2</b></td><td>RATE</td><td>SWEEP</td><td>WIDTH</td><td>DRIFT</td></tr>
           <tr><td><b>VOX</b></td><td>BRIGHT</td><td>ATTACK</td><td>RELEASE</td><td>SHIMMER</td></tr>
           <tr><td><b>VOX 2</b></td><td>WAVE</td><td>FILTER</td><td>RESO</td><td>GLIDE</td></tr>
           <tr><td><b>VOX 3</b></td><td>DETUNE</td><td>B OCT</td><td>B MIX</td><td>ENV</td></tr>
           <tr><td><b>PULSE</b></td><td>DROP</td><td>DECAY</td><td>CLICK</td><td>SPACE</td></tr>
           <tr><td><b>TEXTURE</b></td><td>COLOUR</td><td>SWEEP</td><td>RATE</td><td>WIDTH</td></tr>
+          <tr><td><b>TIDES</b></td><td>RATE</td><td>DRONE</td><td>SPACE</td><td>VOX</td></tr>
         </tbody>
       </table>
-      <p class="note">ENV again or SELECT: the next page. <b>SEL twice</b>: the page back as made.</p>
+      <p class="note">ENV again or SELECT: the next page. <b>SEL twice</b>: the page back as made. TIDES: one slow
+        swell under it all (ALGO: even .. wandering).</p>
     </section>
   </div>
   <div>
@@ -194,9 +198,11 @@ footer { margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--rule); 
       <h2>Pages</h2>
       <table>
         <tbody>
-          <tr><td><b>FX</b></td><td>REVERB: DECAY SIZE SHIMMER TONE · DELAY: TIME FEEDBACK TONE WEAR</td></tr>
-          <tr><td><b>EDIT</b></td><td>SCENE: SELECT field, K1 scene, K2–K4 value · SEL stores the moment</td></tr>
-          <tr><td><b>LFO</b></td><td>JOURNEY: 6 presets, 8 user slots · SEL opens · SAVE stores</td></tr>
+          <tr><td><b>FX</b></td><td>REVERB: DECAY SIZE SHIMMER TONE · REVERB 2: MOTION LOW&nbsp;CUT INTERVAL LEVEL ·
+            DELAY: TIME FEEDBACK TONE WEAR · DELAY 2: LEVEL LOW&nbsp;CUT PING-PONG WARP</td></tr>
+          <tr><td><b>EDIT</b></td><td>SCENE: SELECT field, K1 scene, K2–K4 value; ROOM, HALO its space · SEL stores</td></tr>
+          <tr><td><b>LFO</b></td><td>JOURNEY: 6 presets, 8 user slots · SEL opens · SAVE stores · again: SOUNDS,
+            8 sounds without scenes (SAVE stores the sound, SEL glides it in)</td></tr>
           <tr><td><b>GLO</b></td><td>SYSTEM: clock, MIDI, bend range, SLEEP, RESET SOUND · again: BENCH</td></tr>
           <tr><td><b>HOME</b></td><td>the corona, the scene, the loop, the macros</td></tr>
         </tbody>
@@ -231,8 +237,8 @@ footer { margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--rule); 
     parent.appendChild(e);
     return e;
   }
-  const ROW1 = [["FX", "FX", "held: throws"], ["SEL", "choose", "×2: reset"], ["ENV", "SHAPE", "again: next"],
-                ["LFO", "JOURNEY", ""], ["EDIT", "SCENE", ""], ["GLO", "SYSTEM", "again: BENCH"]];
+  const ROW1 = [["FX", "FX", "held: throws"], ["SEL", "choose", "×2: reset"], ["ENV", "SHAPE", "held: A/B"],
+                ["LFO", "JOURNEY", "again: SOUNDS"], ["EDIT", "SCENE", ""], ["GLO", "SYSTEM", "again: BENCH"]];
   const ROW2 = [["HOME", "HOME", ""], ["SAVE", "save", "in a hold: keep"], ["ARP", "FREEZE", ""],
                 ["SEQ", "clock", "start / stop"], ["PLAY", "loop", "play / stop"], ["REC", "loop", "rec / dub"]];
   const btns = document.getElementById("btns");

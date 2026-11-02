@@ -32,6 +32,8 @@ static void recompute(spacevb_t *v)
         v->d[j] = MS[j] * v->size * (SR / 1000.0f);
         v->g[j] = fm_exp2f(-9.9657843f * v->d[j] / (v->t60 * SR));   /* 10^(-3 d / (T60 sr)) */
         gs += v->g[j];
+        if (v->quiet > SV_TOTAL)                          /* silent: the new size at once */
+            v->dcur[j] = v->d[j];
     }
     /* the tank sustains like 1 / (1 - g): this keeps the shimmer loop under unity */
     v->shim_gain = v->shimmer * (1.0f - gs * (1.0f / SV_LINES)) * 4.0f;
@@ -44,6 +46,12 @@ void spacevb_level(spacevb_t *v, float x) { v->level = x; }
 void spacevb_size(spacevb_t *v, float x) { v->size = 0.5f + fm_clampf(x, 0.0f, 1.0f); recompute(v); }
 void spacevb_mod(spacevb_t *v, float x) { v->mod = x; }
 void spacevb_shimmer(spacevb_t *v, float x) { v->shimmer = 0.9f * x; recompute(v); }
+/* the grains read faster than they are written by the interval less one: x2 an octave, x1.5 a fifth, x3 */
+void spacevb_interval(spacevb_t *v, int i)
+{
+    static const float R[SV_INTERVALS] = {1.0f, 0.5f, 2.0f};
+    v->ps_inc = R[(unsigned)i % SV_INTERVALS] / (float)PS_WIN;
+}
 
 void spacevb_init(spacevb_t *v, int16_t *buf, int16_t *ps)
 {
@@ -69,7 +77,9 @@ void spacevb_init(spacevb_t *v, int16_t *buf, int16_t *ps)
     v->t60 = 14.0f;
     v->size = 1.2f;
     v->shimmer = 0.18f;
+    v->quiet = SV_TOTAL + 1;                              /* (silent: recompute sets the lengths at once) */
     recompute(v);
+    spacevb_interval(v, SV_OCTAVE);
     spacevb_tone(v, 0.5f);
     spacevb_lowcut(v, 120.0f);
     v->mod = 0.5f;
@@ -112,11 +122,15 @@ static void tick(spacevb_t *v, float x, float *pl, float *pr)
         float xin, ol, orr, sh = 0.0f;
         int32_t loud = 0, h;
         if (v->ctrl_left <= 0) {                         /* the moving lines, at the control rate */
-            const float md = v->mod * MOD_MAX;
+            const float md = v->mod * MOD_MAX, step = SV_SLEW * (float)CTRL;
             v->mod_ph += 0.31f * (float)CTRL * INV_SR;
             if (v->mod_ph >= 1.0f) v->mod_ph -= 1.0f;
-            for (j = 0; j < SV_LINES; j++)
-                v->dmod[j] = v->d[j] + (j < 4 ? md * (1.0f + fm_sin_turns(v->mod_ph + 0.27f * (float)j)) : 0.0f);
+            for (j = 0; j < SV_LINES; j++) {
+                float c = v->dcur[j], t = v->d[j];       /* a new SIZE: there by SV_SLEW a sample */
+                if (c != t)
+                    v->dcur[j] = c < t ? (t - c > step ? c + step : t) : (c - t > step ? c - step : t);
+                v->dmod[j] = v->dcur[j] + (j < 4 ? md * (1.0f + fm_sin_turns(v->mod_ph + 0.27f * (float)j)) : 0.0f);
+            }
             v->ctrl_left = CTRL;
         }
         v->ctrl_left--;
@@ -159,7 +173,7 @@ static void tick(spacevb_t *v, float x, float *pl, float *pr)
             v->pz[3] = PZ_B0 * t - PZ_A2 * s;
             v->ps[v->ps_w] = q16(s, &loud);
         }
-        v->ps_ph += 1.0f / (float)PS_WIN;
+        v->ps_ph += v->ps_inc;
         if (v->ps_ph >= 1.0f) v->ps_ph -= 1.0f;
         {                                                /* (the second's window is 1 - the first's) */
             float ph1 = v->ps_ph + 0.5f, wv = fm_sin_turns(v->ps_ph * 0.5f);

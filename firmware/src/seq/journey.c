@@ -22,32 +22,33 @@ const char *jr_voicing_name(int v) { return VOICING_N[(unsigned)v % NVOICINGS]; 
 
 /* --------------------------------------------------------------- presets --- */
 /* each journey keeps its drone's root from scene to scene: where the key moves, the pedal stays (a
- * scene's pedal is 1 + its pitch class), so the drone changes only its voicing's colour. (The unused
- * fields keep their old values: a journey saved by 0.15 reads the same.) */
-#define SCN(root, scale, prog, voc, dens, bri, swm, spc, tex, col, pul, reg, dr, pen, ped) \
-    {root, scale, prog, voc, dens, bri, swm, spc, tex, col, pul, reg, dr, pen, ped, 0}
+ * scene's pedal is 1 + its pitch class), so the drone changes only its voicing's colour. Each scene has
+ * a space of its own (ROOM, HALO): a journey travels from one room to the next. (The unused fields keep
+ * their old values.) */
+#define SCN(root, scale, prog, voc, room, bri, halo, spc, tex, col, pul, reg, dr, pen, ped) \
+    {root, scale, prog, voc, room, bri, halo, spc, tex, col, pul, reg, dr, pen, ped, 0}
 typedef struct { const char *name; uint32_t seed; uint8_t n; scene_t s[4]; } preset_t;
 static const preset_t PRESET[JR_PRESETS] = {
-    {"ECLIPSE", 0x5EC1u, 4, {SCN(9, SC_AEOLIAN, 7, VC_WARM, 60, 60, 80, 80, 40, 50, 0, 4, 0x07, 1, 0),
-                             SCN(9, SC_AEOLIAN, 1, VC_OPEN, 85, 72, 95, 70, 30, 70, 40, 4, 0x1F, 0, 0),
-                             SCN(5, SC_LYDIAN, 4, VC_HIGH, 70, 80, 70, 90, 50, 85, 20, 4, 0x1D, 0, 10),
-                             SCN(9, SC_DORIAN, 2, VC_WARM, 45, 55, 90, 85, 60, 45, 0, 4, 0x0B, 1, 0)}},
-    {"PENUMBRA", 0x9E7Bu, 3, {SCN(2, SC_DORIAN, 2, VC_WARM, 70, 65, 85, 75, 35, 55, 50, 4, 0x1F, 1, 0),
-                              SCN(2, SC_DORIAN, 9, VC_OPEN, 90, 75, 90, 70, 25, 65, 70, 4, 0x1F, 0, 0),
+    {"ECLIPSE", 0x5EC1u, 4, {SCN(9, SC_AEOLIAN, 7, VC_WARM, 64, 60, 64, 80, 40, 50, 0, 4, 0x07, 1, 0),
+                             SCN(9, SC_AEOLIAN, 1, VC_OPEN, 82, 72, 74, 70, 30, 70, 40, 4, 0x1F, 0, 0),
+                             SCN(5, SC_LYDIAN, 4, VC_HIGH, 100, 80, 92, 90, 50, 85, 20, 4, 0x1D, 0, 10),
+                             SCN(9, SC_DORIAN, 2, VC_WARM, 72, 55, 60, 85, 60, 45, 0, 4, 0x0B, 1, 0)}},
+    {"PENUMBRA", 0x9E7Bu, 3, {SCN(2, SC_DORIAN, 2, VC_WARM, 70, 65, 64, 75, 35, 55, 50, 4, 0x1F, 1, 0),
+                              SCN(2, SC_DORIAN, 9, VC_OPEN, 86, 75, 82, 70, 25, 65, 70, 4, 0x1F, 0, 0),
                               SCN(7, SC_MIXOLYDIAN, 3, VC_WARM, 60, 70, 70, 80, 40, 70, 30, 4, 0x0F, 1, 3)}},
-    {"SELENE", 0x5E1Eu, 3, {SCN(4, SC_PHRYGIAN, 4, VC_CLUSTER, 35, 40, 100, 95, 70, 35, 0, 3, 0x13, 0, 0),
-                            SCN(4, SC_PHRYGIAN, 9, VC_OPEN, 55, 48, 110, 90, 60, 40, 25, 4, 0x1F, 1, 0),
-                            SCN(0, SC_LYDIAN, 0, VC_HIGH, 30, 60, 80, 100, 80, 60, 0, 4, 0x11, 0, 5)}},
-    {"TRANQUILITY", 0x7A9Cu, 3, {SCN(0, SC_LYDIAN, 4, VC_HIGH, 55, 85, 70, 90, 30, 90, 0, 4, 0x1F, 0, 0),
-                                 SCN(7, SC_IONIAN, 8, VC_WARM, 70, 80, 75, 85, 25, 80, 20, 4, 0x1F, 1, 1),
-                                 SCN(4, SC_AEOLIAN, 7, VC_WARM, 60, 70, 80, 85, 35, 70, 10, 4, 0x1F, 1, 1)}},
-    {"PERIGEE", 0x9E21u, 3, {SCN(6, SC_AEOLIAN, 7, VC_OPEN, 95, 70, 75, 60, 20, 60, 85, 4, 0x1F, 1, 0),
-                             SCN(6, SC_DORIAN, 2, VC_WARM, 110, 80, 80, 55, 20, 70, 100, 4, 0x1F, 0, 0),
-                             SCN(2, SC_LYDIAN, 4, VC_HIGH, 80, 85, 70, 70, 25, 80, 60, 4, 0x1D, 1, 7)}},
-    {"FAR SIDE", 0xFA75u, 4, {SCN(7, SC_HARMONIC, 1, VC_WARM, 50, 50, 95, 100, 75, 30, 0, 4, 0x1F, 0, 0),
-                              SCN(3, SC_LYDIAN, 0, VC_HIGH, 30, 55, 90, 110, 85, 50, 0, 4, 0x15, 0, 8),
-                              SCN(0, SC_AEOLIAN, 7, VC_WARM, 70, 60, 85, 90, 50, 45, 30, 4, 0x1F, 1, 8),
-                              SCN(7, SC_HARMONIC, 9, VC_CLUSTER, 40, 45, 110, 100, 70, 35, 0, 3, 0x13, 0, 0)}}};
+    {"SELENE", 0x5E1Eu, 3, {SCN(4, SC_PHRYGIAN, 4, VC_CLUSTER, 92, 40, 82, 95, 70, 35, 0, 3, 0x13, 0, 0),
+                            SCN(4, SC_PHRYGIAN, 9, VC_OPEN, 76, 48, 64, 90, 60, 40, 25, 4, 0x1F, 1, 0),
+                            SCN(0, SC_LYDIAN, 0, VC_HIGH, 112, 60, 104, 100, 80, 60, 0, 4, 0x11, 0, 5)}},
+    {"TRANQUILITY", 0x7A9Cu, 3, {SCN(0, SC_LYDIAN, 4, VC_HIGH, 74, 85, 92, 90, 30, 90, 0, 4, 0x1F, 0, 0),
+                                 SCN(7, SC_IONIAN, 8, VC_WARM, 64, 80, 70, 85, 25, 80, 20, 4, 0x1F, 1, 1),
+                                 SCN(4, SC_AEOLIAN, 7, VC_WARM, 82, 70, 76, 85, 35, 70, 10, 4, 0x1F, 1, 1)}},
+    {"PERIGEE", 0x9E21u, 3, {SCN(6, SC_AEOLIAN, 7, VC_OPEN, 50, 70, 50, 60, 20, 60, 85, 4, 0x1F, 1, 0),
+                             SCN(6, SC_DORIAN, 2, VC_WARM, 56, 80, 60, 55, 20, 70, 100, 4, 0x1F, 0, 0),
+                             SCN(2, SC_LYDIAN, 4, VC_HIGH, 74, 85, 78, 70, 25, 80, 60, 4, 0x1D, 1, 7)}},
+    {"FAR SIDE", 0xFA75u, 4, {SCN(7, SC_HARMONIC, 1, VC_WARM, 98, 50, 78, 100, 75, 30, 0, 4, 0x1F, 0, 0),
+                              SCN(3, SC_LYDIAN, 0, VC_HIGH, 118, 55, 98, 110, 85, 50, 0, 4, 0x15, 0, 8),
+                              SCN(0, SC_AEOLIAN, 7, VC_WARM, 84, 60, 70, 90, 50, 45, 30, 4, 0x1F, 1, 8),
+                              SCN(7, SC_HARMONIC, 9, VC_CLUSTER, 106, 45, 86, 100, 70, 35, 0, 3, 0x13, 0, 0)}}};
 
 const char *jr_preset_name(int i) { return PRESET[(unsigned)i % JR_PRESETS].name; }
 
@@ -71,6 +72,20 @@ void jr_sound_default(journey_t *j)
     j->dswell = 0;
     jr_vsound_default(j);
     jr_bloom_default(j);
+    jr_motion_default(j);
+}
+
+/* the drone's movement (engine.h DM_*): its LFO's RATE (~14 s), SWEEP (over its filter), WIDTH (the voices
+ * swinging apart), DRIFT (their tuning wandering), as the drone has always moved. TIDES (TD_*): one slow
+ * swell, ~50 s, through the drone's filter and the space, a little irregular (SHAPE 64) */
+void jr_motion_default(journey_t *j)
+{
+    static const uint8_t DM[JR_DMOTION] = {41, 25, 38, 25}, TD[JR_TIDE] = {64, 24, 20, 0, 64};
+    int k;
+    for (k = 0; k < JR_DMOTION; k++)
+        j->dmotion[k] = DM[k];
+    for (k = 0; k < JR_TIDE; k++)
+        j->tide[k] = TD[k];
 }
 
 void jr_bloom_default(journey_t *j)              /* level 90, LENGTH 64, an octave over, FIFTH 64 */
@@ -97,6 +112,55 @@ void jr_vsound_default(journey_t *j)
         for (f = 0; f < JR_VS; f++)
             j->vsound[s][f] = VS[s][f];
     j->vcur = 0;
+}
+
+/* ---------------------------------------------------------------- the sound --- */
+void jr_sound_get(const journey_t *j, jr_sound_t *s)
+{
+    uint32_t k;
+    for (k = 0; k < sizeof s->shape; k++) (&s->shape[0][0])[k] = (&j->shape[0][0])[k];
+    for (k = 0; k < sizeof s->dvoice; k++) (&s->dvoice[0][0])[k] = (&j->dvoice[0][0])[k];
+    s->dswell = j->dswell;
+    for (k = 0; k < sizeof s->bloom; k++) s->bloom[k] = j->bloom[k];
+    for (k = 0; k < sizeof s->vsound; k++) (&s->vsound[0][0])[k] = (&j->vsound[0][0])[k];
+    s->vcur = j->vcur;
+    for (k = 0; k < JR_DMOTION; k++) s->dmotion[k] = j->dmotion[k];
+    for (k = 0; k < JR_TIDE; k++) s->tide[k] = j->tide[k];
+}
+void jr_sound_put(journey_t *j, const jr_sound_t *s)
+{
+    uint32_t k;
+    for (k = 0; k < sizeof s->shape; k++) (&j->shape[0][0])[k] = (&s->shape[0][0])[k];
+    for (k = 0; k < sizeof s->dvoice; k++) (&j->dvoice[0][0])[k] = (&s->dvoice[0][0])[k];
+    j->dswell = s->dswell;
+    for (k = 0; k < sizeof s->bloom; k++) j->bloom[k] = s->bloom[k];
+    for (k = 0; k < sizeof s->vsound; k++) (&j->vsound[0][0])[k] = (&s->vsound[0][0])[k];
+    j->vcur = s->vcur;
+    for (k = 0; k < JR_DMOTION; k++) j->dmotion[k] = s->dmotion[k];
+    for (k = 0; k < JR_TIDE; k++) j->tide[k] = s->tide[k];
+}
+/* (the switches, by their place in jr_sound_t: each drone voice's OCTAVE (engine.h DV_OCT = 3), BLOOM's
+ * HEIGHT (1), each VOX sound's B OCTAVE (VS_BOCT = 11), then dswell and vcur whole) */
+#define SND_OFF(f) ((uint32_t)__builtin_offsetof(jr_sound_t, f))
+static int snd_switch(uint32_t i)
+{
+    if (i >= SND_OFF(dvoice) && i < SND_OFF(dswell))
+        return (i - SND_OFF(dvoice)) % JR_DVOICE == 3u;
+    if (i == SND_OFF(dswell) || i == SND_OFF(vcur) || i == SND_OFF(bloom) + 1u)
+        return 1;
+    if (i >= SND_OFF(vsound) && i < SND_OFF(vcur))
+        return (i - SND_OFF(vsound)) % JR_VS == 11u;
+    return 0;
+}
+void jr_sound_mix(jr_sound_t *out, const jr_sound_t *a, const jr_sound_t *b, float t)
+{
+    const uint8_t *pa = (const uint8_t *)a, *pb = (const uint8_t *)b;
+    uint8_t *po = (uint8_t *)out;
+    uint32_t i;
+    t = t < 0.0f ? 0.0f : t > 1.0f ? 1.0f : t;
+    for (i = 0; i < sizeof *out; i++)
+        po[i] = snd_switch(i) ? (t < 0.5f ? pa[i] : pb[i])
+                              : (uint8_t)((float)pa[i] + ((float)pb[i] - (float)pa[i]) * t + 0.5f);
 }
 
 void jr_preset(int i, journey_t *dst)
@@ -423,6 +487,8 @@ void jr_tick(jrun_t *r, uint32_t frames, const jr_sink_t *o)
     r->out.space = lerp_u8(a->space, b->space, t);
     r->out.tex = lerp_u8(a->tex, b->tex, t);
     r->out.colour = lerp_u8(a->colour, b->colour, t);
+    r->out.room = lerp_u8(a->room, b->room, t);
+    r->out.halo = lerp_u8(a->halo, b->halo, t);
     r->out.root_midi = 24 + sc(r)->root % 12;
 }
 
@@ -449,4 +515,6 @@ void jr_scene_now(const jrun_t *r, scene_t *s)
     s->space = (uint8_t)(r->out.space + 0.5f);
     s->tex = (uint8_t)(r->out.tex + 0.5f);
     s->colour = (uint8_t)(r->out.colour + 0.5f);
+    s->room = (uint8_t)(r->out.room + 0.5f);
+    s->halo = (uint8_t)(r->out.halo + 0.5f);
 }

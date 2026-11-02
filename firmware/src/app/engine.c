@@ -199,7 +199,7 @@ float engine_drone_level(int voice)
 }
 
 /* --------------------------------------------------------------- the scene --- */
-/* the test scene, after the prototype's "Cinematic" (drone-proto/drone.html): an A minor drone (root,
+/* the test scene, after the prototype's "Cinematic" (drone-proto/drone.html, in the history up to 1.0): an A minor drone (root,
  * fifth, octave, minor third, high octave on DR1-DR5; the prototype's second fifth went with the sixth
  * voice), each voice a little off true like a Solar tuned by ear, spread across the field; VOX a soft
  * pad of two saws; all of it into a long shimmering reverb and a worn ping-pong tape delay, dotted
@@ -210,19 +210,27 @@ static float rev_base[NPARTS], dly_base[NPARTS], space_k = 1.0f;
 
 /* the FX page's settings (settings.c keeps them; they come here as commands), the hands' moves on top */
 static int16_t perf[PF_N];
+#define EF_NONE 0xFF                             /* (WARP's range: the engine's own, not the bus's) */
 static const uint8_t EF_PARAM[EF_N] = {FX_RV_DECAY, FXX_RV_SIZE, FXX_RV_SHIMMER, FX_RV_TONE, FX_DL_TIME, FX_DL_FDBK,
-                                       FX_DL_TONE, FX_DL_WEAR};
-static const uint8_t EF_EXT[EF_N] = {0, 1, 1, 0, 0, 0, 0, 0};
-static uint8_t fx_set[EF_N] = {91, 89, 25, 57, 10, 82, 57, 44};
-int engine_fx_max(int i) { return i == EF_DL_TIME ? fxbus_param(FX_DL_TIME)->max : 127; }
+                                       FX_DL_TONE, FX_DL_WEAR, FXX_RV_MOD, FX_RV_HPF, FXX_RV_INTERVAL, FX_RV_LEVEL,
+                                       FX_DL_LEVEL, FX_DL_HPF, FX_DL_PING, EF_NONE};
+static const uint8_t EF_EXT[EF_N] = {0, 1, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0};
+static uint8_t fx_set[EF_N] = {91, 89, 25, 57, 10, 82, 57, 44, 64, 62, 0, 106, 85, 62, 1, 64};
+static const param_t *ef_param(int i)            /* the bus's description of a setting (0: WARP's) */
+{
+    if (i < 0 || i >= EF_N || EF_PARAM[i] == EF_NONE)
+        return 0;
+    return EF_EXT[i] ? fxbus_ext_param(EF_PARAM[i]) : fxbus_param(EF_PARAM[i]);
+}
+int engine_fx_max(int i) { return ef_param(i) ? ef_param(i)->max : 127; }
 const char *engine_fx_value_name(int i, int value)
 {
-    const param_t *p = i == EF_DL_TIME ? fxbus_param(FX_DL_TIME) : 0;
+    const param_t *p = ef_param(i);
     return p && p->names && value >= 0 && value <= p->max ? p->names[value] : 0;
 }
 static void fx_apply(int i)
 {
-    if (i < 0 || i >= EF_N)
+    if (i < 0 || i >= EF_N || EF_PARAM[i] == EF_NONE)
         return;
     if (EF_EXT[i])
         fxbus_ext_set(&fx, EF_PARAM[i], fx_set[i]);
@@ -373,7 +381,7 @@ enum { K_DCUT, K_DRESO, K_SWARM, K_VCUT, K_VATK, K_VREL, K_VVIB, K_PPITCH, K_PDE
        K_TSWEEP, K_TRATE, K_TWIDTH, K_ROOT, K_SHIM, K_FDBK, K_DECAY, K_DIP, K_BLVL, K_BLEN, K_BHGT, K_B5TH,
        K_LEVEL, K_DWAVE = K_LEVEL + EV_N, K_DLVL = K_DWAVE + DRONE_VOICES, K_DTONE = K_DLVL + DRONE_VOICES,
        K_DSPREAD = K_DTONE + DRONE_VOICES, K_DOCT = K_DSPREAD + DRONE_VOICES, K_DMODE = K_DOCT + DRONE_VOICES,
-       K_VX = K_DMODE + DRONE_VOICES, NK = K_VX + 8 };
+       K_VX = K_DMODE + DRONE_VOICES, K_SIZE = K_VX + 8, K_DM = K_SIZE + 1, K_WARP = K_DM + DM_N, NK = K_WARP + 1 };
 static int16_t cache[NK];
 static int moved(int k, int v)
 {
@@ -383,6 +391,35 @@ static int moved(int k, int v)
     return 1;
 }
 static int clamp127(float x) { return x < 0.0f ? 0 : x > 127.0f ? 127 : (int)(x + 0.5f); }
+
+/* TIDES: one slow swell under everything. An even sine and a wandering one (a new random height every
+ * half tide, eased into), blended by SHAPE; the same every time it starts (a fixed seed) */
+static float tide_ph, tide_wph, tide_from, tide_to, tide_now;
+static uint32_t tide_rng = 0x7A1DEu;
+static float tide_rand(void)
+{
+    tide_rng = tide_rng * 1664525u + 1013904223u;
+    return (float)(tide_rng >> 8) * (2.0f / 16777216.0f) - 1.0f;
+}
+static void tide_tick(uint32_t n)
+{
+    const uint8_t *td = eng_jr.tide;
+    float period = 8.0f * fm_exp2f((float)td[TD_RATE] * (5.0f / 127.0f)), inc = (float)n / (44100.0f * period);
+    float w = (float)td[TD_SHAPE] * (1.0f / 127.0f), ease;
+    tide_ph += inc;
+    if (tide_ph >= 1.0f)
+        tide_ph -= 1.0f;
+    tide_wph += 2.0f * inc;                      /* (the wandering one: a new height each half tide) */
+    if (tide_wph >= 1.0f) {
+        tide_wph -= 1.0f;
+        tide_from = tide_to;
+        tide_to = tide_rand();
+    }
+    ease = 0.5f - 0.5f * fm_sin_turns(0.25f - 0.5f * tide_wph);   /* 0 .. 1, cosine-eased */
+    tide_now = (1.0f - w) * fm_sin_turns(tide_ph) + w * (tide_from + (tide_to - tide_from) * ease);
+}
+float engine_tide(void) { return tide_now; }
+
 static void conduct(void)
 {
     const jr_out_t *o = &jr.out;
@@ -390,12 +427,22 @@ static void conduct(void)
     const float tone = jr.macro_s[MAC_TONE] - 64.0f, freeze = (float)perf[PF_FREEZE] * (1.0f / 127.0f);
     const float dmac = jr.macro_s[MAC_DRONE] - 64.0f, bright = o->bright + tone + (jr.macro_s[MAC_VOX] - 64.0f) * 0.9f;
     const uint8_t *vs = eng_jr.vsound[eng_jr.vcur % JR_VSOUNDS];
+    const uint8_t *td = eng_jr.tide, *dm = eng_jr.dmotion;
+    /* the tide's reach: the drone's filter (pot steps), VOX's brightness, the sends (a share) */
+    const float t_drone = tide_now * (float)td[TD_DRONE] * (36.0f / 127.0f);
+    const float t_vox = tide_now * (float)td[TD_VOX] * (30.0f / 127.0f);
+    const float t_space = 1.0f + tide_now * (float)td[TD_SPACE] * (0.5f / 127.0f);
+    const float room = o->room - 64.0f, halo = o->halo - 64.0f;   /* the scene's space, over the FX page's */
     int v, x, swarm = sh[EV_DRONE][SH_K3];
+    static const uint8_t DM_OF[DM_N] = {DB_LFORATE, DB_LFOCUT, DB_LFOPAN, DB_DRIFT};
+    for (v = 0; v < DM_N; v++)                   /* the drone's own movement */
+        if (moved(K_DM + v, dm[v]))
+            drone_set(&dn, DRONE_KIT, DM_OF[v], dm[v]);
     for (v = 0; v < EV_N; v++)
         if (moved(K_LEVEL + v, x = v == EV_VOX ? vs[VS_LEVEL] : sh[v][SH_LEVEL]))
             voice_level(v, x);
     /* DRONE: HOME's DRONE opens its filter and its body together */
-    if (moved(K_DCUT, x = clamp127((float)sh[EV_DRONE][SH_K1] + tone * 0.66f + dmac * 0.8f)))
+    if (moved(K_DCUT, x = clamp127((float)sh[EV_DRONE][SH_K1] + tone * 0.66f + dmac * 0.8f + t_drone)))
         drone_set(&dn, DRONE_KIT, DB_CUTOFF, x);
     if (moved(K_DRESO, x = clamp127((float)sh[EV_DRONE][SH_K2] + dmac * 0.4f)))
         drone_set(&dn, DRONE_KIT, DB_RESO, x);
@@ -420,7 +467,7 @@ static void conduct(void)
         }                                        /* (comes and goes -> held: one sounding stays, latched) */
     }
     /* VOX: the sound playing (of its four), the scene's brightness, a bend */
-    if (moved(K_VCUT, x = clamp127(30.0f + bright * 0.47f + (float)(vs[VS_BRIGHT] - 64 + perf[PF_BRIGHT]))))
+    if (moved(K_VCUT, x = clamp127(30.0f + bright * 0.47f + (float)(vs[VS_BRIGHT] - 64 + perf[PF_BRIGHT]) + t_vox)))
         vox_set(&vox, VX_CUTOFF, x);
     if (moved(K_VATK, vs[VS_ATTACK]))
         vox_set(&vox, VX_ATTACK, vs[VS_ATTACK]);
@@ -463,20 +510,29 @@ static void conduct(void)
         texture_set(&tex, TX_RATE, sh[EV_TEX][SH_K3]);
     if (moved(K_TWIDTH, sh[EV_TEX][SH_K4]))
         texture_set(&tex, TX_WIDTH, sh[EV_TEX][SH_K4]);
-    /* the throws: over the FX page's */
-    if (moved(K_SHIM, x = clamp127((float)(fx_set[EF_RV_SHIMMER] + perf[PF_SHIMMER]))))
+    /* the reverb: the FX page's, the scene's ROOM and HALO over it, the throws over that */
+    if (moved(K_SIZE, x = clamp127((float)fx_set[EF_RV_SIZE] + room * 0.75f)))
+        fxbus_ext_set(&fx, FXX_RV_SIZE, x);      /* (the lines slew there: spacevb.h) */
+    if (moved(K_SHIM, x = clamp127((float)fx_set[EF_RV_SHIMMER] + halo * 0.75f + (float)perf[PF_SHIMMER])))
         fxbus_ext_set(&fx, FXX_RV_SHIMMER, x);
     if (moved(K_FDBK, x = clamp127((float)fx_set[EF_DL_FDBK] + (float)perf[PF_FDBK] * (fm_maxf(118.0f - (float)fx_set[EF_DL_FDBK], 0.0f) / 127.0f))))
         fxbus_set(&fx, FX_DL_FDBK, x);           /* (up to 118: it swells, it never runs away) */
-    if (moved(K_DECAY, x = clamp127((float)fx_set[EF_RV_DECAY] + (127.0f - (float)fx_set[EF_RV_DECAY]) * freeze)))
-        fxbus_set(&fx, FX_RV_DECAY, x);
-    if (moved(K_DIP, x = perf[PF_DIP] < 3 ? 64 : 59 - perf[PF_DIP] * 59 / 127))
-        master_dip(&mst, x);                     /* (64: off; under 60, the low-pass closing) */
+    {
+        float dec = fm_clampf((float)fx_set[EF_RV_DECAY] + room * 0.5f, 0.0f, 127.0f);
+        if (moved(K_DECAY, x = clamp127(dec + (127.0f - dec) * freeze)))
+            fxbus_set(&fx, FX_RV_DECAY, x);
+    }
+    if (moved(K_DIP, x = perf[PF_DIP] > -3 && perf[PF_DIP] < 3 ? 64     /* (open) */
+                         : perf[PF_DIP] < 0 ? 59 + perf[PF_DIP] * 59 / 127   /* left: the low-pass closing */
+                         : 69 + perf[PF_DIP] * 58 / 127))                    /* right: the high-pass opening */
+        master_dip(&mst, x);
+    if (moved(K_WARP, perf[PF_WARP]))            /* WARP: the delay's time bent, up to the FX page's range */
+        fxbus_set_warp(&fx, fm_exp2f((float)perf[PF_WARP] * (float)fx_set[EF_DL_WARP] * (1.0f / (127.0f * 64.0f))));
     {   /* SPACE: the scene's x the macro, 64 x 64 as made; each voice's own send on top (VOX's bent); a
          * FREEZE closes what goes in, so the reverb holds what it has */
         static const uint8_t SEND[NPARTS] = {64, 0, 0, 64, 64};
         float shut = 1.0f - 0.9f * freeze;
-        space_k = fm_clampf(o->space * jr.macro_s[MAC_SPACE] * (1.0f / (80.0f * 64.0f)), 0.0f, 1.8f);
+        space_k = fm_clampf(o->space * jr.macro_s[MAC_SPACE] * (1.0f / (80.0f * 64.0f)) * t_space, 0.0f, 1.8f);
         for (v = 0; v < NPARTS; v++) {
             int snd = v == P_VOX ? vs[VS_SHIMMER] + perf[PF_VSEND] : v == P_PULSE ? sh[EV_PULSE][SH_K4] : SEND[v];
             float s = space_k * (float)(snd < 0 ? 0 : snd) * (1.0f / 64.0f);
@@ -718,9 +774,11 @@ static void drain(void)
             int v = (int)(c & 0xFFFu) - 128;
             perf[a] = (int16_t)(v < -127 ? -127 : v > 127 ? 127 : v);
         } else if (type == C_FX && a < EF_N) {
-            fx_set[a] = (uint8_t)((c & 0xFFFu) > 127u ? 127u : (c & 0xFFFu));
+            fx_set[a] = (uint8_t)((int)(c & 0xFFFu) > engine_fx_max((int)a) ? engine_fx_max((int)a) : (int)(c & 0xFFFu));
             if (!testing)
                 fx_apply((int)a);
+            cache[K_SIZE] = cache[K_SHIM] = cache[K_DECAY] = cache[K_FDBK] = cache[K_WARP] = -1;   /* (conduct puts the
+                                                     * scene's space and the throws back over the page's, at once) */
         }
     }
     cq_r = r;
@@ -960,6 +1018,7 @@ void engine_render(int32_t *out_lr, uint32_t n)
     looper_tick(n);
     if (!testing) {                              /* the scene's glides, then the sound into the voices */
         jr_tick(&jr, n, &JSINK);
+        tide_tick(n);
         conduct();
     }
     if (drone_active(&dn)) {                     /* before either core's voices */

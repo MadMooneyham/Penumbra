@@ -1,13 +1,14 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The master section, after the send FX: DIP (a low-pass over the whole mix), volume, limiter.
- * See master.c. */
+/* The master section, after the send FX: DIP (a low-pass or a high-pass over the whole mix), volume,
+ * limiter. See master.c. */
 #pragma once
 #include <stdint.h>
 
+enum { MST_OPEN, MST_LP, MST_HP };
 typedef struct {
-    uint8_t dip;                      /* 64 = open; under 60 the low-pass closes */
-    uint8_t lp;                       /* the low-pass is in */
-    /* the low-pass */
+    uint8_t dip;                      /* 60 .. 68 = open; under 60 the low-pass closes, over 68 the high-pass */
+    uint8_t mode;                     /* MST_* */
+    /* the filter */
     float g, g_t, k;
     float a1;                         /* 1 / (1 + g (g + k)): recomputed only while g moves */
     float ic1, ic2;
@@ -21,8 +22,9 @@ typedef struct {
 } master_t;
 
 void master_init(master_t *m);
-/* DIP 0..127: 64 (and over) open; under 60 a low-pass closing, from 18 kHz at 59 to ~50 Hz at 0 */
+/* DIP 0..127: 60 .. 68 open; under 60 a low-pass closing, from 18 kHz at 59 to ~50 Hz at 0; over 68 a
+ * high-pass opening, from 30 Hz at 69 to ~10 kHz at 127 */
 void master_dip(master_t *m, int v);
-/* in place, stereo: the low-pass on each side, the volume (0..1+), the limiter on the louder side,
+/* in place, stereo: the filter on each side, the volume (0..1+), the limiter on the louder side,
  * which moves both together */
 void master_process_st(master_t *m, float *l, float *r, int n, float volume);

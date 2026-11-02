@@ -1,9 +1,10 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The master: DIP, volume, limiter. (X0X's master, less what Penumbra never used: its compressor, the
- * kick-keyed PUMP, the band- and high-pass and the mono path.)
+/* The master: DIP, volume, limiter. (X0X's master, less what Penumbra does not use: its compressor, the
+ * kick-keyed PUMP, the band-pass and the mono path.)
  *
- * DIP: Zavalishin's TPT state-variable filter as a low-pass (stable at any cutoff); the coefficient
- * glides so a fast sweep does not zipper (ReBirth's PCF idea: sweep the whole mix).
+ * DIP: Zavalishin's TPT state-variable filter, a low-pass one way and a high-pass the other (stable at
+ * any cutoff); the coefficient glides so a fast sweep does not zipper (ReBirth's PCF idea: sweep the
+ * whole mix).
  * Limiter: instant-attack peak follower, ~150 ms release, then a tanh knee above -1 dBFS. */
 #include "master.h"
 #include "fastmath.h"
@@ -38,8 +39,10 @@ void master_init(master_t *m)
 void master_dip(master_t *m, int v)
 {
     m->dip = (uint8_t)(v < 0 ? 0 : v > 127 ? 127 : v);
-    m->lp = m->dip < 60;
-    filt_coefs(m, m->lp ? 8 + m->dip * 119 / 59 : 127);   /* right of 0, the cutoff falls to the left */
+    m->mode = m->dip < 60 ? MST_LP : m->dip > 68 ? MST_HP : MST_OPEN;
+    filt_coefs(m, m->mode == MST_LP ? 8 + m->dip * 119 / 59        /* the low-pass: the cutoff falls to the left */
+                  : m->mode == MST_HP ? (m->dip - 69) * 120 / 58  /* the high-pass: it rises to the right */
+                  : 127);
 }
 
 /* the limiter's last stage: a soft knee over 0.89 */
@@ -56,7 +59,7 @@ void master_process_st(master_t *m, float *xl, float *xr, int n, float volume)
     float k = m->k, vc = m->vol_cur < 0.0f ? volume : m->vol_cur;
     for (i = 0; i < n; i++) {
         float s = xl[i], sr = xr[i];
-        if (m->lp) {
+        if (m->mode) {
             float g = m->g, a1;
             if (g != m->g_t) {                               /* the cutoff moving: its coefficient too */
                 g = m->g += (m->g_t - m->g) * 0.0625f;
@@ -70,13 +73,13 @@ void master_process_st(master_t *m, float *xl, float *xr, int n, float volume)
             float v2 = m->ic2 + g * v1;
             m->ic1 = fm_flush(2.0f * v1 - m->ic1);
             m->ic2 = fm_flush(2.0f * v2 - m->ic2);
-            s = v2;
+            s = m->mode == MST_LP ? v2 : s - k * v1 - v2;
             v3 = sr - m->ic2r;
             v1 = a1 * m->ic1r + g * a1 * v3;
             v2 = m->ic2r + g * v1;
             m->ic1r = fm_flush(2.0f * v1 - m->ic1r);
             m->ic2r = fm_flush(2.0f * v2 - m->ic2r);
-            sr = v2;
+            sr = m->mode == MST_LP ? v2 : sr - k * v1 - v2;
         }
         if (vc != volume) {                          /* the MASTER knob glides (~10 ms): no zipper */
             vc += (volume - vc) * 0.0022651f;

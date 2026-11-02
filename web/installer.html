@@ -1,7 +1,7 @@
 <!doctype html>
 <!-- SPDX-License-Identifier: GPL-3.0-only
      Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
-     Felucca's installer page (web/index_pkg.html) as X0X made it, for Penumbra: English first, no editor.
+     Felucca's installer page as X0X made it, for Penumbra: English first, no editor.
      tools/make_pages.py inlines fm1pkg.js and fm1ota.js and the package's metadata. -->
 <html lang="en">
 <head>
@@ -64,7 +64,7 @@
   </ol>
   <p><button id="stockgo" disabled data-t="stockinstall"></button></p>
   <p class="small">Penumbra by Lunar Eclipse Forge is built on X0X (charlesvestal) and Felucca by Leo Kuroshita (@kurogedelic), <a href="https://hugelton.com" target="_blank" rel="noopener" style="color:inherit">Hügelton Instruments<span class="sr" data-t="newtab"></span></a>, with the second core after Melodee and Jangada.<br>
-    Fonts: Barlow Semi Condensed and Terminus (SIL OFL 1.1). M-VAVE and FM-1 are trademarks of their respective owners.<br>
+    Font: Barlow Semi Condensed (SIL OFL 1.1). M-VAVE and FM-1 are trademarks of their respective owners.<br>
     <span data-t="license"></span></p>
 </main>
 <script type="module">
@@ -75,10 +75,10 @@ const TEXT = {
     intro: "FM-1 を USB で接続してください。（Chrome か Edge で使えます）",
     warn: "書き込み中は USB を抜かないでください。",
     install: "インストール", other: "English",
-    untested: "Penumbra は開発中のベータ版です。",
+    untested: "これは Penumbra のベータ版（テスト用のビルド）で、不安定な場合があります。",
     direct: "USB ケーブルはパソコンに直接つないでください。Probe や Transporter などの機材は不要です。",
     brick: "万一 FM-1 が起動しなくなった場合は、Mac からソースの tools/fm1_rescue.sh で標準ファームウェアに戻せます。",
-    beta: "これはベータ版で、不安定な場合があります。このカスタムファームウェアを使ったことで FM-1 が壊れたり不具合が起きたりしても、作者は一切の責任を負いません。自己責任でお使いください。",
+    beta: "このカスタムファームウェアを使ったことで FM-1 が壊れたり不具合が起きたりしても、作者は一切の責任を負いません。自己責任でお使いください。",
     back: "公式ファームウェアに戻すには、このページ下の「純正ファームウェアに戻す」か、M-VAVE 公式のアップデーター M-UPGRADE（Downloads → PC Software → M-UPGRADE）を使います。",
     stockh: "純正ファームウェアに戻す",
     stockwhy: "M-VAVE の FM-1 V15 を、Penumbra（またはそのセーフモード）から同じ USB ケーブルで書き込みます。Penumbra の設定は消えることがあります。",
@@ -109,10 +109,10 @@ const TEXT = {
     intro: "Connect the FM-1 by USB. (Works in Chrome or Edge.)",
     warn: "Do not unplug the USB cable while writing.",
     install: "Install", other: "日本語",
-    untested: "Penumbra is in development: this is a test build.",
+    untested: "This is a beta of Penumbra, a test build, and may be unstable.",
     direct: "Connect the USB cable directly to the computer. No probe or Transporter is needed.",
     brick: "If the FM-1 no longer starts, a Mac can put the stock firmware back with tools/fm1_rescue.sh in the source.",
-    beta: "This is a beta and may be unstable. The author accepts no responsibility if your FM-1 is damaged or misbehaves because of this custom firmware. Use it at your own risk.",
+    beta: "The author accepts no responsibility if your FM-1 is damaged or misbehaves because of this custom firmware. Use it at your own risk.",
     back: "To go back to the official firmware, use \"Back to the stock firmware\" below, or M-VAVE's own updater, M-UPGRADE (Downloads → PC Software → M-UPGRADE).",
     stockh: "Back to the stock firmware",
     stockwhy: "This writes M-VAVE's own FM-1 V15 back, from Penumbra (or its safe mode, or Felucca) over the same USB cable. Penumbra's settings may be lost.",
@@ -173,6 +173,9 @@ function sayPct(k, pct) {
 const log = (t) => { $("log").textContent += t + "\n"; };
 let image = null;
 const meta = /*META*/;
+/* a beta (0.x, or a -beta / -rc name) says so; a release does not */
+if (!/^0\.|beta|rc/i.test(meta.version))
+  document.querySelector('[data-t="untested"]').hidden = true;
 
 let writing = false;
 window.addEventListener("beforeunload", (e) => { if (writing) { e.preventDefault(); e.returnValue = t("leave"); } });

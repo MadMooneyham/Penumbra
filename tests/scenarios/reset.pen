@@ -18,7 +18,7 @@ tap SEL
 wait 100
 expect shape11 75
 expect dvoice32 75
-turn SELECT 1
+turn SELECT 2
 turn K1 8
 expect vs1.1 80
 tap SEL

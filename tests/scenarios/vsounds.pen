@@ -35,7 +35,8 @@ wait 300
 tapkey w4
 wait 2500
 tap ENV
-turn SELECT 2
+expect page 2
+turn SELECT 1
 wait 100
 turn K4 -10
 expect vs4.9 24

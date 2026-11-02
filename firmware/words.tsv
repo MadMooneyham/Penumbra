@@ -44,3 +44,14 @@ STILL	still
 FEEDBK	feedback
 VIB	vibrato
 SCENE #/#	scene # of #
+LP #%	low-pass # percent
+HP #%	high-pass # percent
+# OCT	# octaves
+#M #	# minutes #
+# S	# seconds
+LOW CUT	low cut
+DRONE 2	drone two
+VOX 2	vox two
+VOX 3	vox three
+REVERB 2	reverb two
+DELAY 2	delay two

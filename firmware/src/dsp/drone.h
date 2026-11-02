@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* DRONE part: five drone voices in the spirit of the Solar 42's drone blocks, ported from the
- * browser prototype (drone-proto/drone.html). (Six before 0.9: SWARM makes the crowd a sixth added.)
+ * browser prototype (drone-proto/drone.html, in the history up to 1.0). (Six before 0.9: SWARM makes the crowd a sixth added.)
  *
  * Each voice is a few polyBLEP oscillators tuned around its note (its stack's intervals, two to
  * four, plus a detune spread and a slow per-oscillator drift), morphing square -> saw, through a

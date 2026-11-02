@@ -6,8 +6,9 @@
 settings_t cfg;
 const uint8_t BEND_SEMIS[BEND_RANGES] = {2, 5, 7, 12};
 
-static const uint8_t FX_DEF[EF_N] = {91, 89, 25, 57, 10, 82, 57, 44};
-_Static_assert(sizeof(settings_t) == 52u, "format 3's size: 1.0's settings load");
+static const uint8_t FX_DEF[EF_N] = {91, 89, 25, 57, 10, 82, 57, 44, 64, 62, 0, 106, 85, 62, 1, 64};
+_Static_assert(sizeof(settings_t) == 52u, "format 3's size too: 1.0's settings load");
+#define SET_V3_FX 40u                            /* 1.0's FX page (its 8): here */
 
 void settings_defaults(void)
 {
@@ -28,9 +29,17 @@ void settings_defaults(void)
 
 int settings_load(void)
 {
+    union { settings_t s; uint8_t b[sizeof(settings_t)]; } u;
     settings_t s;
-    int n = plat_store_load(OBJ_SET, &s, sizeof s), i;
-    if (n != (int)sizeof s || s.magic != SET_MAGIC || s.format != SET_FORMAT) {
+    int n = plat_store_load(OBJ_SET, u.b, sizeof u.b), i;
+    s = u.s;
+    if (n == (int)sizeof s && s.magic == SET_MAGIC && s.format == 3u) {   /* 1.0's: its FX page moves, the new 8 as made */
+        for (i = 0; i < EF_N; i++)
+            s.fx[i] = i < 8 ? u.b[SET_V3_FX + i] : FX_DEF[i];
+        for (i = 0; i < (int)sizeof s.rsv2; i++)
+            s.rsv2[i] = 0;
+        s.format = SET_FORMAT;
+    } else if (n != (int)sizeof s || s.magic != SET_MAGIC || s.format != SET_FORMAT) {
         settings_defaults();                     /* none, or another firmware's */
         return -1;
     }
@@ -86,9 +95,16 @@ static void journey_sane(journey_t *j)          /* a loaded one: every field in 
     j->at %= j->nscenes;
     for (i = 0; i < NMACROS; i++)
         j->macro[i] &= 0x7Fu;
-    for (i = 0; i < JR_SCENES; i++)
+    for (i = 0; i < JR_SCENES; i++) {
         if (j->scene[i].pedal > 12)
             j->scene[i].pedal = 0;
+        j->scene[i].room &= 0x7Fu;
+        j->scene[i].halo &= 0x7Fu;
+    }
+    for (i = 0; i < JR_DMOTION; i++)
+        j->dmotion[i] &= 0x7Fu;
+    for (i = 0; i < JR_TIDE; i++)
+        j->tide[i] &= 0x7Fu;
     for (i = 0; i < EV_N * SH_N; i++)
         (&j->shape[0][0])[i] &= 0x7Fu;
     for (i = 0; i < ENG_DRONES * DV_N; i++)
@@ -109,14 +125,68 @@ static void journey_sane(journey_t *j)          /* a loaded one: every field in 
         j->bloom[BL_HEIGHT] = 1;
 }
 
+/* a 1.0 journey (format 5) is this one less ROOM, HALO, the drone's movement and TIDES (their bytes were
+ * spare): its scenes in the FX page's space, the drone moving as it did, TIDES as made */
+static void journey_from_v5(journey_t *j)
+{
+    int k;
+    if (j->magic != JR_MAGIC || j->format != 5u || j->size != sizeof *j)
+        return;
+    for (k = 0; k < JR_SCENES; k++)
+        j->scene[k].room = j->scene[k].halo = 64;
+    jr_motion_default(j);
+    for (k = 0; k < (int)sizeof j->rsv2; k++)
+        j->rsv2[k] = 0;
+    j->format = JR_FORMAT;
+}
+
+/* the journey playing (OBJ_WORK): the journey, then its A/B (1.0's: the journey alone, no A/B) */
+sound_ab_t sound_ab;
+typedef struct {
+    journey_t j;
+    sound_ab_t ab;
+} work_t;
+static work_t work_buf PEN_POOL;
+_Static_assert(sizeof(work_t) <= PLAT_STORE_MAX, "the journey playing and its A/B fit one object");
+static void sound_sane(jr_sound_t *s)              /* every value 0..127, the switches in range */
+{
+    uint8_t *p = (uint8_t *)s;
+    uint32_t k;
+    for (k = 0; k < sizeof *s; k++)
+        p[k] &= 0x7Fu;
+    for (k = 0; k < JR_DRONES; k++)
+        if (s->dvoice[k][DV_OCT] > 2)
+            s->dvoice[k][DV_OCT] = 1;
+    for (k = 0; k < JR_VSOUNDS; k++)
+        if (s->vsound[k][VS_BOCT] > 2)
+            s->vsound[k][VS_BOCT] = 1;
+    if (s->bloom[BL_HEIGHT] > 2)
+        s->bloom[BL_HEIGHT] = 1;
+    s->dswell &= (1u << ENG_DRONES) - 1u;
+    s->vcur %= JR_VSOUNDS;
+}
+
 int journey_load_work(void)
 {
-    journey_t j;
-    int n = plat_store_load(OBJ_WORK, &j, sizeof j);
-    if (n != (int)sizeof j || !jr_valid(&j))
+    journey_t *j = &work_buf.j;
+    int n = plat_store_load(OBJ_WORK, &work_buf, sizeof work_buf);
+    uint8_t *z = (uint8_t *)&sound_ab;
+    uint32_t k;
+    for (k = 0; k < sizeof sound_ab; k++)
+        z[k] = 0;
+    if (n == (int)sizeof(journey_t) || n == (int)sizeof work_buf)
+        journey_from_v5(j);
+    if ((n != (int)sizeof(journey_t) && n != (int)sizeof work_buf) || !jr_valid(j))
         return -1;                                /* none, or not this format: the first preset plays */
-    journey_sane(&j);
-    eng_jr = j;                                   /* (before the audio starts, or between its blocks: bytes) */
+    journey_sane(j);
+    if (n == (int)sizeof work_buf) {              /* its A/B */
+        sound_ab = work_buf.ab;
+        sound_ab.have &= 3u;
+        sound_ab.t &= 0x7Fu;
+        sound_sane(&sound_ab.a);
+        sound_sane(&sound_ab.b);
+    }
+    eng_jr = *j;                                  /* (before the audio starts, or between its blocks: bytes) */
     engine_journey_loaded();
     return 0;
 }
@@ -139,8 +209,47 @@ int loop_save_work(void)                          /* 1: not now (recording) */
 
 int journey_save_work(void)
 {
-    journey_t j = eng_jr;
-    return plat_store_save(OBJ_WORK, &j, sizeof j);
+    work_buf.j = eng_jr;
+    work_buf.ab = sound_ab;
+    return plat_store_save(OBJ_WORK, &work_buf, sizeof work_buf);
+}
+
+/* the sound library (OBJ_SOUNDS): 8 sounds, each one a journey's sound without its scenes */
+#define SND_MAGIC 0x31444E53u                    /* "SND1" */
+typedef struct {
+    uint32_t magic;
+    uint8_t used[SND_SLOTS];
+    jr_sound_t s[SND_SLOTS];
+} sound_lib_t;
+static sound_lib_t slib PEN_POOL;
+_Static_assert(sizeof(sound_lib_t) <= PLAT_STORE_MAX, "the sound library fits one object");
+int sound_slots_load(void)
+{
+    int i, n = plat_store_load(OBJ_SOUNDS, &slib, sizeof slib);
+    if (n != (int)sizeof slib || slib.magic != SND_MAGIC) {
+        uint8_t *z = (uint8_t *)&slib;
+        uint32_t k;
+        for (k = 0; k < sizeof slib; k++)
+            z[k] = 0;
+        slib.magic = SND_MAGIC;
+        return -1;
+    }
+    for (i = 0; i < SND_SLOTS; i++) {
+        slib.used[i] = slib.used[i] == 1u;
+        sound_sane(&slib.s[i]);
+    }
+    return 0;
+}
+int sound_slot_used(int slot) { return slot >= 0 && slot < SND_SLOTS && slib.used[slot]; }
+const jr_sound_t *sound_slot(int slot) { return sound_slot_used(slot) ? &slib.s[slot] : 0; }
+int sound_slot_save(int slot)
+{
+    if (slot < 0 || slot >= SND_SLOTS)
+        return -1;
+    slib.magic = SND_MAGIC;
+    jr_sound_get(&eng_jr, &slib.s[slot]);
+    slib.used[slot] = 1;
+    return plat_store_save(OBJ_SOUNDS, &slib, sizeof slib);
 }
 
 int journey_slots_load(void)
@@ -153,6 +262,8 @@ int journey_slots_load(void)
             z[k] = 0;
         return -1;
     }
+    for (i = 0; i < JR_USER; i++)
+        journey_from_v5(&jslot[i]);
     for (i = 0; i < JR_USER; i++)
         if (jr_valid(&jslot[i]))
             journey_sane(&jslot[i]);
@@ -212,6 +323,10 @@ void journey_open_preset(int i)
     for (k = 0; k < sizeof j.vsound; k++)
         (&j.vsound[0][0])[k] = (&eng_jr.vsound[0][0])[k];
     j.vcur = eng_jr.vcur;
+    for (k = 0; k < JR_DMOTION; k++)
+        j.dmotion[k] = eng_jr.dmotion[k];
+    for (k = 0; k < JR_TIDE; k++)
+        j.tide[k] = eng_jr.tide[k];
     eng_jr = j;
     engine_journey_loaded();
 }
