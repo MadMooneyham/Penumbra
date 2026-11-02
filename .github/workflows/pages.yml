@@ -3,6 +3,8 @@
 # Runs on each published release (and by hand): it takes the latest release's own .fwsc, so nothing is rebuilt
 # for the installer; the emulator is built here from this checkout with Emscripten.
 # Needs Settings > Pages > Source: GitHub Actions, once.
+# A release runs on its tag, and github-pages deploys only from main: so a release only starts this workflow
+# again on main (hand-over), and that run builds and deploys.
 name: Pages
 
 on:
@@ -14,13 +16,24 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  actions: write
 
 concurrency:
-  group: pages
+  group: pages-${{ github.event_name }}
   cancel-in-progress: false
 
 jobs:
+  hand-over:
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - name: The site, from main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref main
+
   build:
+    if: github.event_name != 'release'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
