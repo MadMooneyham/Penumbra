@@ -125,7 +125,6 @@ static void bench_block(uint32_t n)
 static uint8_t guard_on, guard_applied, guard_enabled = 1;
 static uint32_t guard_avg_q8, guard_calm;
 volatile uint32_t eng_guard_count;
-void engine_guard_enable(int on) { guard_enabled = (uint8_t)(on != 0); }
 int engine_guard_active(void) { return guard_on; }
 void engine_load(uint32_t pct, uint32_t frames)
 {
@@ -155,7 +154,7 @@ static void guard_apply(void)
 
 /* ------------------------------------------------------- command queue --- */
 /* uint32 commands, single producer (main loop) / single consumer (audio ISR): type:4 | a:8 | b:8 | c:12 */
-enum { C_DRONE_KEY, C_VOX_ON, C_VOX_OFF, C_TEST, C_MIDI_CH, C_PULSE, C_WHITE, C_LOOPER, C_TRAVEL, C_LOADED,
+enum { C_DRONE_KEY, C_TEST, C_MIDI_CH, C_PULSE, C_WHITE, C_LOOPER, C_TRAVEL, C_LOADED,
        C_PERF, C_FX, C_FREEZE, C_MORPH, C_BRANGE };
 #define CQ 256u
 static uint32_t cq[CQ];
@@ -170,8 +169,6 @@ static void cq_put(uint32_t type, uint32_t a, uint32_t b, uint32_t c)
     cq_w = w + 1;
 }
 void engine_drone_key(int voice) { cq_put(C_DRONE_KEY, (uint32_t)voice, 0, 0); }
-void engine_vox_on(int note, int vel) { cq_put(C_VOX_ON, 0, (uint32_t)note, (uint32_t)vel); }
-void engine_vox_off(int note) { cq_put(C_VOX_OFF, 0, (uint32_t)note, 0); }
 static volatile uint8_t vox_sounding;
 int engine_vox_sounding(void) { return vox_sounding; }
 static volatile uint8_t testing;
@@ -268,9 +265,6 @@ static void scene_default(void)
         fxbus_set(&fx, i, fxbus_param(i)->def);
     for (i = 0; i < fxbus_ext_nparams(); i++)
         fxbus_ext_set(&fx, i, fxbus_ext_param(i)->def);
-    fxbus_set(&fx, FX_VOLUME, 127);              /* unity */
-    fxbus_set(&fx, FX_DL_TYPE, 1);               /* tape */
-    fxbus_set(&fx, FX_DL_PING, 1);
     for (i = 0; i < EF_N; i++)                   /* (1/4. delay, long and worn: the FX page's) */
         fx_apply(i);
     for (v = 0; v < NPARTS; v++) {
@@ -477,7 +471,7 @@ static void conduct(void)
     if (moved(K_DECAY, x = clamp127((float)fx_set[EF_RV_DECAY] + (127.0f - (float)fx_set[EF_RV_DECAY]) * freeze)))
         fxbus_set(&fx, FX_RV_DECAY, x);
     if (moved(K_DIP, x = perf[PF_DIP] < 3 ? 64 : 59 - perf[PF_DIP] * 59 / 127))
-        master_set(&mst, MST_DJF, x);            /* (64: off; under 60, the low-pass closing) */
+        master_dip(&mst, x);                     /* (64: off; under 60, the low-pass closing) */
     {   /* SPACE: the scene's x the macro, 64 x 64 as made; each voice's own send on top (VOX's bent); a
          * FREEZE closes what goes in, so the reverb holds what it has */
         static const uint8_t SEND[NPARTS] = {64, 0, 0, 64, 64};
@@ -688,10 +682,6 @@ static void drain(void)
         r++;
         if (type == C_DRONE_KEY && !testing)
             drone_trigger(&dn, (int)a, 1.0f);
-        else if (type == C_VOX_ON)
-            vox_note_on(&vox, (int)b, (float)(c & 127u) * (1.0f / 127.0f));
-        else if (type == C_VOX_OFF)
-            vox_note_off(&vox, (int)b);
         else if (type == C_TEST)
             test_set((int)a);
         else if (type == C_PULSE) {
@@ -1074,7 +1064,6 @@ void engine_render(int32_t *out_lr, uint32_t n)
     bus_plan = (uint8_t)plan;
     bus_n = n;
     bus_par ^= 1u;
-    fxbus_post_st(&fx, out_l, out_r, (int)n);
     /* the master stage, then the codec's scale (OUTPUT: all of it, from the mix on) */
     master_process_st(&mst, out_l, out_r, (int)n, vol);
     for (i = 0; i < n; i++) {

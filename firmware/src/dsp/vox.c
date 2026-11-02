@@ -19,9 +19,7 @@ static const param_t VOX_P[VX_NPARAMS] = {
     [VX_WAVE] = {"Wave", 127, 0, 0},         [VX_FMODE] = {"Filter", 127, 0, 0},
     [VX_GLIDE] = {"Glide", 127, 0, 0}};
 
-int vox_nparams(void) { return VX_NPARAMS; }
 const param_t *vox_param(int i) { return i >= 0 && i < VX_NPARAMS ? &VOX_P[i] : 0; }
-int vox_get(const vox_t *x, int i) { return i >= 0 && i < VX_NPARAMS ? x->pot[i] : 0; }
 
 static float pot01(int p) { return (float)p * (1.0f / 127.0f); }
 static float one_pole(float seconds) { return 1.0f - fm_expf(-1.0f / (seconds * SR)); }

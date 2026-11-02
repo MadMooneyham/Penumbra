@@ -1,36 +1,31 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The send FX and master stage, shared by every voice. A port of 9W9's (GPL-3.0) tempo-synced
- * delay and master stage, with the drone firmware's own reverb:
- *
- *   out = volume * glue( dist( dry + reverb(rev) + delay(dly) ) )
+/* The send FX, shared by every voice: the reverb and a tempo-synced tape delay. The delay is a port
+ * of 9W9's (GPL-3.0), the reverb the drone firmware's own:
  *
  *  - Reverb: spacevb.h, the long modulated network with its shimmer (it replaced 9W9's
- *    four combs). Its SIZE, MOD and SHIMMER are the "ext" pots (T_FX voice 2).
- *  - Delay: a note division of the tempo, slewed so time changes warp instead of
- *    clicking, feedback through a darkening one-pole, 12-bit write, HPF on the
- *    send. TYPE = DIGI is 9W9's delay exactly. TYPE = TAPE (an addition
- *    for the melodies) reads the same line with wow and flutter, saturates inside the
- *    loop, darkens the loop further and lets feedback run slightly past unity
- *    into self-oscillation that the saturation holds; WEAR scales all of it.
- *  - Master: 9W9's seven distortion characters (or Off) and its one-knob glue
- *    compressor (hard bypass at 0), then volume.
+ *    four combs). Its SIZE, MOD and SHIMMER are the "ext" pots.
+ *  - Delay: a note division of the tempo, slewed so time changes warp instead of clicking,
+ *    read with wow and flutter; feedback through a darkening one-pole, saturating inside the loop
+ *    and running slightly past unity into self-oscillation that the saturation holds; WEAR scales
+ *    all of it. 12-bit write, HPF on the send. Ping-pong: the left reads at the time, the right at
+ *    twice it.
  *
  * The delay line is int16 (9W9 writes it at 12 bits, so nothing is lost; values
  * past +-16 full scale saturate) and is passed in by the caller (.pool), as are
  * the reverb's lines (fxbus_reverb_buffers; without them the reverb is silent).
  * Both effects go idle (no per-sample work) once their input and their lines are
- * silent. */
+ * silent. (X0X's master stage after them, 9W9's distortion and glue compressor, and its plain
+ * delay are gone: Penumbra never used them.) */
 #pragma once
 #include <stdint.h>
 #include "param.h"
 #include "fxkit.h"
 #include "spacevb.h"
 
-enum { FX_VOLUME, FX_DIST, FX_DRIVE, FX_COMP,
-       FX_RV_DECAY, FX_RV_TONE, FX_RV_HPF, FX_RV_LEVEL,
+enum { FX_RV_DECAY, FX_RV_TONE, FX_RV_HPF, FX_RV_LEVEL,
        FX_DL_TIME, FX_DL_FDBK, FX_DL_TONE, FX_DL_LEVEL,
-       FX_DL_HPF, FX_DL_TYPE, FX_DL_WEAR, FX_DL_PING, FX_NPARAMS };
-/* the reverb's further pots (T_FX voice 2) */
+       FX_DL_HPF, FX_DL_WEAR, FX_NPARAMS };
+/* the reverb's further pots */
 enum { FXX_RV_SIZE, FXX_RV_MOD, FXX_RV_SHIMMER, FXX_NPARAMS };
 
 struct fxbus {
@@ -39,21 +34,13 @@ struct fxbus {
     uint8_t ext_pots[FXX_NPARAMS];
     /* delay */
     float dl_time_ms, dl_fdbk, dl_tone, dl_level, bpm, wear;
-    float dl_lead;                       /* Penumbra: samples the caller hears the returns late (fxbus_set_lead) */
-    int32_t dl_div, dl_type;
+    float dl_lead;                       /* samples the caller hears the returns late (fxbus_set_lead) */
+    int32_t dl_div;
     d9_biquad_t dl_hp;
     int16_t *dbuf;
     int32_t dlen, w, dl_quiet;
     float dcur, lp, tape_hp;
     uint32_t wow_ph, flut_ph;
-    int32_t dl_ping;                  /* ping-pong, a second tap at twice the time */
-    /* master */
-    float drive, volume, comp;
-    int32_t dist_mode;
-    d9_shape_t shape;
-    float crush_st[2], crush_str[2];
-    float comp_env_db, comp_det, c_thr, c_slope, c_makeup, c_drel, c_atk, c_rel;
-    uint8_t pots[FX_NPARAMS];
 };
 typedef struct fxbus fxbus_t;
 
@@ -63,19 +50,10 @@ void fxbus_reverb_buffers(fxbus_t *f, int16_t *rv, int16_t *ps);
 int fxbus_ext_nparams(void);
 const param_t *fxbus_ext_param(int i);
 void fxbus_ext_set(fxbus_t *f, int i, int value);
-int fxbus_ext_get(const fxbus_t *f, int i);
 void fxbus_set_bpm(fxbus_t *f, float bpm);
-void fxbus_process(fxbus_t *f, const float *dry, const float *rev, const float *dly, float *out, int n);
-/* Stereo: dry in L / R, the sends mono; with everything centred and no reverb, out_l and out_r
- * are fxbus_process's out exactly */
-void fxbus_process_st(fxbus_t *f, const float *dry_l, const float *dry_r, const float *rev, const float *dly,
-                      float *out_l, float *out_r, int n);
-/* Penumbra: fxbus_process_st in two halves. The returns of the sends alone into wet_l / wet_r; then,
- * on dry + wet, the distortion, the glue compressor and the volume, in place. */
+/* the returns of the sends (rev, dly: mono) alone, into wet_l / wet_r */
 void fxbus_wet_st(fxbus_t *f, const float *rev, const float *dly, float *wet_l, float *wet_r, int n);
-void fxbus_post_st(fxbus_t *f, float *out_l, float *out_r, int n);
 void fxbus_set_lead(fxbus_t *f, int samples);   /* the returns heard this late: the delay reads sooner */
 int fxbus_nparams(void);
 const param_t *fxbus_param(int i);
 void fxbus_set(fxbus_t *f, int i, int value);
-int fxbus_get(const fxbus_t *f, int i);

@@ -209,9 +209,7 @@ def build_loader():
 
 def build_app():
     flags = [*CFLAGS, *FPU, "-Ifirmware/hal", "-Ifirmware/src", "-Ibuild/gen"]
-    if VERSION and os.environ.get("PEN_DEBUG") == "1":
-        raise SystemExit("PEN_DEBUG=1 (register peek / poke over USB) is for development builds only")
-    for flag in ("PEN_CDC", "PEN_DEBUG"):
+    for flag in ("PEN_CDC",):
         v = os.environ.get(flag)    # unset: the default in firmware/src/penumbra.c
         if v in ("0", "1"):
             flags.append(f"-D{flag}={v}")

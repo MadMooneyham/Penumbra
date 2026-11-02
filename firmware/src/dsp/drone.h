@@ -114,7 +114,6 @@ void drone_init(drone_t *d);
 void drone_swarm_buffer(drone_t *d, float *l, float *r);   /* SWARM_LEN each */
 void drone_trigger(drone_t *d, int track, float vel);   /* a hit: by the voice's MODE */
 void drone_end_swells(drone_t *d);                       /* STOP: swells fall now (latched voices stay) */
-void drone_all_off(drone_t *d);
 /* adds the part's stereo output into l and r (the caller clears them): drone_plan, every voice, the bus */
 void drone_render(drone_t *d, float *l, float *r, int n);
 /* the same in steps, so the work can run on two cores at once:
@@ -135,6 +134,4 @@ void drone_set_lite(drone_t *d, int on);
 void drone_glide(drone_t *d, float seconds);              /* a sounding voice's slide to a new NOTE (1.5 s) */
 int drone_nparams(int track);
 const param_t *drone_param(int track, int i);
-const char *drone_track_name(int track);
 void drone_set(drone_t *d, int track, int i, int value);
-int drone_get(const drone_t *d, int track, int i);

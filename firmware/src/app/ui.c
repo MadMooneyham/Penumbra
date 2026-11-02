@@ -1994,11 +1994,3 @@ void ui_frame(void)
 
 void ui_input_only(void) { input(); }
 void ui_say(const char *a, const char *b) { say(a, b); }
-void ui_warn(const char *a, const char *b) { warn(a, b); }
-void ui_redraw(void)
-{
-    int i;
-    lcd_fill(0, 0, 240, 240, C_BG);
-    for (i = 0; i < 3; i++)
-        blit_hash[i] = 0;
-}

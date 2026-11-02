@@ -13,9 +13,7 @@ static const param_t TEXTURE_P[TX_NPARAMS] = {
     [TX_SWEEP] = {"Sweep", 127, 70, 0},  [TX_RATE] = {"Rate", 127, 40, 0},
     [TX_WIDTH] = {"Width", 127, 90, 0}};
 
-int texture_nparams(void) { return TX_NPARAMS; }
 const param_t *texture_param(int i) { return i >= 0 && i < TX_NPARAMS ? &TEXTURE_P[i] : 0; }
-int texture_get(const texture_t *t, int i) { return i >= 0 && i < TX_NPARAMS ? t->pot[i] : 0; }
 
 static float pot01(int v) { return (float)v * (1.0f / 127.0f); }
 

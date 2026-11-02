@@ -57,7 +57,5 @@ int vox_active(const vox_t *x);           /* any voice sounding */
 int vox_held(const vox_t *x, int note);   /* (tests) a voice holds the note */
 /* adds the voices into l and r (the caller clears them) */
 void vox_render(vox_t *x, float *l, float *r, int n);
-int vox_nparams(void);
 const param_t *vox_param(int i);
 void vox_set(vox_t *x, int i, int value);
-int vox_get(const vox_t *x, int i);

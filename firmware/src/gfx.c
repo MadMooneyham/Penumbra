@@ -18,7 +18,7 @@ typedef struct {               /* proportional, see tools/gen_font.py */
 static uint16_t cv_px[CV_MAX] __attribute__((section(".pool")));
 static uint32_t cv_w, cv_h;
 static int32_t cv_oy;            /* y offset for graph drawing */
-static int32_t cv_y0, cv_y1;     /* the rows drawing may touch (cv_band) */
+static int32_t cv_y0, cv_y1;     /* the rows drawing may touch */
 
 #define RGB(r, g, b) ((uint16_t)((((r) >> 3) << 11) | (((g) >> 2) << 5) | ((b) >> 3)))
 #define C_BLACK 0x0000u
@@ -50,22 +50,7 @@ static void cv_begin(uint32_t w, uint32_t h, uint16_t bg)
         cv_px[i] = swap16(bg);
 }
 
-/* draw the next things as if the canvas were rows y0 .. y0+h-1 alone (one band of a
- * canvas that holds several, sent in one transfer so the bands change on screen together) */
-static void cv_band(int32_t y0, int32_t h)
-{
-    cv_oy = cv_y0 = y0;
-    cv_y1 = y0 + h;
-}
-
 static void cv_blit(uint32_t x, uint32_t y) { lcd_blit(x, y, cv_w, cv_h, cv_px); }
-
-/* canvas rows r0 .. cv_h-1 only, to screen row y + r0 */
-static void cv_blit_from(uint32_t x, uint32_t y, uint32_t r0)
-{
-    if (r0 < cv_h)
-        lcd_blit(x, y + r0, cv_w, cv_h - r0, cv_px + r0 * cv_w);
-}
 
 static inline void cv_pset(int32_t x, int32_t y, uint16_t c)
 {
@@ -90,27 +75,6 @@ static void cv_rect(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c)
     for (; y < y1; y++)
         for (i = x; i < x1; i++)
             cv_px[(uint32_t)y * cv_w + (uint32_t)i] = sc;
-}
-
-static void cv_line(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint16_t c)
-{
-    int32_t dx = x1 > x0 ? x1 - x0 : x0 - x1, sx = x0 < x1 ? 1 : -1;
-    int32_t dy = y1 > y0 ? y0 - y1 : y1 - y0, sy = y0 < y1 ? 1 : -1;
-    int32_t err = dx + dy, guard = 2000;
-    while (guard--) {                       /* bounded: a line is never longer than 480 px */
-        int32_t e2 = 2 * err;               /* both tests use the same error value */
-        cv_pset(x0, y0, c);
-        if (x0 == x1 && y0 == y1)
-            break;
-        if (e2 >= dy) {
-            err += dy;
-            x0 += sx;
-        }
-        if (e2 <= dx) {
-            err += dx;
-            y0 += sy;
-        }
-    }
 }
 
 /* glyph index of a character: lower case folds to upper case when the font

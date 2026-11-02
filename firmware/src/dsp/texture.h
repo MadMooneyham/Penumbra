@@ -30,7 +30,5 @@ void texture_init(texture_t *t);
 int texture_active(const texture_t *t);
 /* adds the wind into l and r (the caller clears them) */
 void texture_render(texture_t *t, float *l, float *r, int n);
-int texture_nparams(void);
 const param_t *texture_param(int i);
 void texture_set(texture_t *t, int i, int value);
-int texture_get(const texture_t *t, int i);

@@ -1,8 +1,8 @@
 # Penumbra's words for the screen reader (fm1-reader): the screen's text <TAB> what to say. "#" a number, "*" a
 # word left out. tools/gen_words.py makes web/words/<id>.json (published with the site) and the link the
 # FM-1 sends. Change a line and a new file is made: keep the old ones (devices in the wild point at them).
-# The words files are not published yet (design phase 6): until they are, the reader says the screen's text.
-# url: https://lunareclipseforge.com/penumbra/words/
+# The site (tools/make_pages.py, GitHub Pages) publishes them all at the link below.
+# url: https://madmooneyham.github.io/Penumbra/words/
 PENUMBRA	penumbra
 BENCH	benchmark
 CTRL	control
@@ -43,3 +43,4 @@ A#	A sharp
 STILL	still
 FEEDBK	feedback
 VIB	vibrato
+SCENE #/#	scene # of #

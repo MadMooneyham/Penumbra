@@ -22,8 +22,18 @@ import sys
 from pathlib import Path
 
 SRC = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(SRC / "web"))
-from make_site import product_of, strip_module  # noqa: E402  (Felucca's: the package format)
+BLOCKS, BLK, KEEP = 20, 0x30, 0x2F                # the package's first blocks (Felucca's format, fm1pkg.js)
+
+
+def strip_module(src):
+    """an ES module's source as a plain script, to inline it"""
+    src = re.sub(r"^export\s+", "", src, flags=re.M)
+    return re.sub(r"^import .*?;\n", "", src, flags=re.M)
+
+
+def product_of(raw):
+    """the package identity: one marker byte after each of the first 20 blocks (fm1pkg.js productOf)"""
+    return "".join(chr((m - i - 1) & 0xFF) for i in range(BLOCKS) if (m := raw[i * BLK + KEEP]) != 0x7D)
 
 LANDING = """<!doctype html>
 <html lang="en">

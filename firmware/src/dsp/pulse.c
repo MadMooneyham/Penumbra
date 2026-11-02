@@ -14,9 +14,7 @@ static const param_t PULSE_P[PL_NPARAMS] = {
     [PL_BLEN] = {"B.Len", 127, 64, 0},       [PL_BHEIGHT] = {"B.Hgt", 2, 1, 0},
     [PL_BFIFTH] = {"B.5th", 127, 64, 0}};
 
-int pulse_nparams(void) { return PL_NPARAMS; }
 const param_t *pulse_param(int i) { return i >= 0 && i < PL_NPARAMS ? &PULSE_P[i] : 0; }
-int pulse_get(const pulse_t *p, int i) { return i >= 0 && i < PL_NPARAMS ? p->pot[i] : 0; }
 
 static float pot01(int v) { return (float)v * (1.0f / 127.0f); }
 static float one_pole(float seconds) { return 1.0f - fm_expf(-1.0f / (seconds * SR)); }

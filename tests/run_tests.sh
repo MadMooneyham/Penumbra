@@ -38,7 +38,7 @@ run texture sh -c "$CC $W -Wno-double-promotion -o $OUT/texture_test tests/host/
 run journey sh -c "$CC $W -o $OUT/journey_test tests/host/journey_test.c firmware/src/seq/journey.c && $OUT/journey_test"
 run looper sh -c "$CC $W -o $OUT/looper_test tests/host/looper_test.c firmware/src/seq/looper.c && $OUT/looper_test"
 python3 tools/gen_dsp_tables.py build/gen/dsp_tables.h >/dev/null
-run stereo sh -c "$CC -O2 -ffp-contract=off -w -Ifirmware/src/dsp -Ifirmware/src -Ibuild/gen -o $OUT/stereo_test tests/host/stereo_test.c firmware/src/dsp/master.c firmware/src/dsp/fxbus.c firmware/src/dsp/spacevb.c firmware/src/dsp/dsp_tables.c -lm && $OUT/stereo_test"
+run stereo sh -c "$CC -O2 -ffp-contract=off -w -Ifirmware/src/dsp -Ifirmware/src -Ibuild/gen -o $OUT/stereo_test tests/host/stereo_test.c firmware/src/dsp/fxbus.c firmware/src/dsp/spacevb.c firmware/src/dsp/dsp_tables.c -lm && $OUT/stereo_test"
 run master sh -c "$CC $W -Wno-double-promotion -o $OUT/master_test tests/host/master_test.c firmware/src/dsp/master.c -lm && $OUT/master_test"
 run storage sh -c "$CC -O2 -o $OUT/storage_test tests/storage_test.c && $OUT/storage_test"
 # the update path, against the firmware package (Felucca's tests; needs ./build.sh)
@@ -52,6 +52,7 @@ if [ -f build/penumbra.fwsc ]; then
         $CC -o $OUT/ldr_test tests/ldr_test.c && $OUT/ldr_test $OUT/old.fwsc build/penumbra.fwsc"
     fi
     run installer python3 tests/install_test.py
+    command -v node >/dev/null 2>&1 && run web-installer node web/test_web.mjs
 else
     echo "  skip update-path tests (no build/penumbra.fwsc: run ./build.sh)"
 fi

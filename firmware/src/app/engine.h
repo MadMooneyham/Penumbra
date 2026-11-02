@@ -34,13 +34,13 @@ extern tclock_t eng_clock;
 /* the journey that plays (seq/journey.h): the main loop writes it a byte at a time (and loads a
  * whole one, then engine_journey_loaded); the ISR reads it, and writes its loops and its scene */
 extern journey_t eng_jr;
-const jrun_t *engine_jr(void);                 /* (main loop, read only) the director, the generator */
+const jrun_t *engine_jr(void);                 /* (main loop, read only) the director: where the journey is */
 
 /* the sound, saved with the journey (eng_jr.shape, eng_jr.dvoice), read by the ISR each block (conduct).
  * SHAPE: each voice's LEVEL (100 = as made) and four knobs (64 = as made where it is an offset):
  *   DRONE    FILTER, BODY (resonance), SWARM (the crowd, and the voices' detune with it), WAVE (soft .. reedy)
  *   VOX      BRIGHT (over the scene's), ATTACK, RELEASE, SHIMMER (how far into the reverb)
- *   PULSE    DROP (the kick's fall of pitch), DECAY, TICK, SPACE
+ *   PULSE    DROP (the kick's fall of pitch), DECAY, CLICK, SPACE
  *   TEXTURE  COLOUR (over the scene's), SWEEP, RATE, WIDTH
  * SH_HIDE is set only by a held note's SAVE: VOX's vibrato. Each drone voice, its black key held:
  * LEVEL, TONE, DETUNE (64: none), OCTAVE (0 down, 1 as the journey has it, 2 up) */
@@ -86,7 +86,6 @@ const char *engine_stage_name(int st);
 
 /* overload guard: the platform reports each block's load after rendering it */
 void engine_load(uint32_t pct, uint32_t frames);           /* ISR, after engine_render */
-void engine_guard_enable(int on);                           /* off: full quality always (the load test) */
 int engine_guard_active(void);
 extern volatile uint32_t eng_guard_count;                   /* times it engaged */
 extern volatile uint16_t eng_level;                         /* the output's peak, Q15, held for the UI to fall */
@@ -114,8 +113,6 @@ void engine_journey_loaded(void);                  /* eng_jr is a new journey: s
 void engine_drone_key(int voice);                  /* a black key: the voice by its MODE (HOLD: latch) */
 int engine_drone_on(int voice);                    /* (main loop) the voice is on: latched, or in its swell */
 float engine_drone_level(int voice);               /* (main loop) how loud it is now, 0..1 of its LEVEL (it rises, falls) */
-void engine_vox_on(int note, int vel);             /* VOX: a note (a white key, MIDI), vel 0..127 */
-void engine_vox_off(int note);
 void engine_pulse(int which, int vel);             /* PULSE_KICK (0) or PULSE_BLOOM (1), vel 0..127 */
 int engine_vox_sounding(void);                     /* (main loop) a VOX voice sounds */
 void engine_load_test(int on);                     /* every voice at its heaviest: the worst case */

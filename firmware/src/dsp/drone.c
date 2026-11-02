@@ -58,12 +58,6 @@ const param_t *drone_param(int track, int i)
     return track == DRONE_KIT ? &BUS_P[i] : &VOICE_P[i];
 }
 
-const char *drone_track_name(int track)
-{
-    static const char *const N[DRONE_VOICES + 1] = {"DR1", "DR2", "DR3", "DR4", "DR5", "BUS"};
-    return track >= 0 && track <= DRONE_KIT ? N[track] : "";
-}
-
 /* lo * 2^(oct * pot / 127): the exponential pots */
 static float pot_exp(int pot, float lo, float oct) { return lo * fm_exp2f(oct * (float)pot * (1.0f / 127.0f)); }
 static float pot_lin(int pot) { return (float)pot * (1.0f / 127.0f); }
@@ -139,13 +133,6 @@ void drone_set(drone_t *d, int track, int i, int value)
     }
 }
 
-int drone_get(const drone_t *d, int track, int i)
-{
-    if (!drone_param(track, i))
-        return 0;
-    return track == DRONE_KIT ? d->bus[i] : d->v[track].pot[i];
-}
-
 /* ------------------------------------------------------------------ init --- */
 static uint32_t rng_next(uint32_t *s)
 {
@@ -214,16 +201,6 @@ void drone_end_swells(drone_t *d)
     for (i = 0; i < DRONE_VOICES; i++)
         if (d->v[i].hold_left > 0)
             d->v[i].hold_left = 1;                /* out over FALL at the next control step */
-}
-
-void drone_all_off(drone_t *d)
-{
-    int i;
-    for (i = 0; i < DRONE_VOICES; i++) {
-        d->v[i].on = 0;
-        d->v[i].amp_tgt = 0.0f;
-        d->v[i].hold_left = 0;
-    }
 }
 
 static int voice_live(const drone_voice_t *v) { return v->amp_tgt > 0.0f || v->amp > 1e-5f; }

@@ -504,7 +504,7 @@ static int expect(const char *what, const char *val)
         got = (int)(engine_looper_state()->len / LP_TPS);
     else if (!strcmp(what, "frozen"))               /* VOX's notes frozen */
         got = engine_frozen();
-    else if (!strncmp(what, "macro", 5))            /* macroN: 1 DRIFT .. 4 TONE */
+    else if (!strncmp(what, "macro", 5))            /* macroN: 1 DRONE, 2 VOX, 3 SPACE, 4 TONE */
         got = eng_jr.macro[(atoi(what + 5) - 1) & 3];
     else if (!strcmp(what, "vox_notes")) {          /* the journey's VOX notes since the last check */
         static uint32_t last;
@@ -676,97 +676,6 @@ int main(int argc, char **argv)
         } else if (!strcmp(cmd, "autoplay")) {        /* autoplay 0|1: PLAY AT POWER-ON saved, then power on again */
             cfg.autoplay = (uint8_t)atoi(a);
             settings_save();
-            store_writes = 0;
-            held_btn = held_keys = 0;
-            boot();
-        } else if (!strcmp(cmd, "legacy013")) {       /* 0.13's flash: settings format 2 (LINE's voice second),
-                                                       * the journey playing and user slot 1 as format 1 (three loops) */
-            uint8_t s[56] = {0}, jb[__builtin_offsetof(journey_t, shape) + 20u];
-            uint32_t at = __builtin_offsetof(journey_t, old_loops), k;
-            journey_t j;
-            settings_defaults();
-            memcpy(s, &cfg, 24);
-            ((uint32_t *)s)[1] = 2u;
-            for (k = 0; k < 5u; k++) {                /* DRONE, LINE, VOX, PULSE, TEXTURE */
-                static const uint8_t L[5] = {100, 90, 100, 60, 100};
-                s[24 + k * 4] = L[k];
-                s[25 + k * 4] = 64;
-                s[26 + k * 4] = 50;
-                s[27 + k * 4] = 64;
-            }
-            for (k = 0; k < 8u; k++)
-                s[44 + k] = cfg.fx[k];
-            plat_store_save(OBJ_SET, s, sizeof s);
-            jr_preset(2, &j);
-            j.format = 1;
-            j.size = (uint16_t)sizeof jb;
-            j.mode = 1;
-            j.at = 1;                                 /* (it carries on in its second scene) */
-            memcpy(jb, &j, at);
-            memset(jb + at, 0, 20u);                  /* (LINE's loop) */
-            memcpy(jb + at + 20u, j.old_loops, sizeof j.old_loops);
-            plat_store_save(OBJ_WORK, jb, sizeof jb);
-            {
-                static uint8_t slots[JR_USER * sizeof jb];
-                memset(slots, 0, sizeof slots);
-                memcpy(slots, jb, sizeof jb);
-                plat_store_save(OBJ_USER, slots, sizeof slots);
-            }
-            store_writes = 0;
-            held_btn = held_keys = 0;
-            boot();
-        } else if (!strcmp(cmd, "legacy014")) {       /* 0.14's flash: settings format 3 (its VOICES page), the
-                                                       * journey playing and user slot 1 as format 2 (no sound) */
-            uint32_t n = __builtin_offsetof(journey_t, shape);
-            static uint8_t slots[JR_USER * __builtin_offsetof(journey_t, shape)];
-            journey_t j;
-            settings_defaults();
-            cfg.voice14[EV_PULSE][0] = 60;
-            cfg.voice14[EV_VOX][1] = 80;              /* (VOX's TONE: its BRIGHT now) */
-            plat_store_save(OBJ_SET, &cfg, sizeof cfg);
-            jr_preset(1, &j);
-            j.format = 2;
-            j.size = (uint16_t)n;
-            j.mode = 1;
-            j.scene[0].pedal = 0x55;                  /* (0.14's spare byte, anything: it comes over as none) */
-            plat_store_save(OBJ_WORK, &j, n);
-            memset(slots, 0, sizeof slots);
-            memcpy(slots, &j, n);
-            plat_store_save(OBJ_USER, slots, sizeof slots);
-            store_writes = 0;
-            held_btn = held_keys = 0;
-            boot();
-        } else if (!strcmp(cmd, "legacy015")) {       /* 0.15's flash: the journey playing and user slot 1 as format 3
-                                                       * (one VOX sound, SHAPE's row) */
-            uint32_t n = __builtin_offsetof(journey_t, vsound);
-            static uint8_t slots[JR_USER * __builtin_offsetof(journey_t, vsound)];
-            journey_t j;
-            jr_preset(4, &j);
-            j.format = 3;
-            j.size = (uint16_t)n;
-            j.shape[EV_VOX][SH_K1] = 90;              /* (its BRIGHT) */
-            j.shape[EV_VOX][SH_HIDE] = 33;            /* (its vibrato) */
-            j.dswell = 0x10;
-            plat_store_save(OBJ_WORK, &j, n);
-            memset(slots, 0, sizeof slots);
-            memcpy(slots, &j, n);
-            plat_store_save(OBJ_USER, slots, sizeof slots);
-            store_writes = 0;
-            held_btn = held_keys = 0;
-            boot();
-        } else if (!strcmp(cmd, "legacy017")) {       /* 0.16 / 0.17's flash: the journey playing and user slot 1 as
-                                                       * format 4 (the same size, BLOOM's bytes spare) */
-            static journey_t slots[JR_USER];
-            journey_t j;
-            jr_preset(3, &j);
-            j.format = 4;
-            j.bloom[0] = j.bloom[1] = j.bloom[2] = 0;
-            j.shape[EV_PULSE][SH_HIDE] = 0;
-            j.vcur = 2;
-            plat_store_save(OBJ_WORK, &j, sizeof j);
-            memset(slots, 0, sizeof slots);
-            slots[0] = j;
-            plat_store_save(OBJ_USER, slots, sizeof slots);
             store_writes = 0;
             held_btn = held_keys = 0;
             boot();

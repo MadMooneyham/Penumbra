@@ -3,8 +3,8 @@
 # Compile one C file for the FM-1 (-mcpu=r3 -mfprev1 -O2) and report what the DSP
 # rules forbid: calls into soft-double routines (__*df*), libm, malloc/free, and any
 # undefined symbol outside an allow list. Also prints the instruction count of each
-# function (a rough cost signal; tests/target_budget.py does the loop-weighted one).
-#   tools/target_obj_check.sh firmware/src/dsp/bass303.c [extra cflags...]
+# function (a rough cost signal; the BENCH page measures the real one on the FM-1).
+#   tools/target_obj_check.sh firmware/src/dsp/drone.c [extra cflags...]
 # Needs JIELI_TOOLCHAIN (tools/get_toolchain.sh) and docker or podman.
 set -e
 cd "$(dirname "$0")/.."

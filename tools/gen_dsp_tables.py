@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 # 9W9's EXP pot ranges (er99_pots.h) that the effects use
-EXP_RANGES = [("DRIVE", 0.85, 12.0), ("FX_HPF", 30.0, 800.0)]
+EXP_RANGES = [("FX_HPF", 30.0, 800.0)]
 
 TANH_N = 1024          # points over [0, TANH_MAX]; linear interpolation
 TANH_MAX = 8.0

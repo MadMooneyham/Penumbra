@@ -44,7 +44,5 @@ int pulse_active(const pulse_t *p);
 /* adds the kick into l and r, the bloom into bl and br (the caller clears them) */
 void pulse_render(pulse_t *p, float *l, float *r, float *bl, float *br, int n);
 int pulse_blooming(const pulse_t *p);     /* the bloom sounds (its pair has something) */
-int pulse_nparams(void);
 const param_t *pulse_param(int i);
 void pulse_set(pulse_t *p, int i, int value);
-int pulse_get(const pulse_t *p, int i);

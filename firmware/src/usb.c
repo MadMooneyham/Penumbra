@@ -654,8 +654,8 @@ static void ep1_rx(void)
 }
 
 #if FELUCCA_OTA
-/* ---- SysEx frames for the main loop (ota.c / editor.c hooks; felucca.c and the
- * update loader supply ota_now_ms / ota_idle) ---- */
+/* ---- SysEx frames for the main loop (ota.c's hooks; penumbra.c and the update loader supply
+ * ota_now_ms / ota_idle) ---- */
 static uint32_t ota_now_ms(void);
 static void ota_idle(void);
 

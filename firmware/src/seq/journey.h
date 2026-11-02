@@ -23,9 +23,7 @@
 #define JR_USER 8
 #define JR_DRONES 5
 #define JR_MAGIC 0x314A4E50u                    /* "PNJ1" */
-#define JR_FORMAT 5u                            /* 4 (0.16, 0.17): no BLOOM; 3 (0.15): one VOX sound; 2 (0.14): no
-                                                 * sound; 1 (0.13): three loops, LINE's first, no sound
-                                                 * (settings.c converts them all) */
+#define JR_FORMAT 5u                            /* (the betas' formats 1 .. 4 do not load: the first preset plays) */
 #define JR_VSOUNDS 4                            /* VOX's sounds: black keys 8 .. 11 */
 #define JR_VS 16                                /* a VOX sound's bytes (engine.h VS_*) */
 #define JR_DRONE_GAP 3.0f                       /* seconds between the drone's voices moving to a new scene */
@@ -33,7 +31,6 @@
 #define JR_VOICES 4                             /* the sound: DRONE, VOX, PULSE, TEXTURE (engine.h EV_*) */
 #define JR_SHAPE 6                              /* each one's level, the SHAPE page's four knobs, one more (engine.h SH_*) */
 #define JR_DVOICE 4                             /* each drone voice's own, its black key held (engine.h DV_*) */
-#define JR_OLD_LOOPS 40                         /* (0.15's two captured loops: unused bytes now) */
 
 enum { SC_IONIAN, SC_DORIAN, SC_PHRYGIAN, SC_LYDIAN, SC_MIXOLYDIAN, SC_AEOLIAN, SC_HARMONIC, NSCALES };
 enum { VC_OPEN, VC_WARM, VC_HIGH, VC_CLUSTER, NVOICINGS };
@@ -61,7 +58,7 @@ typedef struct {
     uint8_t macro[NMACROS];
     uint8_t rsv;
     scene_t scene[JR_SCENES];
-    uint8_t old_loops[JR_OLD_LOOPS];
+    uint8_t rsv2[40];                           /* (0.15's two captured loops: spare) */
     /* the sound (0..127; nothing here reads it but dswell: the engine does) */
     uint8_t shape[JR_VOICES][JR_SHAPE];
     uint8_t dvoice[JR_DRONES][JR_DVOICE];
