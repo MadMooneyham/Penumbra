@@ -41,7 +41,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install Pillow
-      - uses: mymindstorm/setup-emsdk@v14
+      - uses: mymindstorm/setup-emsdk@v16
         with:
           version: 6.0.13
       - name: The latest release's package
