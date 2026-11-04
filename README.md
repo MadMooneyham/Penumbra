@@ -54,15 +54,18 @@ Everything else, from the drone voices to the looper, holds, scenes and sound pa
 - **PULSE**: a deep kick tuned to the key, and BLOOM.
 - **TEXTURE**: a bed of space wind, always under the rest.
 - **Movement**: TIDES, one slow swell under it all (8 seconds to 4 minutes a tide) through the drone, the space
-  and VOX; the drone's own drift and sweep.
+  and VOX; the drone's own drift and sweep; PAN, each part's place in the field, swaying as far as you like, on the
+  tide or at a rate of its own, together or one after another.
 - **Effects**: a shimmer reverb (an octave, a fifth or a twelfth up), a worn ping-pong tape delay you can
   WARP, a filter that dips both ways, and a master stage. Each scene has its own room, gliding with it.
 - **The sound, kept**: A/B (two versions of the sound, a blend between them) and a library of eight sounds
   you can bring into any journey.
 - **Journeys**: six preset banks of scenes, and eight user slots. The journey playing, with its loop and its
   A/B, survives a power cut.
-- **Extras**: MIDI clock in and out, VOX over MIDI (with pitch bend), USB audio, a SLEEP timer, and
-  screen-reader support.
+- **With a DAW**: USB audio and MIDI. A tight clock in (and song position) or out, VOX's notes and the black
+  keys both ways, 44 controls on CCs both ways (automate them, or record your moves), program changes for the
+  scenes and journeys.
+- **Extras**: a SLEEP timer, and screen-reader support.
 
 ## Tell me how you play it
 

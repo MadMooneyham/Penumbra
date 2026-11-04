@@ -3,8 +3,8 @@
 autoplay 0
 wait 300
 tap GLO
-turn SELECT 4
-expect row 4
+turn SELECT 6
+expect row 6
 tapkey b0
 tapkey b3
 tapkey b4

@@ -59,6 +59,7 @@ static const char *const VIEW_N[NVIEWS] = {"HOME", "SHAPE", "SCENE", "FX", "JOUR
 enum { L_PAGE, L_DRONE, L_VSOUND, L_BLOOM, L_THROW, L_BEND, L_SOUND };   /* what the controls play: the page's, or a hold's */
 #define AB_GLIDE_S 2.0f                    /* A/B: the blend follows SELECT, all the way in this */
 #define LOAD_GLIDE_S 2.0f                  /* a sound from the library glides in over this */
+#define NCC 44                             /* the controls MIDI CCs reach (CCMAP) */
 
 typedef struct {
     uint8_t view;
@@ -96,6 +97,10 @@ typedef struct {
     float ab_goal, ab_now;             /* A/B: where SELECT has sent the blend, where it is (0 A .. 1 B) */
     uint8_t snd_row;                   /* SOUNDS' row */
     float load_t;                      /* a library sound gliding in: 0 .. 1 (1: none) */
+    /* MIDI (the DAW) */
+    uint32_t midi_keys;                /* the black keys MIDI holds down (bit: key), beside the hands' */
+    uint32_t hand_keys;                /* the hands' own, as last seen (their changes go out as notes) */
+    uint8_t cc_sent[NCC];              /* each CC's value as last sent or taken (0xFF: not yet known) */
 } ui_t;
 static ui_t ui;
 
@@ -173,13 +178,25 @@ static void changed_jr(void) { changed_as(D_JR); }
 static int clamp_i(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
 static int wrap_i(int v, int n) { return ((v % n) + n) % n; }
 
+/* MIDI out for a DAW (MIDI CC OUT): a CC or program change on the channel, unless it is MIDI's own being
+ * applied (midi_take: a DAW playing its automation back hears nothing echoed) */
+static uint8_t midi_applying;
+static void midi_ctl_send(int status, int d1, int d2)
+{
+    if (cfg.midi_ch && !(cfg.midi_quiet & 2u) && !midi_applying)
+        engine_midi_send(status | (cfg.midi_ch - 1), d1, d2);
+}
+/* program changes: 0-7 the journey's scenes, 8-13 the presets, 16-23 the user slots */
+#define PC_PRESET 8
+#define PC_USER 16
+
 /* ================================================================ settings === */
 /* SYSTEM's rows: a setting, its choices, and what a change does */
-enum { R_CLKOUT, R_CLKIN, R_MIDICH, R_CORES, R_DRNCORE, R_OUTLOUD, R_USBFULL, R_AUTOPLAY, R_BEND, R_SLEEP, R_RESET,
-       R_ABOUT, NROWS };
-static const char *const ROW_N[NROWS] = {"MIDI CLOCK OUT", "FOLLOW CLOCK IN", "VOX MIDI CH", "2ND CORE",
-                                         "DRONE CORE", "OUTPUT LEVEL", "USB AUDIO", "PLAY AT POWER-ON",
-                                         "BEND RANGE", "SLEEP", "RESET SOUND", "ABOUT"};
+enum { R_CLKOUT, R_CLKIN, R_MIDICH, R_NOTESOUT, R_CCOUT, R_CORES, R_DRNCORE, R_OUTLOUD, R_USBFULL, R_AUTOPLAY,
+       R_BEND, R_SLEEP, R_RESET, R_ABOUT, NROWS };
+static const char *const ROW_N[NROWS] = {"MIDI CLOCK OUT", "FOLLOW CLOCK IN", "MIDI CHANNEL", "MIDI NOTES OUT",
+                                         "MIDI CC OUT", "2ND CORE", "DRONE CORE", "OUTPUT LEVEL", "USB AUDIO",
+                                         "PLAY AT POWER-ON", "BEND RANGE", "SLEEP", "RESET SOUND", "ABOUT"};
 /* SLEEP: in so many minutes it lets everything go (this session's: not saved) */
 #define SLEEPS 5
 static const uint8_t SLEEP_MIN[SLEEPS] = {0, 20, 40, 60, 90};
@@ -199,6 +216,8 @@ static int row_get(int r)
     case R_CLKOUT: return cfg.clk_out;
     case R_CLKIN: return cfg.clk_in;
     case R_MIDICH: return cfg.midi_ch;
+    case R_NOTESOUT: return !(cfg.midi_quiet & 1u);
+    case R_CCOUT: return !(cfg.midi_quiet & 2u);
     case R_CORES: return !cfg.one_core;
     case R_DRNCORE: return cfg.drone_core;
     case R_OUTLOUD: return cfg.out_loud;
@@ -247,6 +266,8 @@ static void row_set(int r, int v)
     case R_CLKOUT: cfg.clk_out = (uint8_t)v; break;
     case R_CLKIN: cfg.clk_in = (uint8_t)v; break;
     case R_MIDICH: cfg.midi_ch = (uint8_t)v; break;
+    case R_NOTESOUT: cfg.midi_quiet = (uint8_t)((cfg.midi_quiet & ~1u) | (v ? 0u : 1u)); break;
+    case R_CCOUT: cfg.midi_quiet = (uint8_t)((cfg.midi_quiet & ~2u) | (v ? 0u : 2u)); break;
     case R_CORES: cfg.one_core = (uint8_t)!v; break;
     case R_DRNCORE: cfg.drone_core = (uint8_t)v; break;
     case R_OUTLOUD: cfg.out_loud = (uint8_t)v; break;
@@ -418,17 +439,21 @@ static void loop_text(char *b)                     /* HOME's: what it is doing, 
         put_s(q, l->speed == LP_HALF ? " HALF" : " DOUBLE");
 }
 
+static void scene_go(int to)                       /* the scene glides there (PRESET, a program change) */
+{
+    char b[40];
+    ui.sdest = (int8_t)to;
+    engine_travel(to);
+    midi_ctl_send(0xC0, to, 0);
+    put_s(put_s(put_s(put_i(put_s(b, "TO SCENE "), to + 1), "  "), jr_root_name(eng_jr.scene[to].root)), " ");
+    say(b, jr_scale_name(eng_jr.scene[to].scale));
+}
 static void scene_step(int e)                      /* PRESET: the next scene, or the one before */
 {
     const jrun_t *r = engine_jr();
-    int n = eng_jr.nscenes ? eng_jr.nscenes : 1, from, to;
-    char b[40];
+    int n = eng_jr.nscenes ? eng_jr.nscenes : 1, from;
     from = ui.sdest >= 0 && (r->travelling || r->cur != ui.sdest) ? ui.sdest : r->cur;   /* (on the way: from there) */
-    to = wrap_i(from + (e > 0 ? 1 : -1), n);
-    ui.sdest = (int8_t)to;
-    engine_travel(to);
-    put_s(put_s(put_s(put_i(put_s(b, "TO SCENE "), to + 1), "  "), jr_root_name(eng_jr.scene[to].root)), " ");
-    say(b, jr_scale_name(eng_jr.scene[to].scale));
+    scene_go(wrap_i(from + (e > 0 ? 1 : -1), n));
 }
 
 /* JOURNEY's rows: the presets, then the user slots */
@@ -450,6 +475,7 @@ static void journey_sel(void)
         warn("EMPTY: SAVE INTO IT", 0);
         return;
     }
+    midi_ctl_send(0xC0, ui.jrow < JR_PRESETS ? PC_PRESET + ui.jrow : PC_USER + ui.jrow - JR_PRESETS, 0);
     ui.ssel = 0;
     say("OPENED ", b);
     changed_jr();
@@ -480,9 +506,10 @@ static void save_button(void)
 /* ================================================================ the sound === */
 static const char *const VOICE_N[EV_N] = {"DRONE", "VOX", "PULSE", "TEXTURE"};
 /* SHAPE's pages: each voice's sound (VOX: three, of the sound of its four playing), the drone's own
- * movement, and TIDES (ENV, SELECT: the next). ALGO: the voice's level (TIDES: its SHAPE) */
-enum { PG_DRONE, PG_DRONE2, PG_VOX, PG_VOX2, PG_VOX3, PG_PULSE, PG_TEX, PG_TIDES, NPG };
-enum { PK_SHAPE, PK_VSOUND, PK_DMOTION, PK_TIDE };   /* where a page's knobs are */
+ * movement, TIDES, PAN and PAN 2 (ENV, SELECT: the next). ALGO: the voice's level (TIDES: its SHAPE; PAN: the
+ * sway's RATE; PAN 2: its OFFSET) */
+enum { PG_DRONE, PG_DRONE2, PG_VOX, PG_VOX2, PG_VOX3, PG_PULSE, PG_TEX, PG_TIDES, PG_PAN, PG_PAN2, NPG };
+enum { PK_SHAPE, PK_VSOUND, PK_DMOTION, PK_TIDE, PK_PAN, PK_PAN2 };   /* where a page's knobs are */
 typedef struct {
     uint8_t voice, kind;
     const char *name;
@@ -498,11 +525,13 @@ static const spage_t PAGE[NPG] = {
     {EV_VOX, PK_VSOUND, "VOX 3", {"DETUNE", "B OCT", "B MIX", "ENV"}, {VS_DETUNE, VS_BOCT, VS_BMIX, VS_ENV}, 0},
     {EV_PULSE, PK_SHAPE, "PULSE", {"DROP", "DECAY", "CLICK", "SPACE"}, {SH_K1, SH_K2, SH_K3, SH_K4}, 0x8},
     {EV_TEX, PK_SHAPE, "TEXTURE", {"COLOUR", "SWEEP", "RATE", "WIDTH"}, {SH_K1, SH_K2, SH_K3, SH_K4}, 0x1},
-    {EV_N, PK_TIDE, "TIDES", {"RATE", "DRONE", "SPACE", "VOX"}, {TD_RATE, TD_DRONE, TD_SPACE, TD_VOX}, 0}};
-/* the tabs across SHAPE's top: the voices, then TIDES (the page shown lights its own) */
+    {EV_N, PK_TIDE, "TIDES", {"RATE", "DRONE", "SPACE", "VOX"}, {TD_RATE, TD_DRONE, TD_SPACE, TD_VOX}, 0},
+    {EV_N, PK_PAN, "PAN", {"DRONE", "VOX", "PULSE", "TEXTURE"}, {EV_DRONE, EV_VOX, EV_PULSE, EV_TEX}, 0xF},
+    {EV_N, PK_PAN2, "PAN 2", {"DRONE", "VOX", "PULSE", "TEXTURE"}, {EV_DRONE, EV_VOX, EV_PULSE, EV_TEX}, 0}};
+/* the tabs across SHAPE's top: the voices, then TIDES (with PAN: the movement; the page shown lights its own) */
 #define NTABS 5
 static const char *const TAB_N[NTABS] = {"DRONE", "VOX", "PULSE", "TEXTURE", "TIDES"};
-static int pg_tab(int pg) { return PAGE[pg % NPG].kind == PK_TIDE ? 4 : PAGE[pg % NPG].voice; }
+static int pg_tab(int pg) { return PAGE[pg % NPG].kind >= PK_TIDE ? 4 : PAGE[pg % NPG].voice; }
 static uint8_t *vsound(void) { return eng_jr.vsound[eng_jr.vcur % JR_VSOUNDS]; }
 static uint8_t *pg_ptr(int pg, int k)             /* k: a knob, or -1 ALGO's (the level; TIDES: its SHAPE) */
 {
@@ -511,10 +540,27 @@ static uint8_t *pg_ptr(int pg, int k)             /* k: a knob, or -1 ALGO's (th
     case PK_VSOUND: return &vsound()[k < 0 ? VS_LEVEL : p->f[k]];
     case PK_DMOTION: return k < 0 ? &eng_jr.shape[EV_DRONE][SH_LEVEL] : &eng_jr.dmotion[p->f[k]];
     case PK_TIDE: return &eng_jr.tide[k < 0 ? TD_SHAPE : p->f[k]];
+    case PK_PAN: return k < 0 ? &eng_jr.sway_rate : &eng_jr.pan[p->f[k]];
+    case PK_PAN2: return k < 0 ? &eng_jr.sway_off : &eng_jr.sway[p->f[k]];
     default: return &eng_jr.shape[p->voice][k < 0 ? SH_LEVEL : p->f[k]];
     }
 }
-static const char *pg_algo(int pg) { return PAGE[pg % NPG].kind == PK_TIDE ? "SHAPE" : "LEVEL"; }
+static const char *pg_algo(int pg)
+{
+    switch (PAGE[pg % NPG].kind) {
+    case PK_TIDE: return "SHAPE";
+    case PK_PAN: return "RATE";
+    case PK_PAN2: return "OFFSET";
+    default: return "LEVEL";
+    }
+}
+static char *put_pan(char *b, int x, int brief)   /* "MIDDLE", "LEFT 50%", "RIGHT 100%" (brief: "MID", "L 50%") */
+{
+    if (x == 64)
+        return put_s(b, brief ? "MID" : "MIDDLE");
+    b = put_s(b, x < 64 ? (brief ? "L " : "LEFT ") : (brief ? "R " : "RIGHT "));
+    return put_s(put_i(b, x < 64 ? (64 - x) * 100 / 64 : (x - 64) * 100 / 63), "%");
+}
 static int pg_octave(int pg, int k) { return k >= 0 && PAGE[pg % NPG].kind == PK_VSOUND && PAGE[pg % NPG].f[k] == VS_BOCT; }
 static char *put_secs(char *b, float s)           /* "14 S", "2M 10" */
 {
@@ -533,6 +579,24 @@ static void shape_text(int pg, int k, char *b)
         put_secs(b, 8.0f * fm_exp2f((float)x * (5.0f / 127.0f)));
     else if (p->kind == PK_TIDE && k < 0)         /* SHAPE: how even it is */
         put_s(b, x < 22 ? "EVEN" : x > 105 ? "WANDERING" : x < 64 ? "SWAYING" : "UNEVEN");
+    else if (p->kind == PK_PAN && k >= 0)         /* a place in the field */
+        put_pan(b, x, 0);
+    else if (p->kind == PK_PAN && !x)             /* RATE: on the tide, or a sway every so long */
+        put_s(b, "TIDE");
+    else if (p->kind == PK_PAN) {
+        float s = engine_sway_period(x);
+        if (s < 9.95f)
+            put_s(put_d1(b, (uint32_t)(s * 10.0f + 0.5f)), " S");
+        else
+            put_secs(b, s);
+    } else if (p->kind == PK_PAN2 && k >= 0 && !x)   /* how far a part sways */
+        put_s(b, "STILL");
+    else if (p->kind == PK_PAN2 && k >= 0)
+        put_pct(b, x);
+    else if (p->kind == PK_PAN2 && !x)            /* OFFSET: each part behind the one before */
+        put_s(b, "IN SYNC");
+    else if (p->kind == PK_PAN2)
+        put_pct(b, x);
     else if (p->kind == PK_DMOTION && k == 0)     /* the drone's LFO, a cycle */
         put_secs(b, 1.0f / (0.01f * fm_exp2f((float)x * (8.64f / 127.0f))));
     else if (k >= 0 && (p->sgn >> k & 1u))
@@ -890,7 +954,7 @@ static void reset_now(int what)
 {
     static journey_t d;                           /* (the sound as made: jr_sound_default's part of it) */
     const int all = what == RS_ALL, kind = all ? -1 : PAGE[(what - 1) % NPG].kind;
-    const int voice = all ? -1 : kind == PK_DMOTION || kind == PK_TIDE ? EV_N : PAGE[(what - 1) % NPG].voice;
+    const int voice = all ? -1 : kind == PK_DMOTION || kind >= PK_TIDE ? EV_N : PAGE[(what - 1) % NPG].voice;
     int v, k;
     jr_sound_default(&d);
     if (all || kind == PK_DMOTION)                /* DRONE 2: the drone's movement as it was made */
@@ -899,6 +963,16 @@ static void reset_now(int what)
     if (all || kind == PK_TIDE)
         for (k = 0; k < JR_TIDE; k++)
             eng_jr.tide[k] = d.tide[k];
+    if (all || kind == PK_PAN) {                  /* PAN: every voice in the middle, on the tide */
+        for (k = 0; k < JR_PAN; k++)
+            eng_jr.pan[k] = d.pan[k];
+        eng_jr.sway_rate = d.sway_rate;
+    }
+    if (all || kind == PK_PAN2) {                 /* PAN 2: VOX swaying a quarter of the way, in sync */
+        for (k = 0; k < JR_PAN; k++)
+            eng_jr.sway[k] = d.sway[k];
+        eng_jr.sway_off = d.sway_off;
+    }
     for (v = 0; v < EV_N; v++)
         if (all || (v == voice && v != EV_VOX))
             for (k = 0; k < SH_N; k++)
@@ -1184,11 +1258,145 @@ static void knob_turn(int k, int e)
     }
 }
 
+/* ----------------------------------------------------------- MIDI, the DAW --- */
+/* On the channel (SYSTEM's MIDI CHANNEL; OFF: none of it), both ways: VOX's notes (the white keys out as
+ * they sound: engine.c), the CCs of CCMAP (a DAW automates them; anything that moves one, a knob, A/B, a
+ * load, sends it), the program changes (PC_*: scenes, journeys). On the next channel the black keys as
+ * notes 36 .. 46, both ways: a DAW playing them back presses the keys, holds and all. The CCs are in the
+ * ranges MIDI leaves free (14-31, 70-73 the sound controllers, 85-90, 102-117) */
+enum { CK_MACRO, CK_THROW, CK_WARP, CK_TIDE, CK_DMOTION, CK_LEVEL, CK_PAN, CK_RATE, CK_OFFSET, CK_FX };
+typedef struct { uint8_t cc, kind, i; } ccmap_t;
+static const ccmap_t CCMAP[NCC] = {
+    {14, CK_MACRO, MAC_DRONE}, {15, CK_MACRO, MAC_VOX}, {16, CK_MACRO, MAC_SPACE}, {17, CK_MACRO, MAC_TONE},
+    {18, CK_THROW, 0}, {19, CK_THROW, 1}, {20, CK_THROW, 2}, {21, CK_THROW, 3}, {22, CK_WARP, 0},   /* SHIMMER FEEDBACK FREEZE DIP */
+    {23, CK_TIDE, TD_RATE}, {24, CK_TIDE, TD_DRONE}, {25, CK_TIDE, TD_SPACE}, {26, CK_TIDE, TD_VOX}, {27, CK_TIDE, TD_SHAPE},
+    {28, CK_DMOTION, DM_RATE}, {29, CK_DMOTION, DM_SWEEP}, {30, CK_DMOTION, DM_WIDTH}, {31, CK_DMOTION, DM_DRIFT},
+    {70, CK_LEVEL, EV_DRONE}, {71, CK_LEVEL, EV_VOX}, {72, CK_LEVEL, EV_PULSE}, {73, CK_LEVEL, EV_TEX},
+    {85, CK_PAN, EV_DRONE}, {86, CK_PAN, EV_VOX}, {87, CK_PAN, EV_PULSE}, {88, CK_PAN, EV_TEX}, {89, CK_RATE, 0}, {90, CK_OFFSET, 0},
+    {102, CK_FX, 0}, {103, CK_FX, 1}, {104, CK_FX, 2}, {105, CK_FX, 3}, {106, CK_FX, 4}, {107, CK_FX, 5},
+    {108, CK_FX, 6}, {109, CK_FX, 7}, {110, CK_FX, 8}, {111, CK_FX, 9}, {112, CK_FX, 10}, {113, CK_FX, 11},
+    {114, CK_FX, 12}, {115, CK_FX, 13}, {116, CK_FX, 14}, {117, CK_FX, 15}};   /* the FX page, row by row */
+#define MIDI_KEY0 36                              /* the first black key's note, on the next channel */
+#define CC_PER_FRAME 8                            /* (a load moves them all: the ring has room for these) */
+static int signed_cc(float x) { return clamp_i(x < 0.0f ? 64 + round_i(x * (64.0f / 127.0f)) : 64 + round_i(x * (63.0f / 127.0f)), 0, 127); }
+static float cc_signed(int v) { return v < 64 ? (float)(v - 64) * (127.0f / 64.0f) : (float)(v - 64) * (127.0f / 63.0f); }
+static int cc_get(int c)                          /* the control now, 0 .. 127 */
+{
+    const ccmap_t *m = &CCMAP[c];
+    switch (m->kind) {
+    case CK_MACRO: return eng_jr.macro[m->i];
+    case CK_THROW: return m->i == 3 ? signed_cc(ui.thr[3]) : clamp_i(round_i(ui.thr[m->i]), 0, 127);   /* (DIP: 64 open) */
+    case CK_WARP: return signed_cc(ui.warp);
+    case CK_TIDE: return eng_jr.tide[m->i];
+    case CK_DMOTION: return eng_jr.dmotion[m->i];
+    case CK_LEVEL: return m->i == EV_VOX ? vsound()[VS_LEVEL] : eng_jr.shape[m->i][SH_LEVEL];
+    case CK_PAN: return eng_jr.pan[m->i];
+    case CK_RATE: return eng_jr.sway_rate;
+    case CK_OFFSET: return eng_jr.sway_off;
+    default: {
+        int f = fx_of(m->i / 4, m->i % 4), mx = engine_fx_max(f);
+        return mx >= 127 ? cfg.fx[f] : (cfg.fx[f] * 127 + mx / 2) / (mx ? mx : 1);   /* (a switch: its steps spread) */
+    }
+    }
+}
+static void cc_set(int c, int v)                  /* a CC came: the control there, quietly */
+{
+    const ccmap_t *m = &CCMAP[c];
+    switch (m->kind) {
+    case CK_MACRO: eng_jr.macro[m->i] = (uint8_t)v; changed_jr(); break;
+    case CK_THROW:                                /* (held where it is put: no drift back) */
+        ui.thr[m->i] = m->i == 3 ? cc_signed(v) : (float)v;
+        ui.thr_back = 0;
+        break;
+    case CK_WARP: ui.warp = cc_signed(v); ui.thr_back = 0; break;
+    case CK_TIDE: eng_jr.tide[m->i] = (uint8_t)v; changed_jr(); break;
+    case CK_DMOTION: eng_jr.dmotion[m->i] = (uint8_t)v; changed_jr(); break;
+    case CK_LEVEL:
+        if (m->i == EV_VOX)
+            vsound()[VS_LEVEL] = (uint8_t)v;
+        else
+            eng_jr.shape[m->i][SH_LEVEL] = (uint8_t)v;
+        changed_jr();
+        break;
+    case CK_PAN: eng_jr.pan[m->i] = (uint8_t)v; changed_jr(); break;
+    case CK_RATE: eng_jr.sway_rate = (uint8_t)v; changed_jr(); break;
+    case CK_OFFSET: eng_jr.sway_off = (uint8_t)v; changed_jr(); break;
+    default: {
+        int f = fx_of(m->i / 4, m->i % 4), mx = engine_fx_max(f);
+        cfg.fx[f] = (uint8_t)(mx >= 127 ? v : (v * mx + 63) / 127);
+        engine_fx(f, cfg.fx[f]);
+        changed();
+        break;
+    }
+    }
+}
+static void midi_take(void)                       /* what MIDI brought, applied as the hands would */
+{
+    uint32_t pkt;
+    int c, guard = 64;
+    midi_applying = 1;
+    while (guard-- && engine_midi_take(&pkt)) {
+        int st = (int)(pkt >> 8) & 0xFF, d1 = (int)(pkt >> 16) & 0x7F, d2 = (int)(pkt >> 24) & 0x7F, ty = st & 0xF0;
+        if (ty == 0x90 || ty == 0x80) {           /* (the engine sends only the next channel's) */
+            int bk = d1 - MIDI_KEY0;
+            if (bk >= 0 && bk < 11) {
+                uint32_t bit = 1u << BLACK_KEY[bk];
+                ui.midi_keys = ty == 0x90 && d2 ? ui.midi_keys | bit : ui.midi_keys & ~bit;
+            }
+        } else if (ty == 0xB0) {
+            for (c = 0; c < NCC; c++)
+                if (CCMAP[c].cc == d1) {
+                    cc_set(c, d2);
+                    ui.cc_sent[c] = (uint8_t)cc_get(c);
+                }
+        } else if (ty == 0xC0) {
+            if (d1 < PC_PRESET && d1 < eng_jr.nscenes) {
+                scene_go(d1);
+            } else if ((d1 >= PC_PRESET && d1 < PC_PRESET + JR_PRESETS) ||
+                       (d1 >= PC_USER && d1 < PC_USER + JR_USER && journey_slot_used(d1 - PC_USER))) {
+                ui.jrow = (uint8_t)(d1 < PC_USER ? d1 - PC_PRESET : JR_PRESETS + d1 - PC_USER);
+                journey_sel();
+            }
+        }
+    }
+    midi_applying = 0;
+}
+static void midi_send_moves(void)                 /* the controls that moved since, out (a few a frame) */
+{
+    int c, n = 0;
+    for (c = 0; c < NCC; c++) {
+        int v = cc_get(c);
+        if (v == ui.cc_sent[c])
+            continue;
+        if (ui.cc_sent[c] == 0xFF || !cfg.midi_ch || (cfg.midi_quiet & 2u)) {
+            ui.cc_sent[c] = (uint8_t)v;           /* (the first look, or not sending: known, quietly) */
+            continue;
+        }
+        if (n++ == CC_PER_FRAME)
+            break;
+        midi_ctl_send(0xB0, CCMAP[c].cc, v);
+        ui.cc_sent[c] = (uint8_t)v;
+    }
+}
+static void midi_keys_out(uint32_t hands)         /* the hands' black keys, out as notes on the next channel */
+{
+    uint32_t ch = hands ^ ui.hand_keys;
+    int i;
+    ui.hand_keys = hands;
+    if (!ch || !cfg.midi_ch || (cfg.midi_quiet & 1u))
+        return;
+    for (i = 0; i < NKEYS; i++)
+        if ((ch >> i & 1u) && KEY_BLACK[i] >= 0)
+            engine_midi_send((hands >> i & 1u ? 0x90 : 0x80) | (cfg.midi_ch % 16), MIDI_KEY0 + KEY_BLACK[i],
+                             hands >> i & 1u ? 110 : 0);
+}
+
 static void input(void)
 {
-    uint32_t b = plat_buttons(), k = plat_keys(), now = plat_ms();
+    uint32_t b = plat_buttons(), hands = plat_keys(), k = hands | ui.midi_keys, now = plat_ms();
     uint32_t down = b & ~ui.btn, up = ui.btn & ~b, kd = k & ~ui.keys, ku = ui.keys & ~k;
     int i, e;
+    midi_keys_out(hands);
     if (b || k || down || up)
         ui.touch_t = now;
     ui.btn = b;
@@ -1776,6 +1984,26 @@ static void draw_shape(void)
         if (sel)
             cv_rect(cx - 20, 16, 40, 2, C_AMB);
     }
+    if (pg->kind == PK_PAN || pg->kind == PK_PAN2) {   /* PAN: the field, left to right, each part where it is
+                                                   * now (the tide's sway in it; where it is put, marked). PAN 2:
+                                                   * the same, the parts that stay still dimmed */
+        for (k = 0; k < 4; k++) {
+            int y = 32 + k * 20, at = 80 + eng_jr.pan[pg->f[k]] * 148 / 127, on = eng_jr.sway[pg->f[k]] != 0;
+            int now = 80 + (int)(engine_pan_now(pg->f[k]) * 148.0f / 127.0f);
+            cv_text(6, y - 5, &FONT_XS, pg->k[k], pg->kind == PK_PAN || on ? C_GRAY : C_DIM);
+            cv_rect(80, y, 149, 1, C_LINE);
+            cv_rect(154, y - 4, 1, 9, C_DIM);     /* (the middle) */
+            if (now != at)
+                cv_rect(at, y - 3, 1, 7, C_DIM);
+            cv_rect(now - 2, y - 3, 5, 7, pg->kind == PK_PAN || on ? C_AMB : C_DIM);
+        }
+        cv_text(6, 116, &FONT_XS, pg_algo(ui.vsel), C_GRAY);
+        cv_rect(90, 120, 110, 4, C_LINE);
+        cv_rect(90, 120, lv * 110 / 127, 4, C_AMB);
+        shape_text(ui.vsel, -1, b);
+        text_r(232, 116, &FONT_XS, b, C_HI);
+        return;
+    }
     for (k = 0; k < 4; k++) {
         int cx = 30 + k * 60, x = *pg_ptr(ui.vsel, k), top = 28, h = 66, fill;
         if (pg_octave(ui.vsel, k))
@@ -2030,7 +2258,10 @@ static void draw_knobs(void)
         break;
     case V_SHAPE:
         for (k = 0; k < 4; k++) {
-            shape_text(ui.vsel, k, a);
+            if (PAGE[ui.vsel].kind == PK_PAN)     /* (the cell's width) */
+                put_pan(a, *pg_ptr(ui.vsel, k), 1);
+            else
+                shape_text(ui.vsel, k, a);
             cell(k, PAGE[ui.vsel].k[k], a, C_HI);
         }
         shape_text(ui.vsel, -1, b);
@@ -2208,6 +2439,8 @@ void ui_init(void)
     }
     ui.view = V_HOME;
     ui.sdest = -1;
+    for (i = 0; i < NCC; i++)
+        ui.cc_sent[i] = 0xFF;
     ui.dirty = 0;                                 /* (the device starts from nothing; the simulator's reboot too) */
     ui.row = 0;
     ui.sleep = 0;
@@ -2230,8 +2463,10 @@ void ui_start(void)
 void ui_frame(void)
 {
     static uint32_t ab_t0;
+    midi_take();
     input();
     perf_tick();
+    midi_send_moves();
     {   /* A/B's and a library sound's glides */
         uint32_t now = plat_ms();
         ab_tick(fm_minf((float)(now - ab_t0) * 0.001f, 0.1f));

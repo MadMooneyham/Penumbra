@@ -23,8 +23,10 @@
 #define JR_USER 8
 #define JR_DRONES 5
 #define JR_MAGIC 0x314A4E50u                    /* "PNJ1" */
-#define JR_FORMAT 6u                            /* 5 (1.0): no ROOM, HALO, drone motion or TIDES (settings.c
-                                                 * converts it); the betas' 1 .. 4 do not load */
+#define JR_FORMAT 9u                            /* 8 (1.2's second and third betas): one SWAY for all and PAN 2's
+                                                 * switches, no RATE; 7 (its first): no PAN 2; 6 (1.1): nor PAN or
+                                                 * SWAY; 5 (1.0): nor ROOM, HALO, drone motion or TIDES (settings.c
+                                                 * converts them all); the betas' 1 .. 4 do not load */
 #define JR_VSOUNDS 4                            /* VOX's sounds: black keys 8 .. 11 */
 #define JR_VS 16                                /* a VOX sound's bytes (engine.h VS_*) */
 #define JR_DRONE_GAP 3.0f                       /* seconds between the drone's voices moving to a new scene */
@@ -34,6 +36,7 @@
 #define JR_DVOICE 4                             /* each drone voice's own, its black key held (engine.h DV_*) */
 #define JR_DMOTION 4                            /* the drone's movement (engine.h DM_*) */
 #define JR_TIDE 5                               /* TIDES (engine.h TD_*) */
+#define JR_PAN JR_VOICES                        /* each voice's place in the field (64: the middle) */
 
 enum { SC_IONIAN, SC_DORIAN, SC_PHRYGIAN, SC_LYDIAN, SC_MIXOLYDIAN, SC_AEOLIAN, SC_HARMONIC, NSCALES };
 enum { VC_OPEN, VC_WARM, VC_HIGH, VC_CLUSTER, NVOICINGS };
@@ -66,7 +69,11 @@ typedef struct {
     scene_t scene[JR_SCENES];
     uint8_t dmotion[JR_DMOTION];                /* the drone's own movement: RATE, SWEEP, WIDTH, DRIFT (engine.h DM_*) */
     uint8_t tide[JR_TIDE];                      /* TIDES: RATE, DRONE, SPACE, VOX, SHAPE (engine.h TD_*) */
-    uint8_t rsv2[40 - JR_DMOTION - JR_TIDE];    /* (0.15's two captured loops: spare) */
+    uint8_t pan[JR_PAN];                        /* PAN: DRONE, VOX, PULSE (its BLOOM too), TEXTURE; 0 left .. 127 right */
+    uint8_t sway_rate;                          /* PAN's ALGO: 0 the sway on the tide, else its own cycle (60 s .. 0.5 s) */
+    uint8_t sway[JR_PAN];                       /* PAN 2: how far each part sways, as pan[] (0 still; VOX: its echoes half) */
+    uint8_t sway_off;                           /* PAN 2's ALGO: 0 all in sync .. 127 each half a cycle behind the one before */
+    uint8_t rsv2[40 - JR_DMOTION - JR_TIDE - 2 * JR_PAN - 2];   /* (0.15's two captured loops: spare) */
     /* the sound (0..127; nothing here reads it but dswell: the engine does) */
     uint8_t shape[JR_VOICES][JR_SHAPE];
     uint8_t dvoice[JR_DRONES][JR_DVOICE];
@@ -139,6 +146,8 @@ void jr_sound_default(journey_t *j);             /* the sound as made (a preset'
 void jr_vsound_default(journey_t *j);            /* VOX's four sounds as made */
 void jr_bloom_default(journey_t *j);             /* BLOOM as made */
 void jr_motion_default(journey_t *j);            /* the drone's movement and TIDES as made */
+void jr_pan_default(journey_t *j);               /* PAN as made: every voice in the middle, on the tide; PAN 2's too */
+void jr_sway_default(journey_t *j);              /* PAN 2 as made: VOX sways a quarter of the way out, nothing else; in sync */
 const char *jr_vsound_name(int i);               /* GLASS, REED, HALO, LOW */
 int jr_valid(const journey_t *j);                /* loaded from flash: is it one */
 

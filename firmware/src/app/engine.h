@@ -59,6 +59,12 @@ enum { DM_RATE, DM_SWEEP, DM_WIDTH, DM_DRIFT, DM_N };
 enum { TD_RATE, TD_DRONE, TD_SPACE, TD_VOX, TD_SHAPE, TD_N };
 _Static_assert(DM_N == JR_DMOTION && TD_N == JR_TIDE, "the journey keeps the movement");
 float engine_tide(void);                         /* (main loop) the tide now, -1 .. 1 (the corona breathes with it) */
+/* PAN (eng_jr.pan, SHAPE's PAN): each voice's place in the field, 0 left .. 64 the middle .. 127 right (the
+ * drone's voices keep their spread around it; BLOOM goes with PULSE); its ALGO the RATE they sway at
+ * (eng_jr.sway_rate: 0 the tide's, else engine_sway_period). PAN 2 (eng_jr.sway): how far each sways (VOX's
+ * echoes half as far); its ALGO the OFFSET between them */
+float engine_pan_now(int voice);                 /* (main loop) EV_*'s place now, the sway in it: 0 .. 127 */
+float engine_sway_period(int rate);              /* RATE 1 .. 127: seconds a sway */
 _Static_assert(EV_N == JR_VOICES && SH_N == JR_SHAPE && DV_N == JR_DVOICE, "the journey keeps the sound");
 /* VOX's sounds (eng_jr.vsound[vcur]: VOX's row of shape is unused): its SHAPE pages are VOX (BRIGHT,
  * ATTACK, RELEASE, SHIMMER), VOX 2 (WAVE, FILTER: low-pass .. band-pass, RESO, GLIDE) and VOX 3 (DETUNE,
@@ -123,6 +129,12 @@ const looper_t *engine_looper_state(void);         /* (main loop, read only) */
 void engine_freeze(void);                          /* the notes held keep sounding (again: they let go) */
 int engine_frozen(void);                           /* (main loop) notes frozen */
 void engine_travel(int scene);                     /* the scene glides there */
+/* MIDI for a DAW. In: the channel's CCs and program changes, and the next channel's notes (the black keys),
+ * for the UI to take (main loop); out (the audio ISR sends it, so nothing else writes the ring): a message
+ * from the UI, and the white keys' notes as they sound (engine_midi_notes_out) */
+int engine_midi_take(uint32_t *pkt);
+void engine_midi_send(int status, int d1, int d2);
+void engine_midi_notes_out(int on);
 void engine_morph(int detents);                    /* MORPH: toward the next scene (+), the one before (-) */
 void engine_journey_loaded(void);                  /* eng_jr is a new journey: start it from its scene */
 void engine_drone_key(int voice);                  /* a black key: the voice by its MODE (HOLD: latch) */

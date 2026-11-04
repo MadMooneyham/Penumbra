@@ -74,7 +74,8 @@ saved yet.
 The white keys play VOX in the scene's key and scale, so you cannot play a wrong note. VOX has four voices.
 **OCT-** and **OCT+** move the keys' octave, two octaves either way.
 
-VOX also plays notes from MIDI, on SYSTEM's VOX MIDI channel (1 by default). It takes pitch bend too.
+VOX also plays notes from MIDI, on SYSTEM's MIDI channel (1 by default). It takes pitch bend too. For
+playing with a DAW, see section 10.
 
 ### Black keys 1-5: the drone
 
@@ -249,7 +250,20 @@ The fields:
 
 **JOURNEY (LFO)** lists the six presets and eight user slots:
 
-- **The presets**: ECLIPSE, PENUMBRA, SELENE, TRANQUILITY, PERIGEE and FAR SIDE.
+- **The presets**: ECLIPSE, PENUMBRA, SELENE, TRANQUILITY, PERIGEE and FAR SIDE. Each has a sound of its
+  own as well as its scenes:
+
+  | Journey | Its sound |
+  | --- | --- |
+  | ECLIPSE | Penumbra as made: VOX on a gentle tide, about once every 50 seconds |
+  | PENUMBRA | A reedier drone; VOX (REED) and the wind mirrored, swaying every 16 seconds |
+  | SELENE | An uneasy, wandering tide; the two high drone voices come and go; VOX (HALO) and the drone a quarter tide apart on it |
+  | TRANQUILITY | Soft and still: a three-minute even tide; VOX and the wind drifting together every 40 seconds |
+  | PERIGEE | Close and quick: a short tide, VOX (LOW) to the left, the kick and the wind swinging round every 4 seconds |
+  | FAR SIDE | Vast: a four-minute wandering tide, three drone voices coming and going, every part taking its turn round the field every 24 seconds |
+
+  SEL twice on a SHAPE page puts it back as Penumbra makes it, not as the journey had it: reopen the journey
+  (JOURNEY, SEL) to have its own sound back.
 - SELECT or PRESET moves through the list, and SEL opens the journey shown.
 - SAVE on a user slot stores the journey playing there.
 - Opening a preset keeps the sound you have made. Opening a user journey brings back the sound saved with it.
@@ -282,11 +296,30 @@ a LEVEL as 100% as made (up to 127%). Times, octaves and note lengths keep their
 | PULSE | DROP (the kick's fall in pitch) | DECAY | CLICK | SPACE |
 | TEXTURE | COLOUR | SWEEP | RATE | WIDTH |
 | TIDES | RATE (8 s to 4 min a tide) | DRONE (how far it moves the drone's filter) | SPACE (the sends) | VOX (its brightness) |
+| PAN | DRONE | VOX | PULSE (and BLOOM) | TEXTURE |
+| PAN 2 | DRONE (how far it sways: STILL to 100%) | VOX | PULSE | TEXTURE |
 
 **TIDES** is one slow swell under everything: the drone opens and closes, the space breathes in and out,
 VOX brightens and darkens, all on the same tide. On its page **ALGO** sets its SHAPE: from EVEN (a smooth
 sine) to WANDERING (it drifts to a new height each half tide). The line under the knobs shows where the
 tide is now. As made, it moves the drone and the space gently, about once every 50 seconds.
+
+**PAN** places each part in the stereo field, from LEFT 100% through MIDDLE to RIGHT 100%. The parts glide
+to where you put them, so you can move them while you play. The drone's five voices keep their own spread
+around the drone's place. On this page **ALGO** sets RATE, how fast the parts sway: at TIDE (all the way
+down) they move with the tide, its shape and all; turned up, they get a steady cycle of their own, from 60
+seconds down to half a second, so even a part on a slow tide can move where you can hear it. The screen
+shows each part's lane, and where the sway has taken it.
+
+**PAN 2** sets how far each part sways, from STILL to 100% (all the way out to each side). When VOX sways,
+its echoes follow it half as far. **ALGO** sets OFFSET: at IN SYNC (0%) every swaying part moves together;
+turned up, each one follows the one before it (in the order DRONE, VOX, PULSE, TEXTURE) up to half a cycle
+behind. At 100% two swaying parts mirror each other, one going left as the other goes right. At 50% each
+is a quarter of a cycle behind the last, so four swaying parts take turns round the field. The screen dims
+the parts that stay still.
+
+As made, every part is in the middle and VOX sways 25% on the tide, in sync. Journeys from 1.1 and earlier
+come in with no sway, so they sound as they did.
 
 BLOOM's settings are under its own hold (black key 7, above). PULSE's level sets the kick's and BLOOM's
 together.
@@ -296,7 +329,7 @@ together.
 - DRONE also resets the drone voices' own settings.
 - The VOX pages reset the VOX sound playing.
 - PULSE also resets BLOOM.
-- DRONE 2 and TIDES reset only their own page.
+- DRONE 2, TIDES, PAN and PAN 2 reset only their own page.
 
 The first press only asks, so you cannot reset by accident.
 
@@ -312,6 +345,8 @@ The first press only asks, so you cannot reset by accident.
 | DELAY 2 | LEVEL (its return) | LOW CUT | PING-PONG (on: the echoes go left, right) | WARP (how far the WARP throw bends it: up to two octaves) |
 
 A change of SIZE glides: the reverb's lines slide to the new size, so the room breathes and never clicks.
+A new delay TIME, or a new tempo, is taken once you stop turning: the echoes cross-fade to it and stay on
+pitch. Only the WARP throw bends them.
 Each scene can move the reverb further with its ROOM and HALO (section 7).
 
 **SYSTEM (GLO)**: SELECT moves through the list, and a knob or SEL changes the row shown.
@@ -320,7 +355,9 @@ Each scene can move the reverb further with its ROOM and HALO (section 7).
 | --- | --- |
 | MIDI CLOCK OUT | Sends MIDI clock and start/stop while the clock runs |
 | FOLLOW CLOCK IN | Follows MIDI clock and start/stop from outside |
-| VOX MIDI CH | VOX's MIDI channel, 1-16, or off |
+| MIDI CHANNEL | VOX's notes, the CCs and program changes, 1-16, or off; the black keys use the next channel (section 10) |
+| MIDI NOTES OUT | Sends the notes you play |
+| MIDI CC OUT | Sends the CCs and program changes as you change things |
 | 2ND CORE | Uses the FM-1's second processor core; applies at the next power-on |
 | DRONE CORE | Which core runs the drone voices; SPLIT balances itself |
 | OUTPUT LEVEL | NORMAL, or LOUD (6 dB hotter) |
@@ -357,7 +394,58 @@ settings.
 **Leaving Penumbra.** Install another firmware the usual way; Penumbra carries the update loader. If the FM-1
 ever won't take an install, hold **OCT-** and **OCT+** together for five seconds to put it in update mode.
 
-## 10. Cheat sheet
+## 10. MIDI and a DAW
+
+Connect the FM-1 by USB: a computer sees it as an audio device and a MIDI device. The TRS jack takes MIDI
+in too. Everything below is on SYSTEM's MIDI CHANNEL (channel *N*, 1 by default), except the black keys,
+which use the channel after it (*N*+1).
+
+**The clock.** With FOLLOW CLOCK IN on, the DAW's clock runs the tempo, and its start, stop and continue
+run the transport. Penumbra times each tick as it arrives, so it holds the DAW's tempo to about a tenth of
+a BPM, and the delay's echoes stay put. SONG POSITION is followed too: when the DAW locates or loops, the
+clock and a playing loop carry on from there. With MIDI CLOCK OUT on and nothing to follow, Penumbra sends
+its own clock.
+
+**Notes.** VOX plays notes on channel *N*, and sends the notes you play on the white keys there (MIDI
+NOTES OUT). The black keys go out on channel *N*+1 as notes 36 to 46, one for each key from black 1 to
+black 11. Notes 36 to 46 coming in on that channel press those keys, so the DAW can play the drone, the
+kick, BLOOM and the VOX sounds back exactly as you did. The loop's own notes are not sent; yours were, as
+you played them. To record the FM-1's notes, set the DAW track's output somewhere other than the FM-1, or
+every note will sound twice. ALL NOTES OFF (CC 123) ends VOX's notes.
+
+**CCs.** Each of these can be automated by the DAW. When you change one on the FM-1 (by a knob, A/B, a
+load or a throw), Penumbra sends its CC (MIDI CC OUT), so the DAW can record your moves. A CC coming in is
+never sent back.
+
+| CC | Control |
+| --- | --- |
+| 14-17 | HOME: DRONE, VOX, SPACE, TONE |
+| 18-20 | Throws: SHIMMER, FEEDBACK, FREEZE |
+| 21 | DIP (64: open; below, the low-pass; above, the high-pass) |
+| 22 | WARP (64: none) |
+| 23-27 | TIDES: RATE, DRONE, SPACE, VOX, SHAPE |
+| 28-31 | DRONE 2: RATE, SWEEP, WIDTH, DRIFT |
+| 70-73 | LEVEL: DRONE, VOX, PULSE, TEXTURE |
+| 85-88 | PAN: DRONE, VOX, PULSE, TEXTURE (64: the middle) |
+| 89 | PAN's RATE (0: the tide) |
+| 90 | PAN 2's OFFSET |
+| 102-105 | FX: REVERB row (DECAY, SIZE, SHIMMER, TONE) |
+| 106-109 | FX: REVERB 2 row (MOTION, LOW CUT, INTERVAL, LEVEL) |
+| 110-113 | FX: DELAY row (TIME, FEEDBACK, TONE, WEAR) |
+| 114-117 | FX: DELAY 2 row (LEVEL, LOW CUT, PING-PONG, WARP) |
+
+A throw set by a CC stays where the DAW puts it; it does not drift back. The FX page's switches (the delay
+TIME, INTERVAL, PING-PONG) spread their steps over 0 to 127.
+
+**Program changes**, both ways:
+
+| Program | Does |
+| --- | --- |
+| 0-7 | Travel to scene 1-8 of the journey playing |
+| 8-13 | Open preset journey 1-6 |
+| 16-23 | Open user journey 1-8 (if saved) |
+
+## 11. Cheat sheet
 
 | Control | Does |
 | --- | --- |
@@ -375,7 +463,7 @@ ever won't take an install, hold **OCT-** and **OCT+** together for five seconds
 | REC + PLAY | Clear the loop |
 | ARP | FREEZE |
 | FX | FX page; held: throws (DIP both ways), + ALGO: WARP |
-| ENV | SHAPE, TIDES (again: next page; SEL twice: reset); held: A/B |
+| ENV | SHAPE, TIDES, PAN, PAN 2 (again: next page; SEL twice: reset); held: A/B |
 | EDIT | SCENE, ROOM, HALO (SEL: store the moment) |
 | LFO | JOURNEY (SEL: open; SAVE: into a user slot); again: SOUNDS |
 | GLO | SYSTEM, then BENCH |

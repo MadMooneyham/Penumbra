@@ -35,6 +35,37 @@ void tclock_continue(tclock_t *c) { c->req_cont = 1; }
 void tclock_stop(tclock_t *c) { c->req_stop = 1; }
 void tclock_ext_tick(tclock_t *c) { c->ext_pending++; }
 
+void tclock_ext_tick_at(tclock_t *c, uint16_t stamp)
+{
+    const uint32_t ring = TCLOCK_SPAN + 1u;
+    if (c->stamp_n) {
+        uint16_t last = c->stamp[(c->stamp_at + ring - 1u) % ring];
+        if ((uint16_t)(stamp - last) > (uint16_t)(TCLOCK_STAMP_HZ / 2.0f))
+            c->stamp_n = 0;                     /* (a gap: the clock starts over) */
+    }
+    c->stamp[c->stamp_at] = stamp;
+    c->stamp_at = (uint8_t)((c->stamp_at + 1u) % ring);
+    if (c->stamp_n < ring)
+        c->stamp_n++;
+    if (c->stamp_n >= 3u) {                     /* the span, oldest to newest, over the ticks between */
+        uint16_t first = c->stamp[(c->stamp_at + ring - c->stamp_n) % ring];
+        float per = (float)(uint16_t)(stamp - first) / (float)(c->stamp_n - 1u) * ((float)TCLOCK_FS / TCLOCK_STAMP_HZ);
+        if (per > 1.0f) {
+            c->ext_bpm = (float)TCLOCK_FS * 60.0f / (24.0f * per);
+            c->ext_period = (uint32_t)(per * 256.0f);
+        }
+    }
+    c->ext_since = 0;
+    c->ext_pending++;
+    c->ext_stamped = 1;
+}
+
+void tclock_song_pos(tclock_t *c, uint32_t sixteenths)
+{
+    c->steps = sixteenths;
+    c->ext_ticks = TICKS_PER_STEP - 1u;         /* (as START: the next tick is that 16th) */
+}
+
 uint32_t tclock_until(const tclock_t *c, uint32_t n)
 {
     uint32_t m = n, e;
@@ -87,7 +118,7 @@ static void ext_ticks(tclock_t *c, const tclock_sink_t *o)
     uint32_t n = c->ext_pending;
     c->ext_pending = 0;
     for (; n; n--) {
-        if (c->ext_since > 0 && c->ext_since < TCLOCK_FS) {   /* tempo: the smoothed tick period */
+        if (!c->ext_stamped && c->ext_since > 0 && c->ext_since < TCLOCK_FS) {   /* tempo: the smoothed tick period */
             uint32_t q = c->ext_since << 8;
             c->ext_period = c->ext_period ? c->ext_period - (c->ext_period >> 3) + (q >> 3) : q;
             c->ext_bpm = (float)TCLOCK_FS * 60.0f * 256.0f / (24.0f * (float)c->ext_period);
@@ -110,6 +141,7 @@ void tclock_advance(tclock_t *c, uint32_t k, const tclock_sink_t *o)
         c->ext = 1;
     } else if (c->ext && c->ext_since > TCLOCK_FS / 2u) {   /* clock gone for 0.5 s: back to internal */
         c->ext = 0;
+        c->stamp_n = c->ext_stamped = 0;
         if (c->playing)
             c->step_to_next = 0;
     }

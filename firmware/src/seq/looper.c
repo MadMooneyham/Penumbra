@@ -117,6 +117,20 @@ void looper_restart(looper_t *l, const lp_sink_t *o)
     }
 }
 
+void looper_seek(looper_t *l, uint32_t ticks, const lp_sink_t *o)
+{
+    if ((l->state != LS_PLAY && l->state != LS_DUB) || !l->len)
+        return;                                  /* (as looper_restart: a stopped loop stays stopped) */
+    looper_quiet(l, o);
+    if (l->speed == LP_DOUBLE)                   /* (where it would be, had it run from the downbeat) */
+        ticks *= 2u;
+    else if (l->speed == LP_HALF)
+        ticks >>= 1;
+    l->pos = ticks % l->len;
+    l->frac = 0;
+    fire(l, l->pos, l->pos, 1, o);               /* (what starts there, plays) */
+}
+
 void looper_rec(looper_t *l, const lp_sink_t *o)
 {
     switch (l->state) {

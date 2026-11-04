@@ -12,6 +12,17 @@
 /* The pan: a balance law, pot 0..127, 64 = centre. Centre is 1 on both sides exactly (a centred
  * mix is the mono one, bit for bit); toward a side the other fades along a quarter cosine and the
  * near side stays at 1. cosine: a 5-term even polynomial, |error| < 2e-4 over the quarter turn. */
+static inline void pan_gains_f(float pot, float *l, float *r)   /* (between the steps: a pan that moves) */
+{
+    float q = pot >= 64.0f ? (pot - 64.0f) / 63.0f : (pot - 64.0f) / 64.0f, x, c;
+    x = q * 1.5707963f;
+    x *= x;
+    c = 1.0f + x * (-0.5f + x * (0.041666667f + x * (-0.0013888889f + x * 0.0000248016f)));
+    if (pot <= 0.0f || pot >= 127.0f)
+        c = 0.0f;
+    *l = q > 0.0f ? c : 1.0f;
+    *r = q < 0.0f ? c : 1.0f;
+}
 static inline void pan_gains(int pot, float *l, float *r)
 {
     float q = pot >= 64 ? (float)(pot - 64) / 63.0f : (float)(pot - 64) / 64.0f, x, c;

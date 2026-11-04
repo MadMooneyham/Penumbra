@@ -50,6 +50,7 @@ int settings_load(void)
     if (s.drone_core > DRONE_SPLIT)
         s.drone_core = DRONE_SPLIT;
     s.bend %= BEND_RANGES;
+    s.midi_quiet &= 3u;
     for (i = 0; i < EF_N; i++)
         if (s.fx[i] > engine_fx_max(i))
             s.fx[i] = FX_DEF[i];
@@ -73,6 +74,7 @@ void settings_apply(void)
     eng_clock.send_clock = cfg.clk_out;
     eng_clock.follow = cfg.clk_in;
     engine_midi_ch(cfg.midi_ch);
+    engine_midi_notes_out(!(cfg.midi_quiet & 1u));
     engine_out_loud(cfg.out_loud);
     engine_usb_full(cfg.usb_full);
     engine_drone_core(cfg.drone_core);
@@ -105,6 +107,12 @@ static void journey_sane(journey_t *j)          /* a loaded one: every field in 
         j->dmotion[i] &= 0x7Fu;
     for (i = 0; i < JR_TIDE; i++)
         j->tide[i] &= 0x7Fu;
+    for (i = 0; i < JR_PAN; i++) {
+        j->pan[i] &= 0x7Fu;
+        j->sway[i] &= 0x7Fu;
+    }
+    j->sway_rate &= 0x7Fu;
+    j->sway_off &= 0x7Fu;
     for (i = 0; i < EV_N * SH_N; i++)
         (&j->shape[0][0])[i] &= 0x7Fu;
     for (i = 0; i < ENG_DRONES * DV_N; i++)
@@ -125,16 +133,33 @@ static void journey_sane(journey_t *j)          /* a loaded one: every field in 
         j->bloom[BL_HEIGHT] = 1;
 }
 
-/* a 1.0 journey (format 5) is this one less ROOM, HALO, the drone's movement and TIDES (their bytes were
- * spare): its scenes in the FX page's space, the drone moving as it did, TIDES as made */
-static void journey_from_v5(journey_t *j)
+/* 1.2's later betas' journey (format 8) kept one SWAY for every part and PAN 2's switches in what are now
+ * RATE and each part's sway: the parts switched on sway by that SWAY, on the tide. Its first beta's (7) had
+ * VOX alone swaying (PAN 2's bytes spare). A 1.1 one (6) less PAN and SWAY too, a 1.0 one (5) less ROOM,
+ * HALO, the drone's movement and TIDES too (their bytes were spare): its scenes in the FX page's space, the
+ * drone moving as it did, TIDES as made; every voice in the middle and nothing swaying. Each as it sounded */
+static void journey_upgrade(journey_t *j)
 {
     int k;
-    if (j->magic != JR_MAGIC || j->format != 5u || j->size != sizeof *j)
+    if (j->magic != JR_MAGIC || j->format < 5u || j->format >= JR_FORMAT || j->size != sizeof *j)
         return;
-    for (k = 0; k < JR_SCENES; k++)
-        j->scene[k].room = j->scene[k].halo = 64;
-    jr_motion_default(j);
+    if (j->format == 5u) {
+        for (k = 0; k < JR_SCENES; k++)
+            j->scene[k].room = j->scene[k].halo = 64;
+        jr_motion_default(j);
+    }
+    if (j->format <= 6u) {
+        jr_pan_default(j);
+        for (k = 0; k < JR_PAN; k++)
+            j->sway[k] = 0;
+    } else {
+        const uint8_t all = j->sway_rate;        /* (the one SWAY) */
+        for (k = 0; k < JR_PAN; k++)
+            j->sway[k] = (j->format == 7u ? k == 1 : j->sway[k] != 0) ? all : 0;   /* (7: VOX alone) */
+        if (j->format == 7u)
+            j->sway_off = 0;
+        j->sway_rate = 0;
+    }
     for (k = 0; k < (int)sizeof j->rsv2; k++)
         j->rsv2[k] = 0;
     j->format = JR_FORMAT;
@@ -175,7 +200,7 @@ int journey_load_work(void)
     for (k = 0; k < sizeof sound_ab; k++)
         z[k] = 0;
     if (n == (int)sizeof(journey_t) || n == (int)sizeof work_buf)
-        journey_from_v5(j);
+        journey_upgrade(j);
     if ((n != (int)sizeof(journey_t) && n != (int)sizeof work_buf) || !jr_valid(j))
         return -1;                                /* none, or not this format: the first preset plays */
     journey_sane(j);
@@ -263,7 +288,7 @@ int journey_slots_load(void)
         return -1;
     }
     for (i = 0; i < JR_USER; i++)
-        journey_from_v5(&jslot[i]);
+        journey_upgrade(&jslot[i]);
     for (i = 0; i < JR_USER; i++)
         if (jr_valid(&jslot[i]))
             journey_sane(&jslot[i]);

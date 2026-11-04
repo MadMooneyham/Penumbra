@@ -1,0 +1,30 @@
+# The tempo turned while the delay is full: the echoes take the new time once ALGO stops, crossfading
+# to it, never bending (or clicking) at each detent. Slowly, then a quick spin, then back down; then an
+# external clock, whose measured tempo wanders, under the same echoes. Audio in tempoturn.wav.
+wait 500
+wav tempoturn.wav
+tapkey w2
+wait 300
+tapkey w4
+wait 300
+tapkey w6
+wait 400
+turn ALGO 8 120
+expect set_bpm 98
+tapkey w3
+wait 600
+turn ALGO 20 20
+expect set_bpm 118
+wait 600
+tapkey w5
+turn ALGO -28 30
+expect set_bpm 90
+wait 1500
+tapkey w2
+clockin 120 4000
+wait 1500
+expect ext 1
+tapkey w4
+wait 2500
+wavstop
+expect clips 0

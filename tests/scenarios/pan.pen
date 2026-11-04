@@ -1,0 +1,95 @@
+# PAN (SHAPE's page after TIDES): each voice's place in the field on K1-K4 (DRONE, VOX, PULSE, TEXTURE), and
+# ALGO the RATE they sway at: TIDE, or a cycle of its own (60 s .. 0.5 s). Moved while playing, the voices
+# glide across without a click. PAN 2: how far each part sways (VOX: its echoes half as far), and its OFFSET
+# (all the way: half a cycle between them, so PULSE mirrors DRONE). With a short tide and VOX swaying all the
+# way, VOX travels; on a RATE of about a second, it crosses the field in half of one. SEL twice puts each
+# page back as made: every voice in the middle on the tide; VOX swaying a quarter of the way. Audio in pan.wav,
+# pan2.wav.
+wait 500
+tap ENV
+turn SELECT 8
+expect page 8
+expect pan0 64
+expect pan1 64
+expect sway_rate 0
+turn K2 -32
+expect pan1 0
+turn K3 32
+expect pan2 127
+turn K4 -10
+expect pan3 44
+turn K1 10
+expect pan0 84
+shot pan.png
+wav pan.wav
+tapkey w2
+tapkey b6
+wait 600
+turn K2 32 40
+expect pan1 64
+tapkey w4
+wait 400
+turn K1 -40 30
+expect pan0 4
+turn SELECT -1
+expect page 7
+turn K1 -40
+turn ALGO -40
+turn SELECT 2
+expect page 9
+expect sway1 32
+turn K2 50
+expect sway1 127
+turn SELECT -1
+tapkey w3
+wait 1500
+expect pan_now1 <40
+tapkey w5
+wait 2000
+expect pan_now1 <30
+turn ALGO 54
+expect sway_rate 108
+tapkey w2
+wait 250
+expect pan_now1 >100
+wait 500
+expect pan_now1 <25
+wait 1500
+wavstop
+expect clips 0
+tap SEL
+tap SEL
+wait 100
+expect pan0 64
+expect pan1 64
+expect pan3 64
+expect sway_rate 0
+turn SELECT 1
+expect page 9
+turn K2 -64
+turn K1 64
+turn K3 64
+expect sway0 127
+expect sway1 0
+expect sway2 127
+turn ALGO 64
+expect sway_off 127
+wav pan2.wav
+tapkey b5
+wait 1000
+shot pan2.png
+expect pan_now0 >64
+expect pan_now2 <64
+expect pan_now1 64
+tapkey b5
+wait 2000
+expect pan_now0 <10
+expect pan_now2 >117
+wavstop
+expect clips 0
+tap SEL
+tap SEL
+wait 100
+expect sway0 0
+expect sway1 32
+expect sway_off 0

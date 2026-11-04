@@ -4,8 +4,9 @@
  *
  *  - Reverb: spacevb.h, the long modulated network with its shimmer (it replaced 9W9's
  *    four combs). Its SIZE, MOD and SHIMMER are the "ext" pots.
- *  - Delay: a note division of the tempo, slewed so time changes warp instead of clicking,
- *    read with wow and flutter; feedback through a darkening one-pole, saturating inside the loop
+ *  - Delay: a note division of the tempo. A new tempo or division is taken once it has settled
+ *    (80 ms), crossfading from the old time to the new (46 ms): the echoes stay on pitch. WARP
+ *    instead slews the time, so its echoes bend like tape. Read with wow and flutter; feedback through a darkening one-pole, saturating inside the loop
  *    and running slightly past unity into self-oscillation that the saturation holds; WEAR scales
  *    all of it. 12-bit write, HPF on the send. PING-PONG (on as made): the left reads at the time,
  *    the right at twice it; off, both sides hear the same echo.
@@ -34,6 +35,10 @@ struct fxbus {
     uint8_t ext_pots[FXX_NPARAMS];
     /* delay */
     float dl_time_ms, dl_fdbk, dl_tone, dl_level, bpm, wear;
+    float dl_use_ms;                     /* the time the echoes are on (dl_time_ms once it has settled) */
+    float dl_xold;                       /* the old read offset, while crossfading from it */
+    int32_t dl_xf, dl_settle;            /* samples of the crossfade left; since the time last moved */
+    float dl_gl, dl_gr, dl_tl, dl_tr;    /* the echoes' balance now, and where it is going (fxbus_set_balance) */
     float dl_lead;                       /* samples the caller hears the returns late (fxbus_set_lead) */
     float warp;                          /* the time's factor now (WARP: fxbus_set_warp) */
     int32_t dl_div, dl_ping;
@@ -58,6 +63,8 @@ void fxbus_set_lead(fxbus_t *f, int samples);   /* the returns heard this late: 
 /* WARP: the delay's time x factor (1: as set; 0.25 .. 4), reached as the time always moves, gliding: the
  * echoes bend up as it shortens and dive as it grows, like a tape slowing and speeding */
 void fxbus_set_warp(fxbus_t *f, float factor);
+/* the echoes' balance (param.h's law: 1 and 1 the middle), reached across the next block */
+void fxbus_set_balance(fxbus_t *f, float l, float r);
 int fxbus_nparams(void);
 const param_t *fxbus_param(int i);
 void fxbus_set(fxbus_t *f, int i, int value);

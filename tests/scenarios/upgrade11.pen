@@ -1,0 +1,17 @@
+# From 1.1: its journeys (format 6) come over, the journey playing and the user slot. Everything stays as it
+# was (its own TIDES too), every voice in the middle and nothing swaying: PAN's bytes were spare, so 0, which
+# read as they are would put every voice hard left.
+legacy11
+wait 500
+expect jr_format 9
+expect journey 3
+expect tide0 30
+expect pan0 64
+expect pan1 64
+expect pan2 64
+expect pan3 64
+expect sway1 0
+expect pan_now1 64
+expect slot1 1
+expect jr_playing 1
+expect clips 0

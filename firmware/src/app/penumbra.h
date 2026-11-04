@@ -19,14 +19,16 @@ typedef struct {
     uint16_t bpm_x10;                    /* the internal tempo */
     uint8_t clk_out;                     /* 1: MIDI clock and START / STOP out while playing */
     uint8_t clk_in;                      /* 1: follow MIDI clock and transport in */
-    uint8_t midi_ch;                     /* VOX's notes in: 1-16, 0 = off */
+    uint8_t midi_ch;                     /* MIDI's channel (VOX's notes, the CCs; the black keys on the next): 1-16, 0 = off */
     uint8_t one_core;                    /* 1: the second core stays off (applies at the next power-on) */
     uint8_t drone_core;                  /* the drone voices: 0 the first core, 1 the second, 2 split (engine.h) */
     uint8_t out_loud;                    /* 1: the output 6 dB hotter (the codec's full scale) */
     uint8_t usb_full;                    /* 1: USB audio at full level, MASTER for the FM-1's own outputs */
     uint8_t autoplay;                    /* 1: the journey plays at power-on */
     uint8_t bend;                        /* PITCH's range either way: 0 2, 1 5, 2 7, 3 12 semitones (BEND_SEMIS) */
-    uint8_t rsv[5];
+    uint8_t midi_quiet;                  /* what does not go out: bit 0 the notes, bit 1 the CCs and program changes
+                                          * (a spare byte in 1.1: 0, everything out) */
+    uint8_t rsv[4];
     uint8_t fx[EF_N];                    /* the FX page (engine.h EF_*) */
     uint8_t rsv2[28 - EF_N];
 } settings_t;

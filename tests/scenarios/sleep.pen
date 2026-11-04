@@ -12,7 +12,7 @@ tap REC
 wait 100
 expect looper 2
 tap GLO
-turn SELECT 9
+turn SELECT 11
 tap SEL
 wait 100
 expect sleep 1

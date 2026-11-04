@@ -129,6 +129,12 @@ static volatile uint32_t so_w, so_r;
 #define MQ 64u
 static uint32_t midi_in_q[MQ], midi_out_q[MQ];
 static volatile uint32_t mi_w, mi_r, mo_w, mo_r;
+/* a clock tick (F8) has no data bytes: they carry the time it came instead (24 MHz / 4096, 16 bits:
+ * clock.h TCLOCK_STAMP_HZ), the cable nibble 1 saying so */
+static uint32_t midi_stamp(uint32_t pkt)
+{
+    return (pkt & 0xFF00u) | 0x1Fu | ((fm1_ticks() >> 12) & 0xFFFFu) << 16;
+}
 
 static void midi_out_event(uint32_t pkt)            /* from the audio ISR */
 {
@@ -640,8 +646,12 @@ static void ep1_rx(void)
             uint32_t k, nb = cin == 4u || cin == 7u ? 3u : cin == 6u ? 2u : 1u;
             for (k = 0; k < nb; k++)
                 sysex_byte(ep1rx[i + 1 + k]);
-        } else if (((cin >= 8u && cin <= 0xEu) || (cin == 0xFu && ep1rx[i + 1] >= 0xF8u)) && mi_w - mi_r < MQ) {
-            /* CIN 0xF: a single byte; the real-time ones (clock, start, continue, stop) matter */
+        } else if (((cin >= 8u && cin <= 0xEu) || (cin == 0xFu && ep1rx[i + 1] >= 0xF8u) ||
+                    (cin == 3u && ep1rx[i + 1] == 0xF2u)) && mi_w - mi_r < MQ) {
+            /* CIN 0xF: a single byte; the real-time ones (clock, start, continue, stop) matter. CIN 3: SONG
+             * POSITION. A clock tick carries the time it came (midi_stamp) */
+            if (cin == 0xFu && ep1rx[i + 1] == 0xF8u)
+                pkt = midi_stamp(pkt);
             midi_in_q[mi_w % MQ] = pkt;
             RING_PUBLISH();
             mi_w++;

@@ -58,6 +58,9 @@ void looper_clear(looper_t *l, const lp_sink_t *o);
 void looper_speed(looper_t *l, int dir);                      /* slower (-), faster (+) */
 void looper_quiet(looper_t *l, const lp_sink_t *o);           /* the clock stopped: what it has on, off */
 void looper_restart(looper_t *l, const lp_sink_t *o);         /* the clock started: a playing loop from its start */
+/* the clock put at a place (a DAW's SONG POSITION): a playing loop where it would be, had it played from
+ * the downbeat (ticks since it), silently there (what starts at that tick plays) */
+void looper_seek(looper_t *l, uint32_t ticks, const lp_sink_t *o);
 void looper_note(looper_t *l, int note, int vel);             /* the hands (vel 0: off): recorded while it records */
 void looper_hit(looper_t *l, int which, int vel);             /* a hit, the same */
 void looper_advance(looper_t *l, uint32_t ticks, const lp_sink_t *o);

@@ -161,10 +161,12 @@ footer { margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--rule); 
           <tr><td><b>PULSE</b></td><td>DROP</td><td>DECAY</td><td>CLICK</td><td>SPACE</td></tr>
           <tr><td><b>TEXTURE</b></td><td>COLOUR</td><td>SWEEP</td><td>RATE</td><td>WIDTH</td></tr>
           <tr><td><b>TIDES</b></td><td>RATE</td><td>DRONE</td><td>SPACE</td><td>VOX</td></tr>
+          <tr><td><b>PAN</b></td><td>DRONE</td><td>VOX</td><td>PULSE</td><td>TEXTURE</td></tr>
         </tbody>
       </table>
       <p class="note">ENV again or SELECT: the next page. <b>SEL twice</b>: the page back as made. TIDES: one slow
-        swell under it all (ALGO: even .. wandering).</p>
+        swell under it all (ALGO: even .. wandering). PAN: each part's place (ALGO: RATE, the tide or 60 s .. 0.5 s). PAN 2: how far each sways (ALGO: OFFSET,
+        in sync .. mirrored).</p>
     </section>
   </div>
   <div>
@@ -214,7 +216,8 @@ footer { margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--rule); 
         <li>It saves itself once the sound rests; <b>SAVE</b> saves now.</li>
         <li>A dot in the header: not saved yet.</li>
         <li><b>SLEEP</b> (SYSTEM): everything lets go over 20–90 min.</li>
-        <li>VOX plays from MIDI too (channel 1), with pitch bend.</li>
+        <li>MIDI (channel 1): VOX's notes, clock and song position, CCs and program changes both ways; the
+          black keys on channel 2 (the manual's MIDI section).</li>
         <li>Leave space: the silence is part of it.</li>
       </ul>
     </section>

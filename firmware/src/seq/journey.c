@@ -52,6 +52,49 @@ static const preset_t PRESET[JR_PRESETS] = {
 
 const char *jr_preset_name(int i) { return PRESET[(unsigned)i % JR_PRESETS].name; }
 
+/* each journey's own sound, over the one as made (engine.h's meanings): the drone's FILTER, BODY, SWARM and
+ * WAVE; its movement (DM_*); TIDES (TD_*); PAN (each part's place) and its RATE (0: the tide); how far each
+ * part sways and their OFFSET; the drone voices that come and go (bit v); the VOX sound it starts on.
+ *   ECLIPSE      as made: the reference, VOX on a gentle tide.
+ *   PENUMBRA     a reedy drone; VOX (REED) and the wind mirrored, swaying every 16 s.
+ *   SELENE       an uneasy, wandering tide; the high voices come and go; VOX (HALO) and the drone a quarter
+ *                tide apart on it.
+ *   TRANQUILITY  soft and still: a three-minute even tide; VOX and the wind drifting together every 40 s.
+ *   PERIGEE      close and quick: a short tide, VOX (LOW) on the left, the kick and the wind swinging round it
+ *                every 4 s.
+ *   FAR SIDE     vast: a four-minute wandering tide, three voices coming and going, every part taking its turn
+ *                round the field every 24 s. */
+typedef struct {
+    uint8_t drone[4], dm[JR_DMOTION], td[JR_TIDE], pan[JR_PAN], rate, sway[JR_PAN], sway_off, dswell, vcur;
+} character_t;
+static const character_t CHARACTER[JR_PRESETS] = {
+    {{75, 45, 80, 44}, {41, 25, 38, 25}, {64, 24, 20, 0, 64}, {64, 64, 64, 64}, 0, {0, 32, 0, 0}, 0, 0x00, 0},
+    {{70, 50, 70, 64}, {50, 30, 60, 30}, {84, 40, 30, 20, 30}, {64, 52, 64, 76}, 36, {0, 48, 0, 40}, 127, 0x00, 1},
+    {{60, 62, 96, 30}, {30, 40, 50, 52}, {50, 50, 40, 30, 120}, {64, 76, 64, 44}, 0, {30, 44, 0, 0}, 64, 0x18, 2},
+    {{86, 35, 60, 18}, {62, 15, 48, 14}, {112, 20, 30, 12, 0}, {64, 60, 64, 68}, 12, {0, 30, 0, 24}, 0, 0x00, 0},
+    {{70, 56, 70, 72}, {24, 46, 44, 28}, {18, 30, 16, 40, 40}, {64, 36, 64, 64}, 72, {0, 0, 60, 70}, 90, 0x02, 3},
+    {{60, 50, 100, 50}, {36, 30, 80, 40}, {127, 46, 50, 26, 90}, {64, 34, 92, 64}, 25, {50, 90, 70, 80}, 64, 0x16, 2}};
+
+static void jr_character(journey_t *j, int i)
+{
+    const character_t *c = &CHARACTER[(unsigned)i % JR_PRESETS];
+    int k;
+    for (k = 0; k < 4; k++)
+        j->shape[0][1 + k] = c->drone[k];        /* (DRONE's SH_K1 .. SH_K4) */
+    for (k = 0; k < JR_DMOTION; k++)
+        j->dmotion[k] = c->dm[k];
+    for (k = 0; k < JR_TIDE; k++)
+        j->tide[k] = c->td[k];
+    for (k = 0; k < JR_PAN; k++) {
+        j->pan[k] = c->pan[k];
+        j->sway[k] = c->sway[k];
+    }
+    j->sway_rate = c->rate;
+    j->sway_off = c->sway_off;
+    j->dswell = c->dswell;
+    j->vcur = c->vcur;
+}
+
 /* the sound as made, the engine's meaning (engine.h SH_*, DV_*): each voice's level (100), its SHAPE
  * knobs and the held-only one; each drone voice's level, tone, detune (64: none) and octave (1: as is) */
 void jr_sound_default(journey_t *j)
@@ -73,6 +116,25 @@ void jr_sound_default(journey_t *j)
     jr_vsound_default(j);
     jr_bloom_default(j);
     jr_motion_default(j);
+    jr_pan_default(j);
+}
+
+/* each voice in the middle (the drone's own voices spread across it, as they always were); the tide
+ * carrying VOX and the echoes a quarter of the way out */
+void jr_pan_default(journey_t *j)
+{
+    int k;
+    for (k = 0; k < JR_PAN; k++)
+        j->pan[k] = 64;
+    j->sway_rate = 0;
+    jr_sway_default(j);
+}
+void jr_sway_default(journey_t *j)
+{
+    int k;
+    for (k = 0; k < JR_PAN; k++)
+        j->sway[k] = k == 1 ? 32 : 0;            /* (VOX: engine.h EV_VOX) */
+    j->sway_off = 0;
 }
 
 /* the drone's movement (engine.h DM_*): its LFO's RATE (~14 s), SWEEP (over its filter), WIDTH (the voices
@@ -183,6 +245,7 @@ void jr_preset(int i, journey_t *dst)
     for (v = 0; v < p->n; v++)
         dst->scene[v] = p->s[v];
     jr_sound_default(dst);
+    jr_character(dst, i);
 }
 
 int jr_valid(const journey_t *j)

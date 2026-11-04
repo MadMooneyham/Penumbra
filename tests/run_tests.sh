@@ -79,6 +79,12 @@ fi
 [ -f build/scenarios/tides/tides.wav ] && run tides-clicks python3 tests/click_check.py build/scenarios/tides/tides.wav
 [ -f build/scenarios/fxmore/fxmore.wav ] && run fx-clicks python3 tests/click_check.py build/scenarios/fxmore/fxmore.wav
 [ -f build/scenarios/absounds/absounds.wav ] && run ab-clicks python3 tests/click_check.py build/scenarios/absounds/absounds.wav
+[ -f build/scenarios/tempoturn/tempoturn.wav ] && run tempo-clicks python3 tests/click_check.py build/scenarios/tempoturn/tempoturn.wav
+[ -f build/scenarios/pan/pan.wav ] && run pan-clicks python3 tests/click_check.py build/scenarios/pan/pan.wav
+[ -f build/scenarios/pan/pan2.wav ] && run pan2-clicks python3 tests/click_check.py build/scenarios/pan/pan2.wav
+for p in 1 2 3 4 5 6; do   # each preset journey with its own sound
+    [ -f build/scenarios/presets/p$p.wav ] && run "preset$p-clicks" python3 tests/click_check.py build/scenarios/presets/p$p.wav
+done
 # the long run (design: each preset 30 minutes, no clips, clicks or stuck notes): LONG=1 tests/run_tests.sh
 if [ "${LONG:-0}" = 1 ]; then
     for p in 1 2 3 4 5 6; do

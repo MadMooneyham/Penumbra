@@ -6,6 +6,8 @@
 #include <string.h>
 #define RING_PUBLISH() __asm__ volatile("" ::: "memory")
 static void fm1_delay_ms(uint32_t ms) { (void)ms; }
+static uint32_t sim_ticks;                               /* the 24 MHz timer, as a clock tick reads it */
+static uint32_t fm1_ticks(void) { return sim_ticks; }
 #include "usb.c"
 #include "midi_uart.c"
 
@@ -33,14 +35,22 @@ static void want(const char *what, const uint32_t *pk, uint32_t n)
 }
 #define PK(s, a, b) ((uint32_t)((s) >> 4) | (uint32_t)(s) << 8 | (uint32_t)(a) << 16 | (uint32_t)(b) << 24)
 #define RT(s) (0xFu | (uint32_t)(s) << 8)
+#define TICK(t) (0x1Fu | 0xF8u << 8 | (((uint32_t)(t) >> 12) & 0xFFFFu) << 16)   /* a clock tick, with its time */
 
 int main(void)
 {
+    sim_ticks = 0x12345678u;
     {   /* a note on, then two more by running status, a clock in the middle of one */
         static const uint8_t b[] = {0x91, 60, 100, 62, 0xF8, 90, 64, 0};
-        static const uint32_t p[] = {PK(0x91, 60, 100), RT(0xF8), PK(0x91, 62, 90), PK(0x91, 64, 0)};
+        static const uint32_t p[] = {PK(0x91, 60, 100), TICK(0x12345678u), PK(0x91, 62, 90), PK(0x91, 64, 0)};
         feed(b, sizeof b);
-        want("running status and a clock inside a message", p, 4);
+        want("running status and a clock inside a message (the tick timed)", p, 4);
+    }
+    {   /* SONG POSITION: two data bytes, as USB's CIN 3; it ends running status */
+        static const uint8_t b[] = {0x92, 60, 100, 0xF2, 0x10, 0x02, 61, 1, 0x92, 61, 1};
+        static const uint32_t p[] = {PK(0x92, 60, 100), 0x3u | 0xF2u << 8 | 0x10u << 16 | 0x02u << 24, PK(0x92, 61, 1)};
+        feed(b, sizeof b);
+        want("song position, running status not resumed after it", p, 3);
     }
     {   /* program change and channel pressure have one data byte */
         static const uint8_t b[] = {0xC2, 5, 7, 0xD2, 40};
@@ -56,7 +66,7 @@ int main(void)
     }
     {   /* SysEx is skipped and ends running status; a clock inside it still counts */
         static const uint8_t b[] = {0x90, 60, 1, 0xF0, 0x7D, 0xF8, 1, 2, 0xF7, 61, 1, 0x80, 61, 0};
-        static const uint32_t p[] = {PK(0x90, 60, 1), RT(0xF8), PK(0x80, 61, 0)};
+        static const uint32_t p[] = {PK(0x90, 60, 1), TICK(0x12345678u), PK(0x80, 61, 0)};
         feed(b, sizeof b);
         want("SysEx skipped, running status not resumed after it", p, 3);
     }

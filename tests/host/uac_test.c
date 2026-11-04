@@ -12,6 +12,7 @@
 #define RING_PUBLISH() __asm__ volatile("" ::: "memory")
 #define FELUCCA_UAC 1
 static void fm1_delay_ms(uint32_t ms) { (void)ms; }
+static uint32_t fm1_ticks(void) { return 0; }
 #include "usb.c"
 
 static int16_t outL[44100 * 40];

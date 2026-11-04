@@ -155,7 +155,7 @@ static void guard_apply(void)
 /* ------------------------------------------------------- command queue --- */
 /* uint32 commands, single producer (main loop) / single consumer (audio ISR): type:4 | a:8 | b:8 | c:12 */
 enum { C_DRONE_KEY, C_TEST, C_MIDI_CH, C_PULSE, C_WHITE, C_LOOPER, C_TRAVEL, C_LOADED,
-       C_PERF, C_FX, C_FREEZE, C_MORPH, C_BRANGE };
+       C_PERF, C_FX, C_FREEZE, C_MORPH, C_BRANGE, C_MIDIOUT };
 #define CQ 256u
 static uint32_t cq[CQ];
 static volatile uint32_t cq_w, cq_r;
@@ -186,6 +186,7 @@ void engine_travel(int scene) { cq_put(C_TRAVEL, (uint32_t)scene, 0, 0); }
 void engine_journey_loaded(void) { cq_put(C_LOADED, 0, 0, 0); }
 void engine_perf(int i, int value) { cq_put(C_PERF, (uint32_t)i, 0, (uint32_t)(value + 128)); }
 void engine_fx(int i, int value) { cq_put(C_FX, (uint32_t)i, 0, (uint32_t)value); }
+void engine_midi_send(int status, int d1, int d2) { cq_put(C_MIDIOUT, (uint32_t)status, (uint32_t)d1, (uint32_t)d2); }
 static void hit(int which, float vel)            /* (ISR) a PULSE hit; the kicks are counted for the screen */
 {
     pulse_hit(&pulse, which, vel);
@@ -207,6 +208,7 @@ float engine_drone_level(int voice)
 static const float MIX_BASE[NPARTS] = {1.0f, 0.57f, 0.9f, 1.0f, 0.8f};   /* VOX 3 dB under 0.10's */
 static float mix_level[NPARTS] = {1.0f, 0.57f, 0.9f, 1.0f, 0.8f}, mix_rev[NPARTS], mix_dly[NPARTS];
 static float rev_base[NPARTS], dly_base[NPARTS], space_k = 1.0f;
+static float pan_pot[NPARTS] = {64.0f, 64.0f, 64.0f, 64.0f, 64.0f};   /* PAN, the tide's sway in it (conduct) */
 
 /* the FX page's settings (settings.c keeps them; they come here as commands), the hands' moves on top */
 static int16_t perf[PF_N];
@@ -396,13 +398,26 @@ static int clamp127(float x) { return x < 0.0f ? 0 : x > 127.0f ? 127 : (int)(x 
  * half tide, eased into), blended by SHAPE; the same every time it starts (a fixed seed) */
 static float tide_ph, tide_wph, tide_from, tide_to, tide_now;
 static uint32_t tide_rng = 0x7A1DEu;
+#define TH_PER 64                                /* the tide's past: samples a tide, */
+#define TH_N 128                                 /* two tides of them (OFFSET's furthest: a tide and a half) */
+static float tide_hist[TH_N];
+static uint32_t tide_steps;                      /* samples taken (the newest at tide_steps % TH_N) */
+static int tide_s;                               /* the sample tide_ph is in */
 static float tide_rand(void)
 {
     tide_rng = tide_rng * 1664525u + 1013904223u;
     return (float)(tide_rng >> 8) * (2.0f / 16777216.0f) - 1.0f;
 }
+/* PAN's RATE: 0 the sway on the tide, else a cycle of its own, 60 s (1) .. 0.5 s (127), evenly in octaves */
+static float sway_ph;
+float engine_sway_period(int rate) { return 60.0f * fm_exp2f((float)(rate - 1) * (-6.9068906f / 126.0f)); }
 static void tide_tick(uint32_t n)
 {
+    if (eng_jr.sway_rate) {
+        sway_ph += (float)n / (44100.0f * engine_sway_period(eng_jr.sway_rate));
+        if (sway_ph >= 1.0f)
+            sway_ph -= 1.0f;
+    }
     const uint8_t *td = eng_jr.tide;
     float period = 8.0f * fm_exp2f((float)td[TD_RATE] * (5.0f / 127.0f)), inc = (float)n / (44100.0f * period);
     float w = (float)td[TD_SHAPE] * (1.0f / 127.0f), ease;
@@ -417,8 +432,29 @@ static void tide_tick(uint32_t n)
     }
     ease = 0.5f - 0.5f * fm_sin_turns(0.25f - 0.5f * tide_wph);   /* 0 .. 1, cosine-eased */
     tide_now = (1.0f - w) * fm_sin_turns(tide_ph) + w * (tide_from + (tide_to - tide_from) * ease);
+    {   /* its past, TH_PER a tide: PAN 2's OFFSET has a part follow it behind */
+        int s = (int)(tide_ph * (float)TH_PER), k = (s - tide_s + TH_PER) % TH_PER;
+        for (; k; k--)
+            tide_hist[++tide_steps % TH_N] = tide_now;
+        tide_s = s;
+    }
 }
 float engine_tide(void) { return tide_now; }
+/* the tide lag tides ago (0 .. TH_N / TH_PER - 1), between its samples; before it began: the middle */
+static float tide_ago(float lag)
+{
+    float x;
+    int32_t i;
+    if (lag <= 0.0f)
+        return tide_now;
+    x = (float)tide_steps + (tide_ph * (float)TH_PER - (float)tide_s) - lag * (float)TH_PER;
+    if (x < 0.0f)
+        return 0.0f;
+    i = (int32_t)x;
+    x -= (float)i;
+    return tide_hist[(uint32_t)i % TH_N] * (1.0f - x) +
+           ((uint32_t)i + 1u > tide_steps ? tide_now : tide_hist[((uint32_t)i + 1u) % TH_N]) * x;
+}
 
 static void conduct(void)
 {
@@ -435,6 +471,28 @@ static void conduct(void)
     const float room = o->room - 64.0f, halo = o->halo - 64.0f;   /* the scene's space, over the FX page's */
     int v, x, swarm = sh[EV_DRONE][SH_K3];
     static const uint8_t DM_OF[DM_N] = {DB_LFORATE, DB_LFOCUT, DB_LFOPAN, DB_DRIFT};
+    {   /* PAN: each part where it is put (the mix glides it there). PAN 2: how far each sways, all the way out
+         * at 127 (VOX's echoes half as far), on the tide or PAN's RATE; its OFFSET has each swaying part follow
+         * the one before up to half a cycle behind (two: mirrored; four at half of it: each its turn round) */
+        static const uint8_t PART[EV_N] = {P_DRONE, P_VOX, P_PULSE, P_TEX};
+        const float off = (float)eng_jr.sway_off * (0.5f / 127.0f);
+        float l, r, echo = 0.0f;
+        int e, n = 0;
+        for (e = 0; e < EV_N; e++) {
+            const float depth = (float)eng_jr.sway[e] * (63.0f / 127.0f);
+            float t = 0.0f;
+            if (eng_jr.sway[e]) {
+                const float lag = (float)n++ * off;
+                t = eng_jr.sway_rate ? fm_sin_turns(sway_ph - lag) : tide_ago(lag);
+            }
+            pan_pot[PART[e]] = fm_clampf((float)eng_jr.pan[e] + t * depth, 0.0f, 127.0f);
+            if (e == EV_VOX)
+                echo = t * depth;
+        }
+        pan_pot[P_BLOOM] = pan_pot[P_PULSE];
+        pan_gains_f(64.0f + 0.5f * echo, &l, &r);
+        fxbus_set_balance(&fx, l, r);
+    }
     for (v = 0; v < DM_N; v++)                   /* the drone's own movement */
         if (moved(K_DM + v, dm[v]))
             drone_set(&dn, DRONE_KIT, DM_OF[v], dm[v]);
@@ -626,6 +684,7 @@ static void clk_midi(void *x, uint8_t st)
 static uint32_t lp_frames, lp_last;            /* frames since the clock's last 16th; the looper's last tick */
 static void clk_step(void *x, uint32_t n)
 {
+    const int jumped = n != eng_steps;          /* (SONG POSITION while playing: not the next 16th) */
     (void)x;
     eng_steps = n + 1u;
     lp_frames = 0;
@@ -633,8 +692,14 @@ static void clk_step(void *x, uint32_t n)
         return;                                  /* (the load test plays its own) */
     if (!jr.playing) {
         jr_start(&jr, &JSINK);
-        lp_last = 0;
-        looper_restart(&lp, &LSINK);
+        lp_last = n * LP_TPS;
+        if (n)                                   /* (a DAW's CONTINUE from a SONG POSITION: the loop there) */
+            looper_seek(&lp, n * LP_TPS, &LSINK);
+        else
+            looper_restart(&lp, &LSINK);
+    } else if (jumped) {
+        lp_last = n * LP_TPS;
+        looper_seek(&lp, n * LP_TPS, &LSINK);
     }
     jr_step(&jr, n, &JSINK);
 }
@@ -661,18 +726,57 @@ static void looper_tick(uint32_t n)             /* each block: the looper on to 
 }
 static const tclock_sink_t CLK_SINK = {0, clk_midi, clk_step, clk_stopped};
 
+/* what the UI takes from MIDI (engine_midi_take): CCs and program changes on the channel, the black keys'
+ * notes on the next one, as the packets came */
+#define UQ 64u
+static uint32_t ui_q[UQ];
+static volatile uint32_t ui_qw, ui_qr;
+int engine_midi_take(uint32_t *pkt)
+{
+    if (ui_qr == ui_qw)
+        return 0;
+    *pkt = ui_q[ui_qr % UQ];
+    ui_qr++;
+    return 1;
+}
+static void to_ui(uint32_t pkt)
+{
+    if (ui_qw - ui_qr < UQ) {
+        ui_q[ui_qw % UQ] = pkt;
+        ui_qw++;
+    }
+}
+static uint8_t notes_out = 1;                    /* the white keys' notes out on the channel */
+void engine_midi_notes_out(int on) { notes_out = (uint8_t)(on != 0); }
+static void midi_send(uint32_t st, uint32_t d1, uint32_t d2)   /* (audio ISR: the one that writes the ring) */
+{
+    plat_midi_out((st >> 4) | st << 8 | (d1 & 0x7Fu) << 16 | (d2 & 0x7Fu) << 24);
+}
+
 static void midi_in(uint32_t pkt)
 {
     uint8_t st = (uint8_t)(pkt >> 8), d1 = (uint8_t)(pkt >> 16) & 0x7F, d2 = (uint8_t)(pkt >> 24) & 0x7F;
     uint8_t ty = st & 0xF0;
     switch (st) {
-    case 0xF8: tclock_ext_tick(&eng_clock); return;
+    case 0xF8:                                   /* (a tick timed where it came: usb.c midi_stamp) */
+        if ((pkt & 0xF0u) == 0x10u)
+            tclock_ext_tick_at(&eng_clock, (uint16_t)(pkt >> 16));
+        else
+            tclock_ext_tick(&eng_clock);
+        return;
     case 0xFA: if (eng_clock.follow) tclock_play(&eng_clock); return;
     case 0xFB: if (eng_clock.follow) tclock_continue(&eng_clock); return;
     case 0xFC: if (eng_clock.follow) tclock_stop(&eng_clock); return;
+    case 0xF2: if (eng_clock.follow) tclock_song_pos(&eng_clock, (uint32_t)d2 << 7 | d1); return;
     default: break;
     }
-    if (!midi_ch || st >= 0xF0 || (st & 0x0F) != midi_ch - 1u)
+    if (!midi_ch || st >= 0xF0)
+        return;
+    if ((st & 0x0F) == midi_ch % 16u && (ty == 0x90 || ty == 0x80)) {
+        to_ui(pkt);                              /* the next channel: the black keys */
+        return;
+    }
+    if ((st & 0x0F) != midi_ch - 1u)
         return;
     if (ty == 0x90 && d2 == 0)
         ty = 0x80;
@@ -682,6 +786,10 @@ static void midi_in(uint32_t pkt)
         hand_off(d1);
     else if (ty == 0xE0)                         /* pitch bend: 14 bits, 8192 the middle */
         midi_bend = (float)((int)(d2 << 7 | d1) - 8192) * (1.0f / 8192.0f) * bend_range;
+    else if (ty == 0xB0 && d1 == 123)            /* ALL NOTES OFF */
+        vox_all_off(&vox);
+    else if (ty == 0xB0 || ty == 0xC0)           /* the CCs, the program changes: the UI's */
+        to_ui(pkt);
 }
 
 /* a white key plays VOX in the scene's key; let go, it ends the note it started. FREEZE keeps the
@@ -691,25 +799,39 @@ static int16_t white_note[16] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
 static int16_t frozen[16] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
 static volatile uint8_t n_frozen;
 int engine_frozen(void) { return n_frozen; }
+/* the keys' notes, and out on the channel as they sound (a DAW records them; MIDI's own notes in are
+ * not sent back) */
+static void key_on(int note)
+{
+    hand_on(note, 100);
+    if (notes_out && midi_ch)
+        midi_send(0x90u | (midi_ch - 1u), (uint32_t)note, 100u);
+}
+static void key_off(int note)
+{
+    hand_off(note);
+    if (notes_out && midi_ch)
+        midi_send(0x80u | (midi_ch - 1u), (uint32_t)note, 0u);
+}
 static void white_key(int w, int down, int oct)
 {
     if (w < 0 || w > 15)
         return;
     if (!down) {
         if (white_note[w] >= 0 && frozen[w] != white_note[w])
-            hand_off(white_note[w]);
+            key_off(white_note[w]);
         white_note[w] = -1;
         return;
     }
     if (frozen[w] >= 0) {                        /* (frozen: back in the hand) */
-        hand_off(frozen[w]);
+        key_off(frozen[w]);
         frozen[w] = -1;
         n_frozen--;
     }
     if (white_note[w] >= 0)
-        hand_off(white_note[w]);
+        key_off(white_note[w]);
     white_note[w] = (int16_t)jr_key_note(&jr, w, oct);
-    hand_on(white_note[w], 100);
+    key_on(white_note[w]);
 }
 static void freeze(void)
 {
@@ -717,7 +839,7 @@ static void freeze(void)
     for (w = 0; w < 16; w++)
         if (frozen[w] >= 0) {
             if (white_note[w] != frozen[w])
-                hand_off(frozen[w]);
+                key_off(frozen[w]);
             frozen[w] = -1;
         }
     n_frozen = 0;
@@ -765,6 +887,8 @@ static void drain(void)
             jr_morph(&jr, (int)(c & 0xFFFu) - 2048);
         else if (type == C_BRANGE)
             bend_range = (float)(a >= 1u && a <= 24u ? a : 2u);
+        else if (type == C_MIDIOUT)
+            midi_send(a, b, c & 0x7Fu);
         else if (type == C_TRAVEL)
             jr_travel(&jr, (int)a);
         else if (type == C_LOADED) {
@@ -857,10 +981,17 @@ enum { GL_L, GL_R, GL_REV, GL_DLY, GL_N };
 static glide_t mix_glide[NPARTS][GL_N] = {{{-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}}, {{-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}},
                                           {{-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}},
                                           {{-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}}, {{-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}}};
+float engine_pan_now(int voice)
+{
+    static const uint8_t PART[EV_N] = {P_DRONE, P_VOX, P_PULSE, P_TEX};
+    return voice >= 0 && voice < EV_N ? pan_pot[PART[voice]] : 64.0f;
+}
 static void mix_targets(int p)
 {
-    glide_set(&mix_glide[p][GL_L], mix_level[p]);
-    glide_set(&mix_glide[p][GL_R], mix_level[p]);
+    float gl, gr;
+    pan_gains_f(pan_pot[p], &gl, &gr);           /* (the middle: 1 both sides, the mix as it always was) */
+    glide_set(&mix_glide[p][GL_L], mix_level[p] * gl);
+    glide_set(&mix_glide[p][GL_R], mix_level[p] * gr);
     glide_set(&mix_glide[p][GL_REV], mix_level[p] * mix_rev[p]);
     glide_set(&mix_glide[p][GL_DLY], mix_level[p] * mix_dly[p]);
 }
@@ -1014,7 +1145,17 @@ void engine_render(int32_t *out_lr, uint32_t n)
         k = tclock_until(&eng_clock, n - done);
         tclock_advance(&eng_clock, k, &CLK_SINK);
     }
-    fxbus_set_bpm(&fx, tclock_tempo(&eng_clock));
+    {   /* the delay's tempo. Following a clock, the measured one wanders ~2% (its ticks are read at block
+         * edges): averaged over ~half a second, and taken only when that is 0.4 BPM away */
+        static float avg, dl_bpm;
+        const float t = tclock_tempo(&eng_clock);
+        if (!eng_clock.ext || avg < 1.0f)
+            avg = dl_bpm = t;
+        avg += (t - avg) * 0.01f;
+        if (fm_fabsf(avg - dl_bpm) > 0.4f)
+            dl_bpm = avg;
+        fxbus_set_bpm(&fx, dl_bpm);
+    }
     looper_tick(n);
     if (!testing) {                              /* the scene's glides, then the sound into the voices */
         jr_tick(&jr, n, &JSINK);

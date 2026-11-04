@@ -81,6 +81,8 @@ static void fx_retime(fxbus_t *f)
     const float max_ms = (float)(f->dlen - 256) / D9_SR * 1000.0f;
     while (ms > max_ms)                 /* longer than the line (1/2. under 90 BPM): half of it, */
         ms *= 0.5f;                     /* which is still on the beat; cutting it short is not */
+    if (ms != f->dl_time_ms)
+        f->dl_settle = 0;               /* (taken once it stops moving: fx_delay) */
     f->dl_time_ms = ms;
 }
 
@@ -143,12 +145,14 @@ void fxbus_init(fxbus_t *f, int16_t *dly_buf, int dly_len)
     f->bpm = 120.0f;
     f->dl_fdbk = 0.35f; f->dl_tone = 0.4f; f->dl_level = 0.8f;
     fx_retime(f);
+    f->dl_use_ms = f->dl_time_ms;
     f->dcur = f->dl_time_ms * 0.001f * D9_SR;
     d9_biquad_set(&f->dl_hp, D9_HP, 150.0f, 0.7071f);
     f->dl_quiet = dly_len;
     f->wear = 64.0f / 127.0f;
     f->warp = 1.0f;
     f->dl_ping = 1;
+    f->dl_gl = f->dl_gr = f->dl_tl = f->dl_tr = 1.0f;
 
     for (int i = FX_RV_DECAY; i <= FX_RV_LEVEL; ++i)   /* the reverb's pots into spacevb (its own defaults differ) */
         fxbus_set(f, i, fx_p[i].ui.def);
@@ -196,13 +200,32 @@ static inline float dl_tap(const int16_t *buf, int32_t len, float flen, int32_t 
 /* The left reads at the time and the right at twice it, the loop fed from the right: echoes alternate
  * L R L R, one time apart. The line holds both, so ping-pong needs twice the time to fit (a 2 s line:
  * 1 s); past that it plays centred. TAPE: wow (0.5 Hz) and flutter (6.1 Hz) on the read, a darker loop,
- * saturation and a 30 Hz DC block inside it, feedback up to 1.15 */
+ * saturation and a 30 Hz DC block inside it, feedback up to 1.15.
+ * A new time (the tempo, the division) is not slewed to: that bends every echo in the line, a chirp at
+ * each detent of the tempo. Once it has stopped moving for DL_SETTLE the read jumps there, crossfading
+ * from the old read over DL_XF (equal power: the two reads are different moments, uncorrelated) */
+#define DL_SETTLE 3528                           /* 80 ms */
+#define DL_XF 2048                               /* 46 ms */
 static void fx_delay(fxbus_t *f, const float *in, float *out, float *out_r, int n)
 {
     /* the caller may hear the returns dl_lead samples late (engine.c runs them a block behind): the
      * echo is read that much sooner, so it still lands on time */
     const int32_t len = f->dlen;
-    const float target = fm_minf(fm_maxf(f->dl_time_ms * 0.001f * D9_SR * f->warp - f->dl_lead, 1.0f),
+    f->dl_settle = f->dl_settle < DL_SETTLE ? f->dl_settle + n : DL_SETTLE;
+    if (f->dl_use_ms != f->dl_time_ms) {
+        const float jump = (f->dl_time_ms - f->dl_use_ms) * 0.001f * D9_SR * f->warp;
+        if (f->dl_quiet >= len || fm_fabsf(jump) < 2.0f) {   /* nothing to hear move, or too little */
+            f->dl_use_ms = f->dl_time_ms;
+            if (f->dl_quiet >= len)
+                f->dcur = fm_minf(fm_maxf(f->dcur + jump, 1.0f), (float)len - 8.0f);
+        } else if (f->dl_settle >= DL_SETTLE && !f->dl_xf) {
+            f->dl_xold = f->dcur;
+            f->dcur = fm_minf(fm_maxf(f->dcur + jump, 1.0f), (float)len - 8.0f);
+            f->dl_use_ms = f->dl_time_ms;
+            f->dl_xf = DL_XF;
+        }
+    }
+    const float target = fm_minf(fm_maxf(f->dl_use_ms * 0.001f * D9_SR * f->warp - f->dl_lead, 1.0f),
                                  (float)len - 8.0f);   /* (WARP: never past the line) */
     if (f->dl_quiet >= len) {
         int any = 0;
@@ -227,6 +250,8 @@ static void fx_delay(fxbus_t *f, const float *in, float *out, float *out_r, int 
             }
             f->wow_ph += d9_inc(0.5f) * (uint32_t)n;
             f->flut_ph += d9_inc(6.1f) * (uint32_t)n;
+            f->dl_gl = f->dl_tl;
+            f->dl_gr = f->dl_tr;
             return;
         }
     }
@@ -235,8 +260,12 @@ static void fx_delay(fxbus_t *f, const float *in, float *out, float *out_r, int 
     const int ping = f->dl_ping && 2.0f * fm_maxf(f->dcur, target) + f->dl_lead + 4.0f < flen;
     const float lvl = f->dl_level;
     int32_t quiet = f->dl_quiet;
-    int32_t w = f->w;
+    int32_t w = f->w, xf = f->dl_xf;
     float dcur = f->dcur, lp = f->lp;
+    const float xold = f->dl_xold;
+    float gl = f->dl_gl, gr = f->dl_gr;
+    const float sl = (f->dl_tl - gl) / (float)n, sr = (f->dl_tr - gr) / (float)n;
+    const int ping_o = f->dl_ping && 2.0f * xold + f->dl_lead + 4.0f < flen;
 
     const float wear = f->wear;
     const float depth = 0.1f + 1.9f * wear;                  /* x nominal; 1 at wear ~0.5 */
@@ -260,8 +289,17 @@ static void fx_delay(fxbus_t *f, const float *in, float *out, float *out_r, int 
         if (i0 >= len) i0 -= len;
         const int32_t i1 = i0 + 1 >= len ? 0 : i0 + 1;
         const float b0 = (float)buf[i0] * (1.0f / 2048.0f), b1 = (float)buf[i1] * (1.0f / 2048.0f);
-        const float y = b0 + (b1 - b0) * fr;
-        const float y2 = ping ? dl_tap(buf, len, flen, w, 2.0f * dmod + f->dl_lead) : y;
+        float y = b0 + (b1 - b0) * fr;
+        float y2 = ping ? dl_tap(buf, len, flen, w, 2.0f * dmod + f->dl_lead) : y;
+        if (xf) {                                            /* from the old time to the new */
+            const float t = (float)(DL_XF - xf) * (1.0f / DL_XF), gn = t * (2.0f - t), go = 1.0f - t * t;
+            const float od = xold + wow_a * fx_psin(wp) + flut_a * fx_psin(fp);
+            const float yo = dl_tap(buf, len, flen, w, od);
+            const float y2o = ping_o ? dl_tap(buf, len, flen, w, 2.0f * od + f->dl_lead) : yo;
+            y = go * yo + gn * y;
+            y2 = go * y2o + gn * y2;
+            xf--;
+        }
         lp += (y2 * fdbk - lp) * tc;
         if (fm_fabsf(lp) < 1e-20f) lp = 0.0f;
         float s = d9_tanh(lp * g) * inv_g;                   /* tape saturation holds the loop */
@@ -272,14 +310,19 @@ static void fx_delay(fxbus_t *f, const float *in, float *out, float *out_r, int 
         if (k < -32767) k = -32767;
         buf[w] = (int16_t)k;
         if (++w >= len) w = 0;
-        out[i] += y * lvl;
-        out_r[i] += y2 * lvl;
+        gl += sl;
+        gr += sr;
+        out[i] += y * lvl * gl;
+        out_r[i] += y2 * lvl * gr;
         quiet = (k == 0 && in[i] == 0.0f) ? quiet + 1 : 0;
     }
     f->wow_ph = wp;
     f->flut_ph = fp;
     f->tape_hp = fm_flush(hp);
     f->w = w;
+    f->dl_xf = xf;
+    f->dl_gl = f->dl_tl;                                     /* (exactly: no drift from the steps) */
+    f->dl_gr = f->dl_tr;
     f->dcur = dcur;
     f->lp = lp;
     f->dl_quiet = quiet;
@@ -297,3 +340,8 @@ void fxbus_wet_st(fxbus_t *f, const float *rev, const float *dly, float *wet_l, 
 
 void fxbus_set_lead(fxbus_t *f, int samples) { f->dl_lead = (float)samples; }
 void fxbus_set_warp(fxbus_t *f, float factor) { f->warp = fm_clampf(factor, 0.25f, 4.0f); }
+void fxbus_set_balance(fxbus_t *f, float l, float r)
+{
+    f->dl_tl = l;
+    f->dl_tr = r;
+}

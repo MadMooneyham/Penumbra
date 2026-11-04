@@ -1,0 +1,89 @@
+# MIDI with a DAW. Its clock: the tempo from the ticks' own times, to a tenth of a BPM. SONG POSITION then
+# CONTINUE (a DAW's locate, its loop): the clock and the loop carry on from there. CCs in move the controls
+# (HOME's, the throws, PAN, the FX page) and nothing echoes back; a knob turned sends its CC. Program
+# changes both ways: scenes, journeys. The white keys go out as VOX's notes on the channel, the black keys
+# as notes 36.. on the next; those notes in press the black keys. (The loop's notes do not go out: the
+# hands' did, as they were played.)
+autoplay 0
+wait 300
+tap REC
+wait 100
+key w2 down
+wait 1000
+key w2 up
+wait 500
+key w4 down
+wait 500
+key w4 up
+wait 600
+tap REC
+wait 100
+expect looplen 16
+tap SEQ
+wait 500
+expect playing 0
+clockin 90 8000
+wait 400
+expect ext 1
+midi F2 04 00
+midi FB
+wait 500
+expect playing 1
+expect steps >5
+expect steps <10
+expect loop_pos >5
+expect loop_pos <10
+midi FC
+wait 100
+midi F2 0A 00
+midi FB
+wait 300
+expect loop_pos >10
+expect loop_pos <14
+wait 3000
+expect tempo_x10 >898
+expect tempo_x10 <902
+midi FC
+wait 1500
+clockin 133 4000
+wait 3500
+expect tempo_x10 >1327
+expect tempo_x10 <1333
+wait 1000
+expect ext 0
+midi B0 0E 7F
+midi B0 55 00
+midi B0 15 64
+midi B0 66 20
+wait 100
+expect macro1 127
+expect pan0 0
+expect thr3 73
+expect fx0 32
+expect ccs_out 0
+turn K2 2
+wait 100
+expect macro2 68
+expect cc_out15 68
+expect ccs_out 2
+tapkey w2
+wait 100
+expect notes_out1 3
+tapkey b0
+wait 100
+expect notes_out2 1
+expect note_out 36
+expect drone1 1
+midi 91 24 7F
+wait 100
+midi 81 24 00
+wait 100
+expect drone1 0
+expect notes_out2 1
+turn PRESET 1
+wait 100
+expect pc_out 1
+midi C0 09
+wait 300
+expect journey 2
+expect pc_out 1

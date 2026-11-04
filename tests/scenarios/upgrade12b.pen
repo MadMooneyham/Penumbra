@@ -1,0 +1,24 @@
+# From 1.2's betas, as they sounded. The first's journeys (format 7): VOX alone swaying, by its one SWAY, in
+# sync. The next two's (8): the parts PAN 2 switched on swaying by that SWAY, at their OFFSET. Both on the
+# tide (RATE came later).
+legacy12b
+wait 500
+expect jr_format 9
+expect journey 4
+expect pan1 20
+expect sway_rate 0
+expect sway0 0
+expect sway1 90
+expect sway2 0
+expect sway_off 0
+expect jr_playing 1
+legacy12c
+wait 500
+expect jr_format 9
+expect pan1 20
+expect sway_rate 0
+expect sway0 90
+expect sway1 0
+expect sway2 90
+expect sway3 0
+expect sway_off 64

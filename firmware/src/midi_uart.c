@@ -2,7 +2,8 @@
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* MIDI IN on the TRS jack (ported from Felucca 1.0's midi_uart.c): PH8 -> input channel 1 -> UART1
  * RX, 31250 baud, RX DMA into a 128-byte ring, polled from the TIMER5 ISR outside the render, the
- * same context as usb_poll. Channel messages and Clock / Start / Continue / Stop go into midi_in_q
+ * same context as usb_poll. Channel messages, Song Position and Clock (with the time it came, as USB's)
+ * / Start / Continue / Stop go into midi_in_q
  * beside USB's, as USB-MIDI packets (cable 0, CIN = status >> 4), so the engine cannot tell them
  * apart; other system messages and SysEx are ignored (no SysEx -> UBOOT from the jack). */
 #include "../hal/fm1_uart.h"   /* registers; relative, so the host test finds it too */
@@ -36,7 +37,7 @@ static void um_byte(uint32_t b)
 {
     if (b >= 0xF8u) {                              /* real time: any time, keeps running status */
         if (b == 0xF8u || b == 0xFAu || b == 0xFBu || b == 0xFCu) {
-            if (um_put(0xFu | b << 8))
+            if (um_put(b == 0xF8u ? midi_stamp(0xFu | b << 8) : 0xFu | b << 8))
                 um.msgs++;
             else
                 um.drops++;
@@ -45,7 +46,8 @@ static void um_byte(uint32_t b)
     }
     if (b & 0x80u) {
         um.sysex = b == 0xF0u;
-        um.st = b < 0xF0u ? (uint8_t)b : 0;        /* system common / SysEx end running status */
+        um.st = b < 0xF0u || b == 0xF2u ? (uint8_t)b : 0;   /* system common / SysEx end running status
+                                                     * (SONG POSITION is read, once: below) */
         um.need = (uint8_t)um_len(b);
         um.got = 0;
         return;
@@ -59,8 +61,11 @@ static void um_byte(uint32_t b)
     }
     {
         uint32_t d1 = um.need == 2u ? um.d0 : b, d2 = um.need == 2u ? b : 0u;
+        uint32_t cin = um.st == 0xF2u ? 3u : (uint32_t)um.st >> 4;   /* (USB's CIN for it: three bytes, common) */
         um.got = 0;
-        if (um_put((um.st >> 4) | (uint32_t)um.st << 8 | d1 << 16 | d2 << 24))
+        if (um.st == 0xF2u)
+            um.st = 0;                             /* (no running status for it) */
+        if (um_put(cin | (uint32_t)(cin == 3u ? 0xF2u : um.st) << 8 | d1 << 16 | d2 << 24))
             um.msgs++;
         else
             um.drops++;

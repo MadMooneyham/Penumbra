@@ -97,14 +97,25 @@ int plat_midi_in(uint32_t *pkt)
     return 1;
 }
 static uint32_t clock_out_count, starts_out, stops_out;
+static uint32_t notes_out[17], ccs_out;           /* note-ons out by channel (1..16); CCs out */
+static int cc_out_last[128], pc_out_last = -1, note_out_last = -1;
 void plat_midi_out(uint32_t pkt)
 {
-    uint32_t st = (pkt >> 8) & 0xFF;
+    uint32_t st = (pkt >> 8) & 0xFF, d1 = (pkt >> 16) & 0x7F, d2 = (pkt >> 24) & 0x7F;
     if (st == 0xF8)
         clock_out_count++;
     else {
         starts_out += st == 0xFA || st == 0xFB;
         stops_out += st == 0xFC;
+        if ((st & 0xF0) == 0x90 && d2) {
+            notes_out[(st & 15) + 1]++;
+            note_out_last = (int)d1;
+        } else if ((st & 0xF0) == 0xB0) {
+            ccs_out++;
+            cc_out_last[d1] = (int)d2 + 1;                /* (0: never) */
+        } else if ((st & 0xF0) == 0xC0) {
+            pc_out_last = (int)d1;
+        }
         if (midi_log)
             fprintf(midi_log, "%u ms: %02X %02X %02X\n", now_ms, st, (pkt >> 16) & 0xFF, (pkt >> 24) & 0xFF);
     }
@@ -359,7 +370,8 @@ static void run_ms(uint32_t ms)
                 clockin_end_ms = 0.0;
                 break;
             }
-            min_q[mi_w++ % MQ] = 0x0Fu | 0xF8u << 8;
+            min_q[mi_w++ % MQ] = 0x1Fu | 0xF8u << 8 | (((now_ms * 24000u) >> 12) & 0xFFFFu) << 16;   /* (timed as
+                                                       * usb.c midi_stamp: to the ms, as USB's frames bring it) */
             clockin_next_ms += clockin_period_ms;
         }
         while (audio_due_ms <= (double)now_ms) {      /* 256-frame blocks, as engine_render takes them */
@@ -463,6 +475,22 @@ static int expect(const char *what, const char *val)
         got = (int)eng_guard_count;
     else if (!strcmp(what, "tempo"))
         got = (int)(tclock_tempo(&eng_clock) + 0.5f);
+    else if (!strcmp(what, "tempo_x10"))            /* (a DAW's clock, how near) */
+        got = (int)(tclock_tempo(&eng_clock) * 10.0f + 0.5f);
+    else if (!strncmp(what, "notes_out", 9))        /* notes_outC: note-ons sent on channel C */
+        got = (int)notes_out[atoi(what + 9) % 17];
+    else if (!strcmp(what, "note_out"))             /* the last note-on's note */
+        got = note_out_last;
+    else if (!strcmp(what, "ccs_out"))
+        got = (int)ccs_out;
+    else if (!strncmp(what, "cc_out", 6))           /* cc_outN: CC N's last value sent (-1: never) */
+        got = cc_out_last[atoi(what + 6) % 128] - 1;
+    else if (!strcmp(what, "pc_out"))               /* the last program change sent (-1: never) */
+        got = pc_out_last;
+    else if (!strcmp(what, "loop_pos"))             /* where the loop is, 16ths (its ticks / LP_TPS) */
+        got = (int)(engine_looper_state()->pos / LP_TPS);
+    else if (!strncmp(what, "thr", 3))              /* thrN: a throw, as the hands hold it */
+        got = (int)(ui.thr[atoi(what + 3) % 4] + (ui.thr[atoi(what + 3) % 4] < 0.0f ? -0.5f : 0.5f));
     else if (!strcmp(what, "ext"))
         got = eng_clock.ext;
     else if (!strcmp(what, "steps"))
@@ -542,6 +570,16 @@ static int expect(const char *what, const char *val)
         got = eng_jr.tide[atoi(what + 4) % JR_TIDE];
     else if (!strcmp(what, "tide_now"))             /* the tide now, -100 .. 100 */
         got = (int)(engine_tide() * 100.0f);
+    else if (!strncmp(what, "pan_now", 7))          /* pan_nowV: voice V's place now (the tide's sway in it), 0 .. 127 */
+        got = (int)(engine_pan_now(atoi(what + 7) % EV_N) + 0.5f);
+    else if (!strncmp(what, "pan", 3) && what[3] >= '0' && what[3] <= '9')   /* panV: PAN, 0 DRONE .. 3 TEXTURE */
+        got = eng_jr.pan[atoi(what + 3) % JR_PAN];
+    else if (!strcmp(what, "sway_rate"))            /* PAN's RATE: 0 the tide */
+        got = eng_jr.sway_rate;
+    else if (!strcmp(what, "sway_off"))             /* PAN 2's OFFSET */
+        got = eng_jr.sway_off;
+    else if (!strncmp(what, "sway", 4) && what[4] >= '0' && what[4] <= '9')   /* swayV: PAN 2, how far voice V sways */
+        got = eng_jr.sway[atoi(what + 4) % JR_PAN];
     else if (!strncmp(what, "room", 4))             /* roomS / haloS: scene S's (1..) */
         got = eng_jr.scene[(atoi(what + 4) - 1) % JR_SCENES].room;
     else if (!strncmp(what, "halo", 4))
@@ -726,7 +764,43 @@ int main(int argc, char **argv)
                 j.scene[k].room = j.scene[k].halo = 90;   /* (1.0's density and swarm, unused) */
             memset(j.dmotion, 0, sizeof j.dmotion);
             memset(j.tide, 0, sizeof j.tide);
+            memset(j.pan, 0, sizeof j.pan);
+            j.sway_rate = 0;                          /* (what was SWAY's byte) */
             j.at = 1;
+            plat_store_save(OBJ_WORK, &j, sizeof j);
+            memset(slots, 0, sizeof slots);
+            slots[0] = j;
+            plat_store_save(OBJ_USER, slots, sizeof slots);
+            store_writes = 0;
+            held_btn = held_keys = 0;
+            boot();
+        } else if (!strcmp(cmd, "legacy12b") || !strcmp(cmd, "legacy12c")) {
+            /* 1.2's betas: the journey playing as format 7 (the first: its one SWAY where RATE is now, PAN 2's
+             * bytes spare) or 8 (the next two: PAN 2's switches where each part's sway is now) */
+            journey_t j;
+            jr_preset(3, &j);
+            j.format = cmd[8] == 'b' ? 7 : 8;
+            memset(j.sway, 0, sizeof j.sway);
+            j.sway_off = 0;
+            if (j.format == 8) {
+                j.sway[EV_DRONE] = j.sway[EV_PULSE] = 1;   /* (switched on) */
+                j.sway_off = 64;
+            }
+            j.pan[EV_VOX] = 20;
+            j.sway_rate = 90;                         /* (its own PAN and SWAY: they must come over) */
+            plat_store_save(OBJ_WORK, &j, sizeof j);
+            store_writes = 0;
+            held_btn = held_keys = 0;
+            boot();
+        } else if (!strcmp(cmd, "legacy11")) {        /* 1.1's flash: the journey playing and user slot 1 as format 6
+                                                       * (PAN's and SWAY's bytes spare, so 0: hard left, were they read) */
+            static journey_t slots[JR_USER];
+            journey_t j;
+            jr_preset(2, &j);
+            j.format = 6;
+            memset(j.pan, 0, sizeof j.pan);
+            j.sway_rate = 0;                          /* (what was SWAY's byte) */
+            j.tide[TD_RATE] = 30;                     /* (its own TIDES: they must come over) */
             plat_store_save(OBJ_WORK, &j, sizeof j);
             memset(slots, 0, sizeof slots);
             slots[0] = j;

@@ -1,0 +1,84 @@
+# Each preset journey with its own sound (journey.c CHARACTER): opened by program change, played a while with
+# a few notes and a move to its next scene; no clip, no click. Audio in p1.wav .. p6.wav.
+wait 500
+midi C0 08
+wait 300
+expect journey 1
+expect sway1 32
+expect sway_off 0
+wav p1.wav
+tapkey w2
+wait 3000
+tapkey w5
+turn PRESET 1
+wait 9000
+tapkey w3
+wait 3000
+wavstop
+midi C0 09
+wait 300
+expect journey 2
+expect sway3 40
+expect sway_off 127
+wav p2.wav
+tapkey w2
+wait 3000
+tapkey w5
+turn PRESET 1
+wait 9000
+tapkey w3
+wait 3000
+wavstop
+midi C0 0A
+wait 300
+expect journey 3
+wav p3.wav
+tapkey w2
+wait 3000
+tapkey w5
+turn PRESET 1
+wait 9000
+tapkey w3
+wait 3000
+wavstop
+midi C0 0B
+wait 300
+expect journey 4
+wav p4.wav
+tapkey w2
+wait 3000
+tapkey w5
+turn PRESET 1
+wait 9000
+tapkey w3
+wait 3000
+wavstop
+midi C0 0C
+wait 300
+expect journey 5
+expect pan1 36
+wav p5.wav
+tapkey w2
+tapkey b5
+wait 3000
+tapkey w5
+turn PRESET 1
+wait 9000
+tapkey w3
+tapkey b5
+wait 3000
+wavstop
+midi C0 0D
+wait 300
+expect journey 6
+expect sway_off 64
+wav p6.wav
+tapkey w2
+wait 3000
+tapkey w5
+turn PRESET 1
+wait 9000
+tapkey w3
+wait 3000
+wavstop
+expect clips 0
