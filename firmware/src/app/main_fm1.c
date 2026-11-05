@@ -251,7 +251,12 @@ static void fm1_main(void)
         uint32_t f = irq_save();
         fm1_vdc14_raise(7);                         /* M-VAVE's own supplies before anything loads them: */
         fm1_sysvdd_raise(15);                       /* 1.60 V, then 1.38 V (fm1_sys.h) */
-        flash_ok = FL_FAR(fl_jedec_ram)() == 0x856014u;   /* the expected 1 MiB part, else RAM only */
+        {                                           /* a known 1 MiB part, else RAM only: the Puya P25Q80, or the
+                                                     * UC25HQ80 in FM-1s sold since autumn 2026 (the same plain SPI
+                                                     * NOR commands; thefirmwarehub.com/submit) */
+            uint32_t id = FL_FAR(fl_jedec_ram)();
+            flash_ok = id == 0x856014u || id == 0xB36014u;
+        }
         irq_restore(f);
         if (flash_ok)
             ota_boot_cleanup();
