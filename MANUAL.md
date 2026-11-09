@@ -43,7 +43,16 @@ turn **PLAY AT POWER-ON** off in SYSTEM.
 ## 2. HOME and the screen
 
 HOME shows the corona: the eclipsed moon with a bead on its rim for each drone voice, lit as loud as that
-voice is. Each note you play puts out a star.
+voice is. It shows what you hear:
+
+- **Each note you play puts out a star**, on VOX's side of the stereo field, and the stars drift as the
+  tide sways VOX. If VOX goes to the delay, each echo lights the star again, fainter, in time; with PING-PONG
+  the echoes light it on alternate sides.
+- **While a scene travels to the next** (or you MORPH there), the moon slides off the sun and back. The
+  corona fades, a diamond ring flashes as the sun comes out, a crescent grows, and at the middle, where the
+  key changes, the sun shows most. Going to the next scene the moon goes left; to the one before, right.
+- **The looper is a satellite** circling the corona once a loop. It trails red while it records, and a
+  bead for each layer while it plays.
 
 Under the corona:
 
@@ -51,8 +60,8 @@ Under the corona:
   another scene is under way, it adds `> 2`. During a MORPH it shows `~ 2` and a bar for how far you have
   come.
 - **On the right** it shows PLAYING or STOPPED, or SLEEP with the minutes left.
-- **The looper line** shows what the looper is doing, its layers and its speed, with a bar for where it is in
-  the loop.
+- **The looper line** shows what the looper is doing, its layers and its speed (where it is in the loop:
+  its satellite).
 - **FROZEN** shows when notes are frozen, and **THROW** when a throw is out.
 
 The header carries the journey's name and the tempo. A small dot in the header means something has not been

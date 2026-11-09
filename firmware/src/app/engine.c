@@ -986,6 +986,12 @@ float engine_pan_now(int voice)
     static const uint8_t PART[EV_N] = {P_DRONE, P_VOX, P_PULSE, P_TEX};
     return voice >= 0 && voice < EV_N ? pan_pot[PART[voice]] : 64.0f;
 }
+float engine_echo(float *gain, int *ping)
+{
+    *gain = fx.dl_fdbk;
+    *ping = fx.dl_ping != 0;
+    return mix_dly[P_VOX] * fx.dl_level > 0.02f ? fx.dl_use_ms * fx.warp : 0.0f;
+}
 static void mix_targets(int p)
 {
     float gl, gr;

@@ -1,0 +1,44 @@
+# HOME's pictures of what is heard: the notes' stars on VOX's side, lit again by each echo; the moon sliding
+# off the sun while a scene travels (the diamond ring as it leaves and comes back); the looper's satellite.
+# The shots are for the eye (build/scenarios/visuals/); the expects that the screen keeps working through it.
+autoplay 1
+wait 1500
+key w4 down
+wait 300
+key w4 up
+key w7 down
+wait 200
+key w7 up
+wait 150
+shot stars.png
+turn PRESET 1
+wait 400
+shot travel_ring.png
+wait 1600
+shot travel_crescent.png
+wait 4000
+shot travel_far.png
+expect playing 1
+wait 7000
+shot arrived.png
+tap REC
+wait 100
+expect looper 1
+tapkey w2
+wait 900
+tapkey w5
+wait 900
+shot loop_rec.png
+tap REC
+wait 2500
+expect looper 2
+shot loop_play.png
+tap REC
+wait 600
+tapkey w3
+wait 600
+shot loop_dub.png
+tap REC
+wait 1500
+expect layers 2
+shot loop_layers.png

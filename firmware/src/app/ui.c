@@ -1785,9 +1785,10 @@ static void draw_header(void)
 #define EC_RS 36                                   /* the moon's rim */
 #define EC_CW 14                                   /* the corona's reach past it */
 #define EC_NSTAR 14
-static struct { int16_t x, y; uint8_t life; } ec_star[EC_NSTAR];
+#define EC_DONE 0xFFu                              /* a star's echoes all heard */
+static struct { int16_t x, y; uint8_t life, pan, echo; uint32_t t0; } ec_star[EC_NSTAR];
 static uint8_t ec_star_w;
-static float ec_lvl, ec_flare;
+static float ec_lvl, ec_flare, ec_ph;
 static uint32_t ec_rng = 0x2545F491u, ec_last_step, ec_last_kick;
 static uint32_t ec_rand(void)
 {
@@ -1796,15 +1797,108 @@ static uint32_t ec_rand(void)
     ec_rng ^= ec_rng << 5;
     return ec_rng;
 }
-static void ec_star_new(void)                     /* a VOX note: a star comes out */
+static void ec_star_new(void)                     /* a VOX note: a star comes out, on VOX's side of the field */
 {
+    float pan = engine_pan_now(EV_VOX), side = (pan - 64.0f) * (1.0f / 64.0f);
     float a = (float)(ec_rand() & 1023u) * (FM_TWO_PI / 1024.0f);
     float r = (float)(EC_RS + EC_CW + 4) + (float)(ec_rand() % 40u);
-    int x = EC_CX + (int)(fm_cosf(a) * r * 1.6f), y = EC_CY + (int)(fm_sinf(a) * r * 0.62f);
+    int x, y;
+    if (fm_cosf(a) * side < 0.0f && (float)(ec_rand() & 63u) < fm_fabsf(side) * 64.0f)
+        a = FM_PI - a;                            /* (panned: mostly its side, as far as it is panned) */
+    x = EC_CX + (int)(fm_cosf(a) * r * 1.6f + side * 24.0f);
+    y = EC_CY + (int)(fm_sinf(a) * r * 0.62f);
     ec_star[ec_star_w].x = (int16_t)(x < 6 ? 6 : x > 234 ? 234 : x);
     ec_star[ec_star_w].y = (int16_t)(y < 6 ? 6 : y > 100 ? 100 : y);
     ec_star[ec_star_w].life = 255;
+    ec_star[ec_star_w].pan = (uint8_t)pan;
+    ec_star[ec_star_w].echo = 0;
+    ec_star[ec_star_w].t0 = plat_ms();
     ec_star_w = (uint8_t)((ec_star_w + 1) % EC_NSTAR);
+}
+
+static void ec_stars(void)                        /* the notes' stars: fading, swaying with VOX, echoing */
+{
+    float gain, pan = engine_pan_now(EV_VOX), ms;
+    int ping, k;
+    uint32_t now = plat_ms();
+    ms = engine_echo(&gain, &ping);
+    for (k = 0; k < EC_NSTAR; k++) {
+        int x;
+        if (ec_star[k].echo != EC_DONE) {         /* each echo lights it again, fainter */
+            if (ms < 20.0f || gain < 0.05f || ec_star[k].echo >= 8u)
+                ec_star[k].echo = EC_DONE;
+            else if ((float)(now - ec_star[k].t0) >= (float)(ec_star[k].echo + 1u) * ms) {
+                float g = 1.0f;
+                int n;
+                ec_star[k].echo++;
+                for (n = 0; n < ec_star[k].echo; n++)
+                    g *= gain;
+                if (g < 0.04f)
+                    ec_star[k].echo = EC_DONE;
+                else
+                    ec_star[k].life = (uint8_t)fm_maxf((float)ec_star[k].life, 255.0f * fm_sqrtf(g));
+            }
+        }
+        if (!ec_star[k].life)
+            continue;
+        x = ec_star[k].x + (int)((pan - (float)ec_star[k].pan) * 0.6f);   /* the tide's sway takes it along */
+        if (ping && ec_star[k].echo != EC_DONE && (ec_star[k].echo & 1u))
+            x = 240 - x;                          /* (ping-pong: the echo on the other side) */
+        x = x < 4 ? 4 : x > 236 ? 236 : x;
+        dot(x, ec_star[k].y, ec_star[k].life > 160 ? 2 : 1, blend(C_BG, RGB(130, 176, 255), ec_star[k].life >> 4));
+        ec_star[k].life = (uint8_t)(ec_star[k].life > 5 ? ec_star[k].life - 5 : 0);
+    }
+}
+
+static float ec_phase(int *dir)                   /* travelling or MORPHing: how far the moon is off the sun (0..1) */
+{
+    const jrun_t *r = engine_jr();
+    const int n = eng_jr.nscenes ? eng_jr.nscenes : 1;
+    float t = 0.0f;
+    *dir = -1;                                    /* (to the next scene: the moon goes left; to the one before, right) */
+    if (r->travelling) {
+        t = r->xf;
+        *dir = r->dest == (r->from + 1) % n ? -1 : 1;
+    } else if (r->mamt > 0.0f) {
+        t = r->mamt;
+        *dir = r->mto == (r->mbase + 1) % n ? -1 : 1;
+    }
+    return 0.5f - 0.5f * fm_cosf(FM_TWO_PI * fm_clampf(t, 0.0f, 1.0f));   /* off most at the middle, where the key turns */
+}
+
+static void ec_orbit(void)                        /* the looper: a satellite round the corona, once a loop */
+{
+    const looper_t *l = engine_looper_state();
+    const float RX = 70.0f, RY = 45.0f, LAP = 64.0f * (float)LP_TPS;   /* (recording the first: a lap is 4 bars) */
+    const int rec = l->state == LS_REC || l->state == LS_DUB;
+    const uint16_t c = rec ? ((ui.frame >> 4) & 1u ? C_RED : dim(C_RED, 8)) : l->state == LS_PLAY ? C_AMB : C_DIM;
+    float t, lap;
+    int i;
+    if (l->state == LS_EMPTY)
+        return;
+    lap = l->len ? (float)l->len : LAP;
+    t = (float)(l->len ? l->pos % l->len : l->pos % (uint32_t)LAP) / lap;
+    for (i = 0; i < 48; i++) {                    /* the orbit, fainter outside the corona; brighter for each layer */
+        float a = (float)i * (1.0f / 48.0f), ox = fm_sin_turns(a) * RX, oy = -fm_sin_turns(a + 0.25f) * RY;
+        if (ox * ox + oy * oy > (float)((EC_RS + EC_CW) * (EC_RS + EC_CW)))
+            cv_pset(EC_CX + (int)ox, EC_CY + (int)oy, blend(C_BG, C_GRAY, 6 + (l->layers > 8 ? 8 : l->layers) / 2));
+    }
+    {   /* behind it: a trail, red while it records; else a bead for each layer */
+        const int n = rec ? 20 : (l->layers > LP_LAYERS ? LP_LAYERS : l->layers);
+        const float gap = rec ? 0.012f : 0.035f;
+        for (i = n; i >= 1; i--) {
+            float a = t - (float)i * gap;
+            if (l->state == LS_REC && a < 0.0f && !l->len)
+                continue;                         /* (the first recording: from where it began) */
+            disc((float)EC_CX + fm_sin_turns(a) * RX, (float)EC_CY - fm_sin_turns(a + 0.25f) * RY, rec ? 1.2f : 1.4f,
+                 blend(C_BG, rec ? C_RED : C_AMB, rec ? 12 - i / 2 : 14 - i));
+        }
+    }
+    {   /* the satellite, in its own glow */
+        const float sx = (float)EC_CX + fm_sin_turns(t) * RX, sy = (float)EC_CY - fm_sin_turns(t + 0.25f) * RY;
+        disc(sx, sy, 5.0f, blend(C_BG, c, 4));
+        disc(sx, sy, 2.6f, c);
+    }
 }
 
 static void draw_corona(void)
@@ -1812,8 +1906,8 @@ static void draw_corona(void)
     const uint16_t SUN = RGB(255, 244, 222), PALE = RGB(255, 222, 170), CORONA = C_AMB;
     const uint16_t FACE = RGB(12, 13, 24), MOON = RGB(226, 224, 236), bg = C_BG;
     const int R2 = EC_RS + EC_CW;
-    float lvl = fm_minf((float)eng_level * (2.5f / 32768.0f), 1.0f), amp, rot, breath;
-    int x, y, k;
+    float lvl = fm_minf((float)eng_level * (2.5f / 32768.0f), 1.0f), amp, rot, breath, mx;
+    int x, y, k, dir;
     eng_level = (uint16_t)(eng_level - (eng_level >> 3));   /* the meter falls (~300 ms) */
     ec_lvl += (lvl - ec_lvl) * (lvl > ec_lvl ? 0.5f : 0.12f);   /* up fast, down slowly: a pulse */
     if (eng_kicks != ec_last_kick) {              /* each kick flares it */
@@ -1828,17 +1922,61 @@ static void draw_corona(void)
     breath = 0.5f + 0.5f * fm_sin_turns((float)(ui.frame & 255u) * (1.0f / 256.0f));   /* (quiet: it breathes) */
     amp = 0.22f + 0.08f * breath + 0.7f * ec_lvl + 0.35f * ec_flare;
     rot = (float)(ui.frame & 4095u) * (1.0f / 4096.0f);
+    ec_ph += (ec_phase(&dir) - ec_ph) * 0.25f;   /* (eased: a jump in the journey slides, too) */
+    if (ec_ph < 0.004f)
+        ec_ph = 0.0f;
+    mx = (float)EC_CX + (float)dir * ec_ph * (float)EC_RS * 1.15f;
     for (k = 0; k < 40; k++) {                    /* the sky: fixed stars, each twinkling its own way */
         uint32_t h = (uint32_t)k * 2654435761u;
         int sx = (int)(h % 236u) + 2, sy = (int)((h >> 12) % 98u) + 4;
         int tw8 = (int)(((h >> 20) + ui.frame / 6u) & 15u);
         cv_pset(sx, sy, blend(bg, C_GRAY, tw8 < 3 ? 12 : 5));
     }
-    for (k = 0; k < EC_NSTAR; k++)                /* the notes' stars, fading */
-        if (ec_star[k].life) {
-            dot(ec_star[k].x, ec_star[k].y, ec_star[k].life > 160 ? 2 : 1, blend(bg, RGB(130, 176, 255), ec_star[k].life >> 4));
-            ec_star[k].life = (uint8_t)(ec_star[k].life > 5 ? ec_star[k].life - 5 : 0);
+    ec_stars();
+    if (ec_ph > 0.0f) {   /* travelling: the moon slides off the sun and back; the corona fades in its light */
+        const float cf = fm_clampf(1.0f - ec_ph * 3.0f, 0.0f, 1.0f), glare = fm_sqrtf(ec_ph);
+        const float rm = (float)EC_RS - 1.5f, rin = (rm - 0.5f) * (rm - 0.5f), rout = (rm + 0.5f) * (rm + 0.5f);
+        const int x0 = (int)fm_minf((float)(EC_CX - R2), mx - (float)EC_RS) - 1;
+        const int x1 = (int)fm_maxf((float)(EC_CX + R2), mx + (float)EC_RS) + 1;
+        for (y = EC_CY - R2; y <= EC_CY + R2; y++)
+            for (x = x0 < 0 ? 0 : x0; x <= (x1 > 239 ? 239 : x1); x++) {
+                float dx = (float)x + 0.5f - (float)EC_CX, dy = (float)y + 0.5f - (float)EC_CY, d2 = dx * dx + dy * dy;
+                float mdx = (float)x + 0.5f - mx, dm2 = mdx * mdx + dy * dy, d, a, m;
+                uint16_t col;
+                /* how much of the pixel the moon covers (a root only on its edge) */
+                m = dm2 <= rin ? 1.0f : dm2 >= rout ? 0.0f : fm_clampf(rm - fm_sqrtf(dm2) + 0.5f, 0.0f, 1.0f);
+                if (m >= 1.0f) {
+                    cv_pset(x, y, FACE);
+                    continue;
+                }
+                if (d2 >= (float)(R2 * R2)) {
+                    if (m > 0.0f)
+                        px_blend(x, y, FACE, (uint32_t)(m * 16.0f + 0.5f));
+                    continue;
+                }
+                d = fm_sqrtf(d2);
+                if (d < (float)EC_RS) {           /* the sun itself, a little darker at its limb */
+                    float s = d * (1.0f / (float)EC_RS);
+                    col = blend(PALE, SUN, (int)(16.0f * (1.0f - s * s * s)));
+                } else {                          /* the corona, fading; the glare of the sun coming out */
+                    float w = 1.0f - (d - (float)EC_RS) / (float)EC_CW;
+                    float ray = 0.72f + 0.28f * fm_sin_turns(turns(dy, dx) * 7.0f + rot) * (0.4f + ec_lvl);
+                    a = fm_clampf(fm_maxf(w * w * amp * ray * 1.3f * cf, w * w * w * glare * 0.9f), 0.0f, 1.0f);
+                    if (a < 0.03f && m <= 0.0f)
+                        continue;
+                    col = blend(bg, blend(CORONA, PALE, (int)(w * w * w * 16.0f)), (int)(a * 16.0f + 0.5f));
+                }
+                cv_pset(x, y, m > 0.0f ? blend(col, FACE, (int)(m * 16.0f + 0.5f)) : col);
+            }
+        {   /* the diamond ring: the first and last light, a bead on the rim where the sun comes out */
+            const float g = fm_clampf(ec_ph * 33.0f, 0.0f, 1.0f) * fm_clampf((0.22f - ec_ph) * 7.0f, 0.0f, 1.0f);
+            if (g > 0.02f) {
+                const float gx = (float)EC_CX - (float)dir * (float)EC_RS;
+                disc(gx, (float)EC_CY + 0.5f, 2.0f + 5.0f * g, blend(bg, PALE, (int)(g * 9.0f)));
+                disc(gx, (float)EC_CY + 0.5f, 1.0f + 2.0f * g, blend(bg, SUN, (int)(g * 16.0f)));
+            }
         }
+    } else
     /* the corona: a bright rim, glowing out into the dark in slowly turning rays; inside, the face */
     for (y = EC_CY - R2; y <= EC_CY + R2; y++)
         for (x = EC_CX - R2; x <= EC_CX + R2; x++) {
@@ -1865,7 +2003,7 @@ static void draw_corona(void)
             cv_pset(x, y, col);
         }
     {   /* the mark, in moonlight */
-        const int ox = EC_CX - LOGO_S_W / 2, oy = EC_CY - LOGO_S_H / 2 + 1;
+        const int ox = (int)(mx + 0.5f) - LOGO_S_W / 2, oy = EC_CY - LOGO_S_H / 2 + 1;
         for (y = 0; y < LOGO_S_H; y++)
             for (x = 0; x < LOGO_S_W; x++) {
                 uint32_t a = LOGO_S_PX[y * ((LOGO_S_W + 1) / 2) + x / 2];
@@ -1876,7 +2014,7 @@ static void draw_corona(void)
     }
     for (k = 0; k < ENG_DRONES; k++) {          /* the drones: a bead each on the rim, from the top, clockwise */
         float a = ((float)k / (float)ENG_DRONES - 0.25f) * FM_TWO_PI;
-        float bx = (float)EC_CX + fm_cosf(a) * ((float)EC_RS + 1.0f), by = (float)EC_CY + fm_sinf(a) * ((float)EC_RS + 1.0f);
+        float bx = mx + fm_cosf(a) * ((float)EC_RS + 1.0f), by = (float)EC_CY + fm_sinf(a) * ((float)EC_RS + 1.0f);
         float lv = engine_drone_level(k);         /* lit as loud as it is: it rises in and falls away */
         disc(bx, by, 1.6f, C_DIM);
         if (lv > 0.01f) {
@@ -1884,6 +2022,7 @@ static void draw_corona(void)
             disc(bx, by, 1.8f, blend(bg, SUN, (int)(lv * 16.0f)));
         }
     }
+    ec_orbit();
 }
 
 static char *scene_line(char *b, int s)           /* "2/4  A AEOLIAN" */
@@ -1904,7 +2043,6 @@ static void draw_home(void)
     const jrun_t *r = engine_jr();
     const looper_t *l = engine_looper_state();
     char b[40], *q;
-    int x;
     draw_corona();
     q = scene_line(b, r->mamt > 0.0f ? r->mbase : r->cur);
     if (r->travelling)                            /* on the way to the next */
@@ -1924,17 +2062,12 @@ static void draw_home(void)
     } else {
         text_r(234, 112, &FONT_XS, eng_clock.playing ? "PLAYING" : "STOPPED", eng_clock.playing ? C_GRAY : C_DIM);
     }
-    {   /* the looper: what it does, its layers, where it is in the loop */
+    {   /* the looper: what it does, its layers (where it is in the loop: its satellite, ec_orbit) */
         int rec = l->state == LS_REC || l->state == LS_DUB;
         uint16_t c = rec ? ((ui.frame >> 4) & 1u ? C_RED : dim(C_RED, 8)) : l->state == LS_PLAY ? C_AMB
                                                                                                   : C_DIM;
         loop_text(b);
         cv_text(6, 126, &FONT_XS, b, c);
-        x = 8 + text_w(&FONT_XS, b);
-        if (l->len && l->state != LS_EMPTY) {
-            cv_rect(x, 131, 60, 2, C_LINE);
-            cv_rect(x, 131, (int)((uint64_t)l->pos * 60u / l->len), 2, c);
-        }
     }
     if (engine_frozen())                          /* notes frozen */
         cv_text(150, 126, &FONT_XS, "FROZEN", C_AMB);

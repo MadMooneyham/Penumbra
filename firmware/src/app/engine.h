@@ -64,6 +64,8 @@ float engine_tide(void);                         /* (main loop) the tide now, -1
  * (eng_jr.sway_rate: 0 the tide's, else engine_sway_period). PAN 2 (eng_jr.sway): how far each sways (VOX's
  * echoes half as far); its ALGO the OFFSET between them */
 float engine_pan_now(int voice);                 /* (main loop) EV_*'s place now, the sway in it: 0 .. 127 */
+float engine_echo(float *gain, int *ping);        /* (main loop) VOX's echoes: ms apart (0: none heard), each
+                                                   * gain of the last, and whether they cross sides */
 float engine_sway_period(int rate);              /* RATE 1 .. 127: seconds a sway */
 _Static_assert(EV_N == JR_VOICES && SH_N == JR_SHAPE && DV_N == JR_DVOICE, "the journey keeps the sound");
 /* VOX's sounds (eng_jr.vsound[vcur]: VOX's row of shape is unused): its SHAPE pages are VOX (BRIGHT,
