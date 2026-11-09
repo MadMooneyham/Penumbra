@@ -2012,14 +2012,23 @@ static void draw_corona(void)
                     px_blend(ox + x, oy + y, MOON, a + (a == 15u));
             }
     }
-    for (k = 0; k < ENG_DRONES; k++) {          /* the drones: a bead each on the rim, from the top, clockwise */
-        float a = ((float)k / (float)ENG_DRONES - 0.25f) * FM_TWO_PI;
-        float bx = mx + fm_cosf(a) * ((float)EC_RS + 1.0f), by = (float)EC_CY + fm_sinf(a) * ((float)EC_RS + 1.0f);
-        float lv = engine_drone_level(k);         /* lit as loud as it is: it rises in and falls away */
-        disc(bx, by, 1.6f, C_DIM);
-        if (lv > 0.01f) {
-            disc(bx, by, 4.0f, blend(bg, CORONA, (int)(lv * (9.0f + 6.0f * breath))));
-            disc(bx, by, 1.8f, blend(bg, SUN, (int)(lv * 16.0f)));
+    {   /* the drones: a bead each on the rim, from the top, clockwise. They slide round the rim toward the
+         * side DRONE is panned to (its sway in it), and the tide lifts them off the rim and lets them back */
+        const float side = fm_clampf((engine_pan_now(EV_DRONE) - 64.0f) * (1.0f / 64.0f), -1.0f, 1.0f) * 0.85f;
+        const float tide = engine_tide() * (1.5f + 5.0f * (float)eng_jr.tide[TD_DRONE] * (1.0f / 127.0f));
+        for (k = 0; k < ENG_DRONES; k++) {
+            float a = ((float)k / (float)ENG_DRONES - 0.25f) * FM_TWO_PI, rr, bx, by;
+            float lv = engine_drone_level(k);     /* lit as loud as it is: it rises in and falls away */
+            a -= side * fm_sinf(a);               /* (toward angle 0, the right, as far as it is panned; or the left) */
+            rr = (float)EC_RS + 10.0f + tide + 2.0f * lv;   /* (out in the corona, clear of the rim) */
+            bx = mx + fm_cosf(a) * rr;
+            by = (float)EC_CY + fm_sinf(a) * rr * 0.88f;   /* (a little flatter: clear of the header and the text) */
+            disc(bx, by, 2.3f, C_DIM);
+            if (lv > 0.01f) {
+                disc(bx, by, 4.5f + 3.0f * lv, blend(bg, CORONA, (int)(lv * (8.0f + 6.0f * breath))));
+                disc(bx, by, 2.0f + 1.4f * lv, blend(bg, PALE, (int)(lv * 14.0f)));
+                disc(bx, by, 1.2f + 0.8f * lv, blend(bg, SUN, (int)(lv * 16.0f)));
+            }
         }
     }
     ec_orbit();

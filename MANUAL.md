@@ -42,9 +42,11 @@ turn **PLAY AT POWER-ON** off in SYSTEM.
 
 ## 2. HOME and the screen
 
-HOME shows the corona: the eclipsed moon with a bead on its rim for each drone voice, lit as loud as that
-voice is. It shows what you hear:
+HOME shows the corona: the eclipsed moon with a bead out in its glow for each drone voice, lit and swelling
+as loud as that voice is. It shows what you hear:
 
+- **The drone's beads move with it.** They slide round the moon toward the side DRONE is panned to, swaying
+  with it, and the tide lifts them out and lets them back (further, the more TIDES moves the DRONE).
 - **Each note you play puts out a star**, on VOX's side of the stereo field, and the stars drift as the
   tide sways VOX. If VOX goes to the delay, each echo lights the star again, fainter, in time; with PING-PONG
   the echoes light it on alternate sides.
