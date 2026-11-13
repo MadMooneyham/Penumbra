@@ -20,6 +20,37 @@ Version 1.3 · identity `FM-1_73010300` · GPL-3.0
 **[Play it in the browser](https://madmooneyham.github.io/Penumbra/emu/)** (the same code the FM-1 runs) ·
 **[Cheat sheet](https://madmooneyham.github.io/Penumbra/cheatsheet/)** (one printable page)
 
+## Start here: five minutes
+
+Penumbra is slow. Its best moment comes a few minutes in, when you travel, so give it that long.
+
+1. **Switch it on and wait.** The drone swells in. Let it settle before you play.
+2. **Play a few white keys, slowly.** Every key fits the scene's key, so nothing sounds wrong. Let each note
+   ring out into the shimmer before the next one. Playing less sounds better.
+3. **Loop it.** Press **REC**, play three or four slow notes, and press **REC** again. It plays them back.
+4. **Travel.** Turn **PRESET** one click and listen. Over 12 seconds the drone glides into a new scene, one
+   voice at a time, the room changes around you, and your loop carries on in the new key.
+5. **Keep going.** Play over it, press **REC** to add a layer, and move on to the next scene every minute or
+   two. That's a journey.
+
+## More to try
+
+- **Throw the space:** hold **FX** and turn **K1** up for a burst of shimmer. Let go and it drifts back.
+- **Freeze the room:** hold **FX** and turn **K3**, then play over the frozen reverb.
+- **Freeze a chord:** hold some notes and press **ARP**. They ring on while you play over them; **ARP** again
+  lets them go.
+- **Bend a note:** hold a white key and turn **ALGO**.
+- **Travel by hand:** on HOME, turn **SELECT** slowly to MORPH toward the next scene. Halfway there, the key
+  changes.
+- **Build from one voice:** black keys 1-5 switch the drone's voices. Start with one and add the rest.
+- **Change the colour:** black key 7 is a BLOOM, a slow swell; black keys 8-11 change VOX's sound.
+- **Visit other journeys:** press **LFO**, turn **SELECT**, press **SEL**. FAR SIDE is vast, PERIGEE close
+  and quick, TRANQUILITY still.
+- **Keep two sounds:** hold **ENV** and press **OCT-** to keep the sound as A, change it, hold **ENV** and
+  press **OCT+** for B, then hold **ENV** and turn **SELECT** to walk between them.
+- **Fall asleep to it:** SLEEP (in SYSTEM, the **GLO** button) lets everything go over 20 to 90 minutes.
+- **Lost?** Hold any button a moment and the screen says what it does.
+
 ## Install
 
 - **The easy way:** install it in one click from [The Firmware Hub](https://thefirmwarehub.com/).
@@ -31,17 +62,7 @@ Version 1.3 · identity `FM-1_73010300` · GPL-3.0
 Penumbra carries the update loader, so you can always go back to another firmware or to M-VAVE's own. If an
 install ever won't start, hold **OCT-** and **OCT+** for five seconds to put the FM-1 in update mode.
 
-## Two minutes in
-
-1. **Switch it on.** The clock starts and the drone swells in.
-2. **Play the white keys.** VOX plays in the scene's key, so every note fits. Leave space between them.
-3. **Press black key 7** for a BLOOM, and black keys 8-11 to change VOX's sound.
-4. **Press REC, play a phrase, then press REC again.** It loops. Press REC once more to layer over it.
-5. **Turn PRESET** to move to the next scene: everything glides there, and the loop follows the key.
-6. **Hold FX and turn K1** to throw the shimmer. Let go and it drifts back.
-7. **Hold a white key and turn ALGO** to bend the note's pitch.
-8. **Hold ENV and press OCT-** to keep the sound as A; change it, **hold ENV and press OCT+** for B; then
-   **hold ENV and turn SELECT** to walk between them.
+## The manual
 
 Everything else, from the drone voices to the looper, holds, scenes and sound pages, is in the
 **[manual](MANUAL.md)**. Its last section is a one-page cheat sheet.

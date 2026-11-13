@@ -12,6 +12,15 @@ Penumbra is a space-drone instrument. Three layers make its sound:
 
 Nothing plays by itself except the drone you latch. Leave room: the silence between notes is part of the sound.
 
+**Start here.** Penumbra is slow, and its best moment comes a few minutes in, when you travel:
+
+1. Switch it on and let the drone swell in and settle.
+2. Play a few white keys, slowly. Every key fits the scene's key; let each note ring out before the next.
+3. Press REC, play three or four slow notes, and press REC again: they loop.
+4. Turn PRESET one click and listen. Over 12 seconds the drone glides into a new scene, and your loop carries on
+   in the new key.
+5. Keep going: layer with REC, and move to a new scene every minute or two. That's a journey.
+
 Contents:
 
 1. [Starting](#1-starting)

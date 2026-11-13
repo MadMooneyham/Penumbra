@@ -63,8 +63,10 @@ a { color: var(--accent); }
 #alert { color: var(--ink); font-weight: 600; }
 .try { margin: 1.6rem 0 0; padding: 1rem 1.2rem; border: 1px solid var(--rule); border-radius: 10px; background: var(--card); }
 .try h2, .reader h2, .help h2 { font: 600 1.1rem "Barlow Semi Condensed", "Barlow", sans-serif; margin: 0 0 .4rem; }
-.try ol { margin: 0; padding-left: 1.3rem; color: var(--muted); columns: 2 22rem; column-gap: 2.5rem; }
+.try ol, .try ul { margin: 0; padding-left: 1.3rem; color: var(--muted); columns: 2 22rem; column-gap: 2.5rem; }
 .try li { margin: 0 0 .35rem; break-inside: avoid; }
+.try > p { margin: 0 0 .6rem; color: var(--ink); }
+.try h3 { font: 600 1rem "Barlow Semi Condensed", "Barlow", sans-serif; margin: .9rem 0 .35rem; }
 .try li b { color: var(--ink); font-weight: 600; }
 .reader { margin: 1.6rem 0 0; }
 .reader > p { margin: 0 0 .6rem; color: var(--muted); max-width: 70ch; }
@@ -113,17 +115,25 @@ kbd { font: 600 .85em ui-monospace, Menlo, monospace; background: var(--card); b
 </div>
 
 <section class="try" aria-labelledby="try-h">
-  <h2 id="try-h">Two minutes in</h2>
+  <h2 id="try-h">Start here: five minutes</h2>
+  <p>Penumbra is slow. Its best moment comes a few minutes in, when you travel, so give it that long.</p>
   <ol>
-    <li><b>Switch it on.</b> The clock starts and the drone swells in.</li>
-    <li><b>Play the white keys</b> (<kbd>Q</kbd>–<kbd>K</kbd>). VOX plays in the scene's key, so every note fits. Leave space between them.</li>
-    <li><b>Black key 7</b> (<kbd>7</kbd>) is a BLOOM; black keys 8–11 change VOX's sound.</li>
-    <li><b>REC, play a phrase, REC again.</b> It loops. REC once more to layer over it.</li>
-    <li><b>Turn PRESETS</b> to the next scene: everything glides there, and the loop follows the key.</li>
-    <li><b>Hold FX and turn KNOB 1</b> to throw the shimmer. Let go and it drifts back.</li>
-    <li><b>Hold a white key and turn ALGORITHM</b> to bend the note.</li>
-    <li><b>Hold any button</b> a moment and the screen says what it does.</li>
+    <li><b>Switch it on and wait.</b> The drone swells in. Let it settle before you play.</li>
+    <li><b>Play a few white keys, slowly</b> (<kbd>Q</kbd>–<kbd>K</kbd>). Every key fits the scene's key, so nothing sounds wrong. Let each note ring out into the shimmer before the next one.</li>
+    <li><b>Loop it.</b> Press REC (<kbd>Enter</kbd>), play three or four slow notes, and press REC again. It plays them back.</li>
+    <li><b>Travel.</b> Turn PRESETS one click (drag it, or scroll over it) and listen. Over 12 seconds the drone glides into a new scene, the room changes around you, and your loop carries on in the new key.</li>
+    <li><b>Keep going.</b> Play over it, press REC to add a layer, and move on to the next scene every minute or two. That's a journey.</li>
   </ol>
+  <h3>More to try</h3>
+  <ul>
+    <li><b>Throw the space:</b> hold FX (<kbd>L</kbd>) and turn KNOB 1 up. Let go and it drifts back. KNOB 3 freezes the room instead.</li>
+    <li><b>Freeze a chord:</b> hold some notes and press ARP; they ring on while you play over them.</li>
+    <li><b>Bend a note:</b> hold a white key and turn ALGORITHM (<kbd>←</kbd> <kbd>→</kbd>).</li>
+    <li><b>Travel by hand:</b> on HOME, turn SELECT (<kbd>↑</kbd> <kbd>↓</kbd>) slowly to MORPH toward the next scene.</li>
+    <li><b>Colour:</b> black keys 1–5 (<kbd>1</kbd>–<kbd>5</kbd>) switch the drone's voices, 7 is a BLOOM, 8–11 change VOX's sound.</li>
+    <li><b>Other journeys:</b> press LFO, turn SELECT, press SEL. FAR SIDE is vast, PERIGEE close and quick.</li>
+    <li><b>Lost?</b> Hold any button a moment and the screen says what it does.</li>
+  </ul>
 </section>
 
 <section class="reader" aria-labelledby="reader-h">

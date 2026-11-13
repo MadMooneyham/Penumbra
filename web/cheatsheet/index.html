@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Penumbra Cheat Sheet</title>
-<meta name="description" content="Penumbra 1.0 for the M-VAVE FM-1 on one page: every control, the holds, the looper and the sound pages.">
+<meta name="description" content="Penumbra for the M-VAVE FM-1 on one page: how to start, every control, the holds, the looper and the sound pages.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap">
@@ -53,6 +53,12 @@ section + section { margin-top: 10px; }
 .note { color: var(--muted); font-size: 12px; margin: .3rem 0 0; }
 ul.tight { margin: 0; padding-left: 1rem; }
 ul.tight li { margin: 0 0 1px; }
+.start { display: grid; grid-template-columns: auto repeat(5, 1fr); gap: 4px 14px; align-items: baseline; margin: 7px 0 0;
+         padding: 0 0 6px; border-bottom: 1px solid var(--rule); font-size: 12.5px; }
+.start h2 { margin: 0; }
+.start p { margin: 0; }
+.start p b:first-child { color: var(--accent); }
+@media screen and (max-width: 860px) { .start { grid-template-columns: 1fr; } }
 footer { margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--rule); color: var(--muted); font-size: 11.5px; display: flex; flex-wrap: wrap; gap: .2rem 1.2rem; }
 @media print {
   @page { size: landscape; margin: 9mm; }
@@ -61,7 +67,8 @@ footer { margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--rule); 
   header .links { display: none; }
   table { font-size: 10.8px; }
   .note, footer { font-size: 10px; }
-  svg.panel { width: 72%; max-width: 640px; margin: 4px auto 2px; }   /* (A4's wider page: no taller drawing) */
+  svg.panel { width: 64%; max-width: 570px; margin: 2px auto 0; }     /* (A4's wider page: no taller drawing) */
+  .start { font-size: 11px; margin-top: 4px; padding-bottom: 4px; }
 }
 </style>
 </head>
@@ -72,6 +79,15 @@ footer { margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--rule); 
   <span class="sub">1.3 · a space-drone instrument for the M-VAVE FM-1 · cheat sheet</span>
   <nav class="links" aria-label="Penumbra pages"><a href="../emu/">Play it in the browser</a><a href="https://github.com/MadMooneyham/Penumbra/blob/main/MANUAL.md">Manual</a><a href="penumbra-cheatsheet.pdf">PDF</a></nav>
 </header>
+
+<section class="start" aria-labelledby="start-h">
+  <h2 id="start-h">Start here</h2>
+  <p><b>1</b> <b>Wait.</b> Let the drone swell in and settle.</p>
+  <p><b>2</b> <b>A few white keys, slowly.</b> All fit the key; let each ring out.</p>
+  <p><b>3</b> <b>Loop:</b> REC, three or four slow notes, REC.</p>
+  <p><b>4</b> <b>Travel:</b> turn PRESETS one click. In 12 s it glides to a new scene; the loop follows the key.</p>
+  <p><b>5</b> <b>Keep going:</b> layer with REC, a new scene every minute or two.</p>
+</section>
 
 <div class="panelbox">
 <svg class="panel" viewBox="0 0 1000 508" role="img" aria-labelledby="panel-t panel-d">
