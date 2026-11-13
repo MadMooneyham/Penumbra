@@ -55,7 +55,8 @@ const char *jr_preset_name(int i) { return PRESET[(unsigned)i % JR_PRESETS].name
 /* each journey's own sound, over the one as made (engine.h's meanings): the drone's FILTER, BODY, SWARM and
  * WAVE; its movement (DM_*); TIDES (TD_*); PAN (each part's place) and its RATE (0: the tide); how far each
  * part sways and their OFFSET; the drone voices that come and go (bit v); the VOX sound it starts on.
- *   ECLIPSE      as made: the reference, VOX on a gentle tide.
+ *   ECLIPSE      as made, VOX on a gentle tide; its five drone voices all come and go (sparse, and the black
+ *                keys play them).
  *   PENUMBRA     a reedy drone; VOX (REED) and the wind mirrored, swaying every 16 s.
  *   SELENE       an uneasy, wandering tide; the high voices come and go; VOX (HALO) and the drone a quarter
  *                tide apart on it.
@@ -68,7 +69,7 @@ typedef struct {
     uint8_t drone[4], dm[JR_DMOTION], td[JR_TIDE], pan[JR_PAN], rate, sway[JR_PAN], sway_off, dswell, vcur;
 } character_t;
 static const character_t CHARACTER[JR_PRESETS] = {
-    {{75, 45, 80, 44}, {41, 25, 38, 25}, {64, 24, 20, 0, 64}, {64, 64, 64, 64}, 0, {0, 32, 0, 0}, 0, 0x00, 0},
+    {{75, 45, 80, 44}, {41, 25, 38, 25}, {64, 24, 20, 0, 64}, {64, 64, 64, 64}, 0, {0, 32, 0, 0}, 0, 0x1F, 0},
     {{70, 50, 70, 64}, {50, 30, 60, 30}, {84, 40, 30, 20, 30}, {64, 52, 64, 76}, 36, {0, 48, 0, 40}, 127, 0x00, 1},
     {{60, 62, 96, 30}, {30, 40, 50, 52}, {50, 50, 40, 30, 120}, {64, 76, 64, 44}, 0, {30, 44, 0, 0}, 64, 0x18, 2},
     {{86, 35, 60, 18}, {62, 15, 48, 14}, {112, 20, 30, 12, 0}, {64, 60, 64, 68}, 12, {0, 30, 0, 24}, 0, 0x00, 0},
@@ -112,7 +113,7 @@ void jr_sound_default(journey_t *j)
     for (v = 0; v < JR_DRONES; v++)
         for (f = 0; f < JR_DVOICE; f++)
             j->dvoice[v][f] = DVOICE[f];
-    j->dswell = 0;
+    j->dswell = 0x1F;                            /* (all five come and go, as ECLIPSE: since 1.4) */
     jr_vsound_default(j);
     jr_bloom_default(j);
     jr_motion_default(j);
@@ -437,13 +438,21 @@ void jr_init(jrun_t *r, journey_t *j)
 void jr_start(jrun_t *r, const jr_sink_t *o)
 {
     const scene_t *s = sc(r);
+    const uint32_t held = (s->drones & 0x1Fu ? s->drones & 0x1Fu : 0x07u) & ~(uint32_t)r->j->dswell;
     int v;
     r->playing = 1;
     jr_tick(r, 0, o);
     drone_to_scene(r, 1, o);
-    o->drone_latch(o->ctx, (s->drones & 0x1Fu ? s->drones & 0x1Fu : 0x07u) & ~(uint32_t)r->j->dswell);
+    o->drone_latch(o->ctx, held);
     for (v = 0; v < JR_DRONES; v++)              /* the ones that come and go: the first soon */
         r->swell_wait[v] = (uint8_t)(1 + v + rndn(&r->srng, 3));
+    if (!held)                                   /* nothing held: the lowest one that comes and goes, at once */
+        for (v = 0; v < JR_DRONES; v++)
+            if (r->j->dswell >> v & 1u) {
+                o->drone_swell(o->ctx, v);
+                r->swell_wait[v] = (uint8_t)(3 + rndn(&r->srng, 16));
+                break;
+            }
 }
 
 void jr_stop(jrun_t *r, const jr_sink_t *o)

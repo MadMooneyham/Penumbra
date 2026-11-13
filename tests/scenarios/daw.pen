@@ -6,6 +6,7 @@
 # hands' did, as they were played.)
 autoplay 0
 wait 300
+dswell 0
 tap REC
 wait 100
 key w2 down

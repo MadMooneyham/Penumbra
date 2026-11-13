@@ -339,8 +339,12 @@ static void js_drone_release(void *x)
 static void js_drone_swell(void *x, int v)
 {
     (void)x;
-    if (v >= 0 && v < DRONE_VOICES && dn.v[v].pot[DN_MODE] == DN_MODE_SWELL)
-        drone_trigger(&dn, v, 1.0f);
+    if (v < 0 || v >= DRONE_VOICES || !(eng_jr.dswell >> v & 1u))
+        return;
+    if (dn.v[v].pot[DN_MODE] != DN_MODE_SWELL)    /* (the clock's first step at power-on comes before the sound
+                                                   * is applied: the journey's word is the one that counts) */
+        drone_set(&dn, v, DN_MODE, DN_MODE_SWELL);
+    drone_trigger(&dn, v, 1.0f);
 }
 static const jr_sink_t JSINK = {0, js_drone_note, js_drone_latch, js_drone_release, js_drone_swell};
 

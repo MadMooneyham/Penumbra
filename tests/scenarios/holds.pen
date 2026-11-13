@@ -7,6 +7,7 @@
 # the bends into VOX's sound and keeps the pitch bent until the next note. Audio in holds.wav.
 autoplay 0
 wait 300
+dswell 0
 wav holds.wav
 key b1 down
 wait 100

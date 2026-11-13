@@ -1,5 +1,11 @@
 # SLEEP (SYSTEM): in 20 minutes it lets everything go. The last three: the loop stops, then the drone
 # voices fall away one by one; at the end the clock stops. Not saved: a power-on has no SLEEP.
+# (The voices held, so they can be seen falling away: stop, then start the clock again to latch them.)
+wait 2000
+dswell 0
+tap SEQ
+wait 3000
+tap SEQ
 wait 2000
 expect playing 1
 expect drone1 1

@@ -742,6 +742,9 @@ int main(int argc, char **argv)
             store_writes = 0;
             held_btn = held_keys = 0;
             boot();
+        } else if (!strcmp(cmd, "dswell")) {          /* dswell N: the drone voices that come and go (bit v); 0 all held,
+                                                       * for scenarios about held voices (ECLIPSE's all come and go) */
+            eng_jr.dswell = (uint8_t)(atoi(a) & 0x1F);
         } else if (!strcmp(cmd, "legacy10")) {        /* 1.0's flash: settings format 3 (the FX page's 8 at byte 40, 0.14's
                                                        * bytes before them), the journey playing and user slot 1 as format 5
                                                        * (what are ROOM and HALO now: 1.0's old values; the movement's bytes spare) */

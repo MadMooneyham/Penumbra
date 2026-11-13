@@ -2,6 +2,7 @@
 # Sound, no clips, and silence once both have fallen
 autoplay 0
 wait 300
+dswell 0
 wav drones.wav
 tapkey b0
 tapkey b2

@@ -2,6 +2,7 @@
 # SWARM full, LINE running, the guard off) and stops it, which puts the scene back; HOME stops it too
 autoplay 0
 wait 300
+dswell 0
 tapkey b1
 tap GLO
 tap GLO

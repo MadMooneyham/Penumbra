@@ -4,13 +4,14 @@
 
 **A space-drone instrument for the M-VAVE FM-1**, by Lunar Eclipse Forge.
 
-Switch it on and a deep drone swells in, five slowly beating voices held on a pedal. You play over it:
+Switched on, a deep drone breathes in: five slowly beating voices on a pedal, drifting in and out with
+space around them. Over it there's:
 
-- **VOX** is a soft synth voice that sits far back in a long shimmer reverb.
-- **BLOOM** is a slow swell in the key.
-- **The looper** follows the scene's key.
-- **The holds** let you play the sound itself, with throws, bends and freeze.
-- **MORPH** walks from one place to the next by hand.
+- **VOX**, a soft synth voice far back in a long shimmer reverb;
+- **BLOOM**, a slow swell in the key;
+- **the looper**, which follows the scene's key;
+- **the holds**, for playing the sound itself, with throws, bends and freeze;
+- **MORPH**, a walk from one place to the next by hand.
 
 The sound it reaches for is the cinematic drone of the ELTA Solar 42: thick, slow, and full of space. The
 silence between the notes is part of it.
@@ -20,36 +21,38 @@ Version 1.3 · identity `FM-1_73010300` · GPL-3.0
 **[Play it in the browser](https://madmooneyham.github.io/Penumbra/emu/)** (the same code the FM-1 runs) ·
 **[Cheat sheet](https://madmooneyham.github.io/Penumbra/cheatsheet/)** (one printable page)
 
-## Start here: five minutes
+## The first few minutes
 
-Penumbra is slow. Its best moment comes a few minutes in, when you travel, so give it that long.
+Penumbra is slow, and much of what it does best unfolds over a few minutes.
 
-1. **Switch it on and wait.** The drone swells in. Let it settle before you play.
-2. **Play a few white keys, slowly.** Every key fits the scene's key, so nothing sounds wrong. Let each note
-   ring out into the shimmer before the next one. Playing less sounds better.
-3. **Loop it.** Press **REC**, play three or four slow notes, and press **REC** again. It plays them back.
-4. **Travel.** Turn **PRESET** one click and listen. Over 12 seconds the drone glides into a new scene, one
-   voice at a time, the room changes around you, and your loop carries on in the new key.
-5. **Keep going.** Play over it, press **REC** to add a layer, and move on to the next scene every minute or
-   two. That's a journey.
+- **On its own,** the drone's voices drift in and out, a few at a time. In the first journey, ECLIPSE, all
+  five come and go.
+- **Black keys 1-5** each call one of those voices in, to swell and fade.
+- **The white keys** play VOX. Every key fits the scene's key, so there are no wrong notes, and slow,
+  spacious playing suits it.
+- **The looper:** **REC**, a few notes, **REC** again, and they play back on the clock. **REC** while it
+  plays adds a layer.
+- **Travelling:** one click of **PRESET** moves to the next scene. Over 12 seconds the drone glides there
+  voice by voice, the room changes, and a loop carries on in the new key. A new scene every minute or two
+  makes a journey.
 
-## More to try
+## More it can do
 
-- **Throw the space:** hold **FX** and turn **K1** up for a burst of shimmer. Let go and it drifts back.
-- **Freeze the room:** hold **FX** and turn **K3**, then play over the frozen reverb.
-- **Freeze a chord:** hold some notes and press **ARP**. They ring on while you play over them; **ARP** again
-  lets them go.
-- **Bend a note:** hold a white key and turn **ALGO**.
-- **Travel by hand:** on HOME, turn **SELECT** slowly to MORPH toward the next scene. Halfway there, the key
-  changes.
-- **Build from one voice:** black keys 1-5 switch the drone's voices. Start with one and add the rest.
-- **Change the colour:** black key 7 is a BLOOM, a slow swell; black keys 8-11 change VOX's sound.
-- **Visit other journeys:** press **LFO**, turn **SELECT**, press **SEL**. FAR SIDE is vast, PERIGEE close
-  and quick, TRANQUILITY still.
-- **Keep two sounds:** hold **ENV** and press **OCT-** to keep the sound as A, change it, hold **ENV** and
-  press **OCT+** for B, then hold **ENV** and turn **SELECT** to walk between them.
-- **Fall asleep to it:** SLEEP (in SYSTEM, the **GLO** button) lets everything go over 20 to 90 minutes.
-- **Lost?** Hold any button a moment and the screen says what it does.
+- **Throws:** holding **FX** and turning **K1** up sends a burst of shimmer; letting go, it drifts back.
+  **K3** freezes the room instead.
+- **A frozen chord:** notes held when **ARP** is pressed keep ringing; **ARP** again lets them go.
+- **Bends:** holding a white key and turning **ALGO** bends its pitch.
+- **Travelling by hand:** on HOME, **SELECT** is MORPH. Turned slowly, it walks toward the next scene, and
+  the key changes halfway.
+- **Held voices:** holding a drone key and turning **ALGO** left makes that voice HELD, on until its key is
+  pressed again. In the other journeys most voices start held.
+- **Colour:** black key 7 is BLOOM, a slow swell; black keys 8-11 are VOX's four sounds.
+- **Other journeys:** **LFO** opens JOURNEY, **SELECT** moves through it, and **SEL** opens one. FAR SIDE is
+  vast, PERIGEE close and quick, TRANQUILITY still.
+- **Two sounds:** with **ENV** held, **OCT-** keeps the sound as A and **OCT+** as B, and **SELECT** walks
+  between them.
+- **SLEEP** (in SYSTEM, the **GLO** button) lets everything go over 20 to 90 minutes.
+- **Holding any button** for a moment shows on the screen what it does.
 
 ## Install
 

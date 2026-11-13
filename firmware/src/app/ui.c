@@ -945,7 +945,7 @@ static void sound_load(int slot)                  /* SOUNDS' SEL: the slot's sou
 
 /* ------------------------------------------------------------------ RESET --- */
 /* the sound back as made: SHAPE's SEL the page shown (DRONE with its voices' own; VOX's pages the sound
- * playing), SYSTEM's RESET SOUND all of it (every page, the four VOX sounds, the drone voices held, the
+ * playing), SYSTEM's RESET SOUND all of it (every page, the four VOX sounds, the drone voices coming and going, the
  * FX page, HOME's macros, the hands' moves). The scenes, the loop, the tempo and the settings stay.
  * SEL once asks; again within RESET_MS, it is done */
 #define RESET_MS 3000u
@@ -989,7 +989,7 @@ static void reset_now(int what)
             for (k = 0; k < JR_VS; k++)
                 eng_jr.vsound[v][k] = d.vsound[v][k];
     if (all) {
-        eng_jr.dswell = 0;
+        eng_jr.dswell = d.dswell;
         for (k = 0; k < NMACROS; k++)
             eng_jr.macro[k] = 64;
         settings_fx_default();

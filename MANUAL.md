@@ -4,22 +4,21 @@ Penumbra 1.3 for the M-VAVE FM-1, by Lunar Eclipse Forge.
 
 Penumbra is a space-drone instrument. Three layers make its sound:
 
-- **The drone** is the ground everything stands on. It is five voices held on a pedal, slowly beating, and it
-  barely moves.
+- **The drone** is the ground everything stands on: five voices on a pedal, slowly beating. In the first
+  journey, ECLIPSE, they drift in and out; in the others most of them are held.
 - **The colour** is what you play over it: VOX, a soft synth voice far back in the shimmer, and BLOOM, a slow
   swell in the key.
 - **The space** is a long shimmering reverb, a worn tape delay, and a wind that is always under everything.
 
-Nothing plays by itself except the drone you latch. Leave room: the silence between notes is part of the sound.
+Nothing plays by itself except the drone. The silence between notes is part of the sound.
 
-**Start here.** Penumbra is slow, and its best moment comes a few minutes in, when you travel:
+**The first few minutes.** Penumbra is slow, and much of what it does best unfolds over a few minutes:
 
-1. Switch it on and let the drone swell in and settle.
-2. Play a few white keys, slowly. Every key fits the scene's key; let each note ring out before the next.
-3. Press REC, play three or four slow notes, and press REC again: they loop.
-4. Turn PRESET one click and listen. Over 12 seconds the drone glides into a new scene, and your loop carries on
-   in the new key.
-5. Keep going: layer with REC, and move to a new scene every minute or two. That's a journey.
+- On its own, the drone's voices drift in and out; black keys 1-5 each call one in.
+- The white keys play VOX, always in the scene's key, so there are no wrong notes. Slow playing suits it.
+- REC, a few notes, REC again: they loop, on the clock.
+- One click of PRESET moves to the next scene. Over 12 seconds the drone glides there, and a loop carries on
+  in the new key. A new scene every minute or two makes a journey.
 
 Contents:
 
@@ -38,8 +37,9 @@ Contents:
 
 ## 1. Starting
 
-Switch the FM-1 on. The clock starts and the first scene's drone voices swell in. To start silent instead,
-turn **PLAY AT POWER-ON** off in SYSTEM.
+When the FM-1 switches on, the clock starts and the first scene's drone begins: in ECLIPSE the lowest voice
+swells in at once and the others follow every few bars. **PLAY AT POWER-ON** (in SYSTEM), turned off, starts it
+silent instead.
 
 - **SEQ** starts and stops the clock. Starting it swells the scene's drones in. Stopping it lets everything
   fade away: the drone, the loop and the tails.
@@ -101,13 +101,14 @@ playing with a DAW, see section 10.
 
 Each of the first five black keys is a drone voice. Each voice is one of two kinds:
 
-- **HELD** (as made): the key latches the voice on, and pressing it again lets it fall away. A held voice
-  latches when you let go of the key, so holding the key to shape the voice does not toggle it (see the
-  holds, below).
 - **SWELL**: the voice comes and goes. Each press swells it in, holds it a moment, and lets it out again.
-  While the clock runs, the journey also swells it in by itself every few bars.
+  While the clock runs, the journey also swells it in by itself every few bars. ECLIPSE, the first journey,
+  starts with all five like this.
+- **HELD**: the key latches the voice on, and pressing it again lets it fall away. A held voice latches when
+  you let go of the key, so holding the key to shape the voice does not toggle it (see the holds, below).
+  The other journeys start with most of their voices held.
 
-To switch a voice between HELD and SWELL, hold its key and turn **ALGO**: left for HELD, right for SWELL.
+Holding a voice's key and turning **ALGO** switches it: left for HELD, right for SWELL.
 
 The journey sets the drone's notes from the scene: its root (the *pedal*) and its voicing. The drone holds
 those notes the whole scene. When you move to another scene, only the notes that must change move: one voice
@@ -115,7 +116,7 @@ at a time, the top first and the bass last, three seconds apart, each sliding sl
 
 ### Black key 6: the kick
 
-A deep kick, tuned to the key. Use it rarely: a low thud under the drone, or a slow pulse in a loop.
+A deep kick, tuned to the key. It's at its best rare: a low thud under the drone, or a slow pulse in a loop.
 
 ### Black key 7: BLOOM
 
@@ -275,7 +276,7 @@ The fields:
 
   | Journey | Its sound |
   | --- | --- |
-  | ECLIPSE | Penumbra as made: VOX on a gentle tide, about once every 50 seconds |
+  | ECLIPSE | Penumbra as made: all five drone voices coming and going; VOX on a gentle tide, about once every 50 seconds |
   | PENUMBRA | A reedier drone; VOX (REED) and the wind mirrored, swaying every 16 seconds |
   | SELENE | An uneasy, wandering tide; the two high drone voices come and go; VOX (HALO) and the drone a quarter tide apart on it |
   | TRANQUILITY | Soft and still: a three-minute even tide; VOX and the wind drifting together every 40 seconds |
@@ -398,7 +399,7 @@ SLEEP lasts only this session; it is not saved.
 
 **RESET SOUND** puts back as made:
 
-- every SHAPE page, the drone voices and VOX's four sounds;
+- every SHAPE page, the drone voices (all five coming and going, as in ECLIPSE) and VOX's four sounds;
 - the FX page and HOME's macros;
 - any throw or bend that is out.
 
