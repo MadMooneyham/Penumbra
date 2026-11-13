@@ -1,6 +1,6 @@
 # Penumbra manual
 
-Penumbra 1.3 for the M-VAVE FM-1, by Lunar Eclipse Forge.
+Penumbra 1.4 for the M-VAVE FM-1, by Lunar Eclipse Forge.
 
 Penumbra is a space-drone instrument. Three layers make its sound:
 
