@@ -20,7 +20,8 @@
 
 #define JR_SCENES 8
 #define JR_NAME 12
-#define JR_PRESETS 6
+#define JR_PRESETS 7
+#define JR_TRAVEL_N 5                           /* travel's settings: not, every 8, 16, 32, 64 bars */
 #define JR_USER 8
 #define JR_DRONES 5
 #define JR_MAGIC 0x314A4E50u                    /* "PNJ1" */
@@ -57,7 +58,8 @@ typedef struct {
     uint8_t drones;                             /* the drone voices PLAY latches (bit v) */
     uint8_t penta;                              /* (unused) */
     uint8_t pedal;                              /* the drone's root: 0 the key's, else 1 + a pitch class in the key */
-    uint8_t rsv;
+    uint8_t blend;                              /* the sound's place between A and B in this scene: 0 it stays as
+                                                 * it is; 1 (A) .. 127 (B): it glides there with the scene */
 } scene_t;
 
 typedef struct {
@@ -67,7 +69,8 @@ typedef struct {
     uint32_t seed;
     uint8_t nscenes, mode, at;                  /* (mode: unused) at: the scene it is in (saved: it carries on there) */
     uint8_t macro[NMACROS];
-    uint8_t rsv;
+    uint8_t travel;                             /* it travels by itself: 0 not, else to the next scene after
+                                                 * JR_TRAVEL_BARS[travel] bars in each */
     scene_t scene[JR_SCENES];
     uint8_t dmotion[JR_DMOTION];                /* the drone's own movement: RATE, SWEEP, WIDTH, DRIFT (engine.h DM_*) */
     uint8_t tide[JR_TIDE];                      /* TIDES: RATE, DRONE, SPACE, VOX, SHAPE (engine.h TD_*) */
@@ -139,6 +142,7 @@ typedef struct {
     /* VOX singing: beats to its next note, notes left in the phrase, beats its note has left (0: none on),
      * that note and its sound, the white key (degree) it is on */
     uint8_t sing_wait, sing_left, sing_hold, sing_note, sing_snd, sing_w;
+    uint16_t bars_here;                         /* bars in this scene (it travels by itself: on at JR_TRAVEL_BARS) */
     uint32_t srng;
     float macro_s[NMACROS];
     /* MORPH: the way to the next scene (or the one before) by hand: mbase .. mto, mamt of the way */
@@ -150,6 +154,10 @@ typedef struct {
 
 /* the journeys in the firmware */
 void jr_preset(int i, journey_t *dst);
+/* a preset with two sounds of its own (TOTALITY: its scenes move between them): 1, and they are in a and b;
+ * such a one brings its whole sound when it is opened. 0: it has not */
+int jr_preset_ab(int i, jr_sound_t *a, jr_sound_t *b);
+extern const uint8_t JR_TRAVEL_BARS[JR_TRAVEL_N];
 const char *jr_preset_name(int i);
 void jr_sound_default(journey_t *j);             /* the sound as made (a preset's, an old journey's) */
 void jr_vsound_default(journey_t *j);            /* VOX's four sounds as made */

@@ -1,0 +1,52 @@
+# TOTALITY: what a new unit plays, by itself. It brings its whole sound (two of them, A and B, kept), VOX
+# sings (HALO, now and then), and it travels on every 16 bars: scene after scene, its sound gliding between
+# A and B as each scene says, with nothing written to the flash for any of it (it moves all night). The
+# hands still travel it (PRESET), and SCENE's TRAVELS sets it back to by hand. Audio in totality.wav.
+fresh 6
+wav totality.wav
+wait 1000
+expect journey 7
+expect nscenes 6
+expect playing 1
+expect scene 1
+expect jtravel 2
+expect vsing 2
+expect vsing_snd 3
+expect ab_have 3
+expect ab_t 0
+shot totality_1.png
+wait 45000
+expect travelling 1
+shot totality_travel.png
+wait 14000
+expect scene 2
+expect travelling 0
+expect ab_t 43
+expect vox_notes >0
+wait 56000
+expect scene 3
+expect ab_t 92
+shot totality_3.png
+wait 56000
+expect scene 4
+expect ab_t 127
+expect vcur 3
+expect store_writes 0
+expect clips 0
+turn PRESET -1
+wait 13000
+expect scene 3
+expect ab_t 92
+tap EDIT
+turn SELECT 12
+wait 100
+turn K2 -3
+wait 100
+expect jtravel 0
+tap HOME
+wait 120000
+expect scene 3
+expect travelling 0
+wavstop
+expect clips 0
+expect guardcount 0

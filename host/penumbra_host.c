@@ -590,6 +590,10 @@ static int expect(const char *what, const char *val)
         got = eng_jr.scene[(atoi(what + 4) - 1) % JR_SCENES].room;
     else if (!strncmp(what, "halo", 4))
         got = eng_jr.scene[(atoi(what + 4) - 1) % JR_SCENES].halo;
+    else if (!strcmp(what, "jtravel"))              /* the journey travels by itself: 0 not, 1 .. 4 every 8 .. 64 bars */
+        got = eng_jr.travel;
+    else if (!strcmp(what, "nscenes"))
+        got = eng_jr.nscenes;
     else if (!strcmp(what, "ab_have"))              /* A/B: bit 0 A kept, bit 1 B */
         got = sound_ab.have;
     else if (!strcmp(what, "ab_t"))                 /* the blend, 0 A .. 127 B */
@@ -659,6 +663,7 @@ int main(int argc, char **argv)
     snprintf(out, sizeof out, "%s/midi_out.txt", dir);
     midi_log = fopen(out, "w");
     plat_cpu2_set(1);
+    journey_first = 0;                           /* (the scenarios play ECLIPSE; 'fresh N' another, as a new unit) */
     boot();
     while (fgets(line, sizeof line, sc)) {
         char cmd[32] = {0}, a[256] = {0}, b[64] = {0}, c[64] = {0};
@@ -746,6 +751,15 @@ int main(int argc, char **argv)
             cfg.autoplay = (uint8_t)atoi(a);
             settings_save();
             store_writes = 0;
+            held_btn = held_keys = 0;
+            boot();
+        } else if (!strcmp(cmd, "fresh")) {           /* fresh N: a new unit (nothing saved) whose journey is preset N
+                                                       * (0 ..; the firmware's own: JR_PRESETS - 1, TOTALITY) */
+            int k;
+            for (k = 0; k < NOBJ; k++)
+                store_len[k] = -1;
+            store_writes = 0;
+            journey_first = (uint8_t)(atoi(a) % JR_PRESETS);
             held_btn = held_keys = 0;
             boot();
         } else if (!strcmp(cmd, "dswell")) {          /* dswell N: the drone voices that come and go (bit v); 0 all held,

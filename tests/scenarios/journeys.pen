@@ -1,5 +1,6 @@
-# JOURNEY (LFO; there, PRESET moves too): the six presets and eight user slots. SEL opens one; SAVE on a
-# user slot stores the one playing there; they survive a power cut.
+# JOURNEY (LFO; there, PRESET moves too): the seven presets and eight user slots. SEL opens one; SAVE on a
+# user slot stores the one playing there; they survive a power cut. TOTALITY, the last preset, opened from
+# the list brings its own sound, its two sounds as A and B, its singing and its travelling.
 autoplay 0
 wait 300
 tap LFO
@@ -9,11 +10,11 @@ tap SEL
 expect journey 3
 tap SAVE
 expect slot1 0
-turn PRESET 4
+turn PRESET 5
 tap SAVE
 expect slot1 1
 shot journey.png
-turn SELECT -6
+turn SELECT -7
 tap SEL
 expect journey 1
 reboot
@@ -21,10 +22,24 @@ wait 300
 expect slot1 1
 expect journey 1
 tap LFO
-turn SELECT 6
+turn SELECT 7
 tap SEL
 expect journey 0
 expect nscenes 3
 turn SELECT 1
 tap SEL
 expect journey 0
+turn SELECT -2
+tap SEL
+wait 100
+expect journey 7
+expect nscenes 6
+expect ab_have 3
+expect jtravel 2
+expect vsing 2
+turn SELECT -6
+tap SEL
+wait 100
+expect journey 1
+expect jtravel 0
+expect vsing 0

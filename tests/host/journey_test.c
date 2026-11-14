@@ -78,6 +78,7 @@ static void start(int preset)
 {
     memset(&S, 0, sizeof S);
     jr_preset(preset, &J);
+    J.travel = 0;                                   /* (by hand: TOTALITY's own travelling is tested below) */
     jr_init(&R, &J);
     step_n = 0;
     started = 0;
@@ -199,6 +200,26 @@ int main(void)
         jr_stop(&R, &SINK);
         CHECK(S.sung_on == 0, "the clock stopped: its note let go");
         J.vsing = 0;
+    }
+    {   /* travelling by itself: TOTALITY as made, on every 16 bars (and the 12 s there), round all six and on;
+         * by hand (0), it stays; a preset names its two sounds, the others none */
+        static jr_sound_t a, b;
+        uint32_t per = 16u * 16u + (uint32_t)(12.5f * 44100.0f / (float)STEP_FRAMES);
+        int k, okk = 1;
+        start(JR_PRESETS - 1);
+        jr_preset(JR_PRESETS - 1, &J);
+        CHECK(J.travel == 2 && J.vsing == 2 && J.nscenes == 6, "TOTALITY: it travels every 16 bars, and sings");
+        for (k = 1; k <= 7; k++) {
+            play_steps(per);
+            okk &= R.cur == k % 6 && !R.travelling;
+        }
+        CHECK(okk && S.out_key == 0, "it moves on by itself, scene after scene, round to the first and on, in key");
+        J.travel = 0;
+        play_steps(4u * per);
+        CHECK(R.cur == 1, "set to by hand: it stays where it is");
+        CHECK(jr_preset_ab(JR_PRESETS - 1, &a, &b) == 1 && memcmp(&a, &b, sizeof a) != 0 && a.dswell == b.dswell,
+              "TOTALITY has two sounds of its own, the same drone voices held in both");
+        CHECK(jr_preset_ab(0, &a, &b) == 0, "ECLIPSE has not");
     }
     printf(fails ? "%d FAILED\n" : "all passed\n", fails);
     return fails != 0;

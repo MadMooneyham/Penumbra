@@ -27,7 +27,10 @@ const char *jr_voicing_name(int v) { return VOICING_N[(unsigned)v % NVOICINGS]; 
  * their old values.) */
 #define SCN(root, scale, prog, voc, room, bri, halo, spc, tex, col, pul, reg, dr, pen, ped) \
     {root, scale, prog, voc, room, bri, halo, spc, tex, col, pul, reg, dr, pen, ped, 0}
-typedef struct { const char *name; uint32_t seed; uint8_t n; scene_t s[4]; } preset_t;
+/* (a scene that names the sound's place between the journey's A and B: 1 A .. 127 B) */
+#define SCNB(root, scale, voc, room, bri, halo, spc, tex, col, reg, dr, ped, blend) \
+    {root, scale, 0, voc, room, bri, halo, spc, tex, col, 0, reg, dr, 0, ped, blend}
+typedef struct { const char *name; uint32_t seed; uint8_t n; scene_t s[6]; } preset_t;
 static const preset_t PRESET[JR_PRESETS] = {
     {"ECLIPSE", 0x5EC1u, 4, {SCN(9, SC_AEOLIAN, 7, VC_WARM, 64, 60, 64, 80, 40, 50, 0, 4, 0x07, 1, 0),
                              SCN(9, SC_AEOLIAN, 1, VC_OPEN, 82, 72, 74, 70, 30, 70, 40, 4, 0x1F, 0, 0),
@@ -48,7 +51,17 @@ static const preset_t PRESET[JR_PRESETS] = {
     {"FAR SIDE", 0xFA75u, 4, {SCN(7, SC_HARMONIC, 1, VC_WARM, 98, 50, 78, 100, 75, 30, 0, 4, 0x1F, 0, 0),
                               SCN(3, SC_LYDIAN, 0, VC_HIGH, 118, 55, 98, 110, 85, 50, 0, 4, 0x15, 0, 8),
                               SCN(0, SC_AEOLIAN, 7, VC_WARM, 84, 60, 70, 90, 50, 45, 30, 4, 0x1F, 1, 8),
-                              SCN(7, SC_HARMONIC, 9, VC_CLUSTER, 106, 45, 86, 100, 70, 35, 0, 3, 0x13, 0, 0)}}};
+                              SCN(7, SC_HARMONIC, 9, VC_CLUSTER, 106, 45, 86, 100, 70, 35, 0, 3, 0x13, 0, 0)}},
+    /* TOTALITY: an eclipse, start to end, on a pedal D: first contact (dark, close), the partial phase opening,
+     * the diamond ring (high and bright), totality (vast, a cluster, the wind), the light coming back, and
+     * the afterglow. Its sound moves from A to B and back with them */
+    {"TOTALITY", 0x707Au, 6, {SCNB(2, SC_AEOLIAN, VC_WARM, 60, 50, 50, 80, 45, 40, 4, 0x07, 0, 1),
+                              SCNB(2, SC_DORIAN, VC_OPEN, 78, 68, 70, 78, 30, 60, 4, 0x1F, 0, 44),
+                              SCNB(7, SC_LYDIAN, VC_HIGH, 100, 85, 100, 95, 50, 85, 4, 0x1D, 3, 92),
+                              SCNB(10, SC_LYDIAN, VC_CLUSTER, 118, 45, 90, 110, 85, 30, 3, 0x13, 3, 127),
+                              SCNB(2, SC_MIXOLYDIAN, VC_WARM, 84, 78, 80, 85, 40, 75, 4, 0x1F, 0, 72),
+                              SCNB(2, SC_DORIAN, VC_OPEN, 70, 60, 60, 80, 55, 50, 4, 0x0F, 0, 26)}}};
+const uint8_t JR_TRAVEL_BARS[JR_TRAVEL_N] = {0, 8, 16, 32, 64};
 
 const char *jr_preset_name(int i) { return PRESET[(unsigned)i % JR_PRESETS].name; }
 
@@ -64,7 +77,10 @@ const char *jr_preset_name(int i) { return PRESET[(unsigned)i % JR_PRESETS].name
  *   PERIGEE      close and quick: a short tide, VOX (LOW) on the left, the kick and the wind swinging round it
  *                every 4 s.
  *   FAR SIDE     vast: a four-minute wandering tide, three voices coming and going, every part taking its turn
- *                round the field every 24 s. */
+ *                round the field every 24 s.
+ *   TOTALITY     the one that shows what Penumbra does, by itself: two sounds (A below, B in TOTALITY_B) its
+ *                scenes move between, every part swaying in turn, a deep tide; HALO sings now and then, and
+ *                it travels on every 16 bars (AUTO). */
 typedef struct {
     uint8_t drone[4], dm[JR_DMOTION], td[JR_TIDE], pan[JR_PAN], rate, sway[JR_PAN], sway_off, dswell, vcur;
 } character_t;
@@ -74,11 +90,19 @@ static const character_t CHARACTER[JR_PRESETS] = {
     {{60, 62, 96, 30}, {30, 40, 50, 52}, {50, 50, 40, 30, 120}, {64, 76, 64, 44}, 0, {30, 44, 0, 0}, 64, 0x18, 2},
     {{86, 35, 60, 18}, {62, 15, 48, 14}, {112, 20, 30, 12, 0}, {64, 60, 64, 68}, 12, {0, 30, 0, 24}, 0, 0x00, 0},
     {{70, 56, 70, 72}, {24, 46, 44, 28}, {18, 30, 16, 40, 40}, {64, 36, 64, 64}, 72, {0, 0, 60, 70}, 90, 0x02, 3},
-    {{60, 50, 100, 50}, {36, 30, 80, 40}, {127, 46, 50, 26, 90}, {64, 34, 92, 64}, 25, {50, 90, 70, 80}, 64, 0x16, 2}};
+    {{60, 50, 100, 50}, {36, 30, 80, 40}, {127, 46, 50, 26, 90}, {64, 34, 92, 64}, 25, {50, 90, 70, 80}, 64, 0x16, 2},
+    {{58, 40, 50, 30}, {30, 30, 50, 30}, {44, 50, 40, 40, 80}, {64, 52, 64, 76}, 30, {40, 80, 60, 90}, 64, 0x18, 0}};
+/* TOTALITY's B: the drone open, resonant, a full swarm and reedier; it sweeps and spreads wide; the tide
+ * quicker and deep through everything; HALO in hand (the same two high voices coming and going as in A: one
+ * switched from held would fall away and not come back) */
+static const character_t TOTALITY_B =
+    {{96, 70, 112, 80}, {60, 70, 100, 60}, {30, 90, 70, 70, 100}, {64, 52, 64, 76}, 30, {40, 80, 60, 90}, 64, 0x18, 2};
+/* what each plays by itself: VOX singing (how often, with which sound), travelling on (JR_TRAVEL_BARS) */
+static const struct { uint8_t vsing, vsing_snd, travel; } AUTO[JR_PRESETS] = {
+    {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {2, 2, 2}};
 
-static void jr_character(journey_t *j, int i)
+static void character(journey_t *j, const character_t *c)
 {
-    const character_t *c = &CHARACTER[(unsigned)i % JR_PRESETS];
     int k;
     for (k = 0; k < 4; k++)
         j->shape[0][1 + k] = c->drone[k];        /* (DRONE's SH_K1 .. SH_K4) */
@@ -94,6 +118,14 @@ static void jr_character(journey_t *j, int i)
     j->sway_off = c->sway_off;
     j->dswell = c->dswell;
     j->vcur = c->vcur;
+}
+static void jr_character(journey_t *j, int i)
+{
+    i = (int)((unsigned)i % JR_PRESETS);
+    character(j, &CHARACTER[i]);
+    j->vsing = AUTO[i].vsing;
+    j->vsing_snd = AUTO[i].vsing_snd;
+    j->travel = AUTO[i].travel;
 }
 
 /* the sound as made, the engine's meaning (engine.h SH_*, DV_*): each voice's level (100), its SHAPE
@@ -247,6 +279,18 @@ void jr_preset(int i, journey_t *dst)
         dst->scene[v] = p->s[v];
     jr_sound_default(dst);
     jr_character(dst, i);
+}
+
+int jr_preset_ab(int i, jr_sound_t *a, jr_sound_t *b)
+{
+    static journey_t t;                          /* (main loop only) */
+    if (i != JR_PRESETS - 1)
+        return 0;
+    jr_preset(i, &t);
+    jr_sound_get(&t, a);
+    character(&t, &TOTALITY_B);
+    jr_sound_get(&t, b);
+    return 1;
 }
 
 int jr_valid(const journey_t *j)
@@ -442,6 +486,7 @@ void jr_start(jrun_t *r, const jr_sink_t *o)
     int v;
     r->sing_wait = 3;                            /* (set to sing: its first note a few beats in) */
     r->sing_left = r->sing_hold = 0;
+    r->bars_here = 0;
     r->playing = 1;
     jr_tick(r, 0, o);
     drone_to_scene(r, 1, o);
@@ -531,6 +576,7 @@ void jr_travel(jrun_t *r, int scene)
     int n = nsc(r->j);
     if (scene < 0 || scene >= n || (scene == r->cur && !r->travelling) || scene == r->dest)
         return;
+    r->bars_here = 0;
     r->from = r->travelling ? r->dest : r->cur; /* (on the way already: from where it is heading) */
     r->dest = (uint8_t)scene;
     r->xf = 0.0f;
@@ -545,6 +591,7 @@ void jr_morph(jrun_t *r, int detents)
     int n = nsc(r->j), dir;
     if (!detents || n < 2 || r->travelling)
         return;
+    r->bars_here = 0;
     if (r->mamt <= 0.0f) {                       /* setting out: this way */
         r->mbase = r->cur;
         r->mto = (uint8_t)((r->cur + (detents > 0 ? 1 : n - 1)) % n);
@@ -623,6 +670,9 @@ void jr_step(jrun_t *r, uint32_t n, const jr_sink_t *o)
         sing_beat(r, o);
     if (!r->playing || (n & 15u))
         return;
+    if (r->j->travel && r->j->travel < JR_TRAVEL_N && !r->travelling && r->mamt <= 0.0f && r->j->nscenes > 1 &&
+        ++r->bars_here >= JR_TRAVEL_BARS[r->j->travel])   /* it travels by itself: on to the next scene */
+        jr_travel(r, (r->cur + 1) % r->j->nscenes);
     for (v = 0; v < JR_DRONES; v++)              /* a bar line: the voices that come and go, every 3 .. 18 bars */
         if (r->j->dswell >> v & 1u) {
             if (r->swell_wait[v]) {

@@ -127,6 +127,13 @@ static void journey_sane(journey_t *j)          /* a loaded one: every field in 
         if (j->dvoice[i][DV_OCT] > 2)
             j->dvoice[i][DV_OCT] = 1;
     j->dswell &= (1u << ENG_DRONES) - 1u;
+    if (j->vsing >= JR_SING_N)
+        j->vsing = 0;
+    j->vsing_snd %= JR_VSOUNDS;
+    if (j->travel >= JR_TRAVEL_N)
+        j->travel = 0;
+    for (i = 0; i < JR_SCENES; i++)
+        j->scene[i].blend &= 0x7Fu;
     for (i = 0; i < 3; i++)
         j->bloom[i] &= 0x7Fu;
     if (j->bloom[BL_HEIGHT] > 2)
@@ -201,8 +208,10 @@ int journey_load_work(void)
         z[k] = 0;
     if (n == (int)sizeof(journey_t) || n == (int)sizeof work_buf)
         journey_upgrade(j);
-    if ((n != (int)sizeof(journey_t) && n != (int)sizeof work_buf) || !jr_valid(j))
-        return -1;                                /* none, or not this format: the first preset plays */
+    if ((n != (int)sizeof(journey_t) && n != (int)sizeof work_buf) || !jr_valid(j)) {
+        journey_open_preset(journey_first);       /* none, or not this format: a new unit's journey plays */
+        return -1;
+    }
     journey_sane(j);
     if (n == (int)sizeof work_buf) {              /* its A/B */
         sound_ab = work_buf.ab;
@@ -331,11 +340,22 @@ int journey_slot_open(int slot)
     return 0;
 }
 
+/* a new unit's journey: TOTALITY, the one that plays itself (the tests set another) */
+uint8_t journey_first = JR_PRESETS - 1;
+
 void journey_open_preset(int i)
 {
     journey_t j;
     uint32_t k;
     jr_preset(i, &j);
+    if (jr_preset_ab(i, &sound_ab.a, &sound_ab.b)) {   /* one with two sounds of its own: all of it, at its
+                                                        * first scene's place between them */
+        sound_ab.have = 3u;
+        sound_ab.t = j.scene[0].blend;
+        eng_jr = j;
+        engine_journey_loaded();
+        return;
+    }
     j.mode = eng_jr.mode;                         /* (the mode and the sound are how you are playing: they stay;
                                                    * a user journey brings its own) */
     for (k = 0; k < sizeof j.shape; k++)

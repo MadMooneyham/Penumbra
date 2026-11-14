@@ -39,7 +39,8 @@ Contents:
 
 ## 1. Starting
 
-When the FM-1 switches on, the clock starts and the first scene's drone begins: in ECLIPSE the lowest voice
+When the FM-1 switches on, the clock starts and the journey's drone begins. A new unit plays TOTALITY, which
+carries on by itself (section 7): it sings, and travels from scene to scene. In ECLIPSE the lowest voice
 swells in at once and the others follow every few bars. **PLAY AT POWER-ON** (in SYSTEM), turned off, starts it
 silent instead.
 
@@ -104,7 +105,7 @@ playing with a DAW, see section 10.
 Each of the first five black keys is a drone voice. Each voice is one of two kinds:
 
 - **SWELL**: the voice comes and goes. Each press swells it in, holds it a moment, and lets it out again.
-  While the clock runs, the journey also swells it in by itself every few bars. ECLIPSE, the first journey,
+  While the clock runs, the journey also swells it in by itself every few bars. ECLIPSE
   starts with all five like this.
 - **HELD**: the key latches the voice on, and pressing it again lets it fall away. A held voice latches when
   you let go of the key, so holding the key to shape the voice does not toggle it (see the holds, below).
@@ -286,11 +287,22 @@ The fields:
 | HALO | The shimmer, over the FX page's (0%: as set) |
 | WIND | The wind's level |
 | WIND COLOUR | The wind's colour |
+| SOUND A-B | Where the sound sits between A and B in this scene (STAYS: the scene leaves the sound alone) |
+| TRAVELS | The whole journey's, not the scene's: BY HAND, or on to the next scene EVERY 8, 16, 32 or 64 BARS |
 
-**JOURNEY (LFO)** lists the six presets and eight user slots:
+**A journey can travel by itself.** With TRAVELS set, the journey moves to its next scene after that many
+bars in each, round and round, for as long as the clock runs. PRESET and MORPH still move it by hand, and the
+count starts again from wherever that leaves it.
 
-- **The presets**: ECLIPSE, PENUMBRA, SELENE, TRANQUILITY, PERIGEE and FAR SIDE. Each has a sound of its
-  own as well as its scenes:
+**The sound can travel with the scenes.** With A and B kept (ENV held, section 4), a scene's SOUND A-B names
+a place between them. Moving to that scene glides the sound there, as MORPH and PRESET glide everything else,
+so each scene has its own colour of the sound. A scene set to STAYS leaves the sound where it is. Neither of
+these writes to the FM-1's memory as it moves, so a journey can travel all night.
+
+**JOURNEY (LFO)** lists the seven presets and eight user slots:
+
+- **The presets**: ECLIPSE, PENUMBRA, SELENE, TRANQUILITY, PERIGEE, FAR SIDE and TOTALITY. Each has a
+  character of its own as well as its scenes:
 
   | Journey | Its sound |
   | --- | --- |
@@ -300,12 +312,15 @@ The fields:
   | TRANQUILITY | Soft and still: a three-minute even tide; VOX and the wind drifting together every 40 seconds |
   | PERIGEE | Close and quick: a short tide, VOX (LOW) to the left, the kick and the wind swinging round every 4 seconds |
   | FAR SIDE | Vast: a four-minute wandering tide, three drone voices coming and going, every part taking its turn round the field every 24 seconds |
+  | TOTALITY | The one that plays itself, and what a new unit starts on: an eclipse from first contact to afterglow in six scenes on a pedal D. It travels on every 16 bars, HALO sings now and then, every part sways in turn, and its sound glides from A (dark, close) to B (open, a full swarm, a deep tide) and back with the scenes |
 
   SEL twice on a SHAPE page puts it back as Penumbra makes it, not as the journey had it: reopen the journey
   (JOURNEY, SEL) to have its own sound back.
 - SELECT or PRESET moves through the list, and SEL opens the journey shown.
 - SAVE on a user slot stores the journey playing there.
-- Opening a preset keeps the sound you have made. Opening a user journey brings back the sound saved with it.
+- Opening one of the first six presets brings its scenes and each part's place in the field (PAN), and keeps
+  the sound you have made. TOTALITY brings its whole sound, its A and B, its singing and its travelling.
+  Opening a user journey brings back everything saved with it.
 
 **SOUNDS (LFO again, from JOURNEY)** is a library of eight sounds, apart from the journeys. A sound is
 everything the SHAPE pages, the holds, DRONE 2 and TIDES set; not the scenes, and not the FX page.
@@ -481,7 +496,7 @@ TIME, INTERVAL, PING-PONG) spread their steps over 0 to 127.
 | Program | Does |
 | --- | --- |
 | 0-7 | Travel to scene 1-8 of the journey playing |
-| 8-13 | Open preset journey 1-6 |
+| 8-14 | Open preset journey 1-7 |
 | 16-23 | Open user journey 1-8 (if saved) |
 
 ## 11. Cheat sheet

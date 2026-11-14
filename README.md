@@ -6,11 +6,14 @@
 
 Most drones stay where they are put. Penumbra is a place, and it moves:
 
+- **It plays itself, until it is played.** A new unit starts on TOTALITY, a journey that travels on its
+  own: scene after scene, its whole sound changing as it goes, a voice singing now and then. Any key or knob
+  joins in.
 - **It breathes on its own.** Drone voices drift in and out with space around them, and a VOX sound can
   sing by itself: a few soft notes, now and then.
 - **Nothing sounds wrong.** Every white key is in the scene's key, and so is everything it plays itself.
 - **It travels.** One click of a knob and the whole place glides to a new scene over 12 seconds: the drone
-  voice by voice, the room, the key. Six journeys are built in, and there's room for eight more.
+  voice by voice, the room, the key. Seven journeys are built in, and there's room for eight more.
 - **Loops come along.** A loop is kept as steps of the key, so it follows into each new scene, and every
   layer keeps the sound it was played with: a few instruments, built up one at a time.
 - **The sound itself is playable.** Throws of shimmer, a frozen room, bends, and a slow walk between two
@@ -30,8 +33,11 @@ Version 1.4 · identity `FM-1_73010400` · GPL-3.0
 
 Penumbra is slow, and much of what it does best unfolds over a few minutes.
 
-- **On its own,** the drone's voices drift in and out, a few at a time. In the first journey, ECLIPSE, all
-  five come and go.
+- **On its own,** TOTALITY, the journey a new unit starts on, plays by itself: the drone's voices drift in
+  and out, HALO sings a phrase now and then, and every 16 bars it glides to its next scene, six in all, the
+  sound opening up toward the middle and closing again. Everything below works while it does.
+- **ECLIPSE** (LFO opens the journeys) is the quiet one for playing: all five drone voices come and go, and
+  nothing else moves until it is played.
 - **Black keys 1-5** each call one of those voices in, to swell and fade.
 - **The white keys** play VOX. Every key fits the scene's key, so there are no wrong notes, and slow,
   spacious playing suits it.
@@ -93,7 +99,8 @@ Everything else, from the drone voices to the looper, holds, scenes and sound pa
   WARP, a filter that dips both ways, and a master stage. Each scene has its own room, gliding with it.
 - **The sound, kept**: A/B (two versions of the sound, a blend between them) and a library of eight sounds
   you can bring into any journey.
-- **Journeys**: six preset banks of scenes, and eight user slots. The journey playing, with its loop and its
+- **Journeys**: seven preset banks of scenes, and eight user slots. Any of them can travel by itself, every 8 to 64
+  bars, and each scene can name where the sound sits between A and B. The journey playing, with its loop and its
   A/B, survives a power cut.
 - **With a DAW**: USB audio and MIDI. A tight clock in (and song position) or out, VOX's notes and the black
   keys both ways, 44 controls on CCs both ways (automate them, or record your moves), program changes for the

@@ -69,6 +69,7 @@ const char *journey_slot_name(int slot);
 int journey_slot_save(int slot);         /* the one playing into the slot; 0 = saved */
 int journey_slot_open(int slot);         /* the slot's journey plays; 0 = done */
 void journey_open_preset(int i);
+extern uint8_t journey_first;            /* the preset a new unit plays */
 
 void ui_init(void);
 void ui_start(void);                     /* once, after boot: PLAY AT POWER-ON */

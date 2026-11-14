@@ -94,6 +94,7 @@ typedef struct {
     uint8_t rs_what;                   /* RESET asked for (a SHAPE page, RS_ALL; 0 none) ... */
     uint32_t rs_until;                 /* ... until then */
     uint32_t perf_t;                   /* the last drift */
+    float sb_last;                     /* the scenes' place between A and B last put into the sound (-1: none yet) */
     float ab_goal, ab_now;             /* A/B: where SELECT has sent the blend, where it is (0 A .. 1 B) */
     uint8_t snd_row;                   /* SOUNDS' row */
     float load_t;                      /* a library sound gliding in: 0 .. 1 (1: none) */
@@ -337,9 +338,12 @@ static const char *const MACRO_N[NMACROS] = {"DRONE", "VOX", "SPACE", "TONE"};
 
 /* SCENE's fields */
 /* (ROOM: the reverb's size and decay, HALO: its shimmer, each over the FX page's: they glide with the scene) */
-enum { SF_KEY, SF_SCALE, SF_PEDAL, SF_VOICING, SF_BRIGHT, SF_REG, SF_SPACE, SF_ROOM, SF_HALO, SF_WIND, SF_COLOUR, NSF };
+/* (SOUND A-B: where the sound is between A and B in this scene, gliding there with it; TRAVELS: the whole
+ * journey's, not the scene's: it moves on by itself) */
+enum { SF_KEY, SF_SCALE, SF_PEDAL, SF_VOICING, SF_BRIGHT, SF_REG, SF_SPACE, SF_ROOM, SF_HALO, SF_WIND, SF_COLOUR,
+       SF_SOUND, SF_TRAVEL, NSF };
 static const char *const SF_N[NSF] = {"KEY", "SCALE", "DRONE ROOT", "VOICING", "VOX BRIGHTNESS", "VOX REGISTER",
-                                      "SPACE", "ROOM", "HALO", "WIND", "WIND COLOUR"};
+                                      "SPACE", "ROOM", "HALO", "WIND", "WIND COLOUR", "SOUND A-B", "TRAVELS"};
 static uint8_t *sf_ptr(scene_t *s, int f)
 {
     switch (f) {
@@ -353,6 +357,8 @@ static uint8_t *sf_ptr(scene_t *s, int f)
     case SF_ROOM: return &s->room;
     case SF_HALO: return &s->halo;
     case SF_WIND: return &s->tex;
+    case SF_SOUND: return &s->blend;
+    case SF_TRAVEL: return &eng_jr.travel;
     default: return &s->colour;
     }
 }
@@ -364,6 +370,18 @@ static void sf_text(const scene_t *s, int f, char *b)
     case SF_PEDAL: put_s(b, s->pedal ? jr_root_name(s->pedal - 1) : "THE KEY"); break;
     case SF_VOICING: put_s(b, jr_voicing_name(s->voicing)); break;
     case SF_REG: put_i(b, s->reg); break;
+    case SF_SOUND:
+        if (s->blend)
+            put_s(put_pct(b, s->blend), " B");
+        else
+            put_s(b, "STAYS");
+        break;
+    case SF_TRAVEL:
+        if (eng_jr.travel)
+            put_s(put_i(put_s(b, "EVERY "), JR_TRAVEL_BARS[eng_jr.travel % JR_TRAVEL_N]), " BARS");
+        else
+            put_s(b, "BY HAND");
+        break;
     case SF_ROOM:
     case SF_HALO: put_spct(b, *sf_ptr((scene_t *)s, f) - 64); break;
     default: put_pct(b, *sf_ptr((scene_t *)s, f)); break;
@@ -380,6 +398,7 @@ static void sf_turn(int f, int e)
     case SF_PEDAL: *p = (uint8_t)wrap_i(*p + e, 13); break;   /* (a root not in the key: the key's) */
     case SF_VOICING: *p = (uint8_t)wrap_i(*p + e, NVOICINGS); break;
     case SF_REG: *p = (uint8_t)clamp_i(*p + e, 2, 6); break;
+    case SF_TRAVEL: *p = (uint8_t)clamp_i(*p + (e > 0 ? 1 : -1), 0, JR_TRAVEL_N - 1); break;
     default: *p = (uint8_t)clamp_i(*p + 2 * e, 0, 127); break;
     }
     changed_jr();
@@ -477,6 +496,8 @@ static void journey_sel(void)
     }
     midi_ctl_send(0xC0, ui.jrow < JR_PRESETS ? PC_PRESET + ui.jrow : PC_USER + ui.jrow - JR_PRESETS, 0);
     ui.ssel = 0;
+    ui.sb_last = -1.0f;                           /* (its scenes' place between A and B: afresh) */
+    ui.ab_goal = ui.ab_now = (float)sound_ab.t * (1.0f / 127.0f);
     say("OPENED ", b);
     changed_jr();
 }
@@ -932,9 +953,45 @@ static void ab_turn(int e)                        /* SELECT, ENV held */
     put_s(put_s(t, "SOUND "), b);
     say(t, 0);
 }
+/* the scenes' place between A and B (SCENE's SOUND A-B), where the journey is now: gliding from one scene's
+ * to the next's as it travels or is MORPHed. 0: this scene (or the one it is going to) leaves the sound be */
+static int scene_blend(float *t)
+{
+    const jrun_t *r = engine_jr();
+    const int n = eng_jr.nscenes ? eng_jr.nscenes : 1;
+    int a, b;
+    float x = 0.0f;
+    if (r->travelling) {
+        a = eng_jr.scene[r->from % n].blend, b = eng_jr.scene[r->dest % n].blend;
+        x = r->xf * r->xf * (3.0f - 2.0f * r->xf);
+    } else if (r->mamt > 0.0f) {
+        a = eng_jr.scene[r->mbase % n].blend, b = eng_jr.scene[r->mto % n].blend;
+        x = r->mamt;
+    } else {
+        a = b = eng_jr.scene[r->cur % n].blend;
+    }
+    if (!a || !b || sound_ab.have != 3u)
+        return 0;
+    *t = ((float)(a - 1) + (float)(b - a) * x) * (1.0f / 126.0f);
+    return 1;
+}
 static void ab_tick(float dt)                     /* (each frame) the glides, into the sound playing */
 {
     jr_sound_t s;
+    float sb;
+    {
+        const jrun_t *r = engine_jr();
+        if (ui.sdest >= 0 && !r->travelling && r->cur == ui.sdest)
+            ui.sdest = -1;                        /* (there: PRESET's next is from where the journey is) */
+    }
+    if (ui.load_t >= 1.0f && scene_blend(&sb) && sb != ui.sb_last) {
+        ui.sb_last = sb;                          /* the scene's: not a change to save (it moves by itself) */
+        ui.ab_goal = ui.ab_now = sb;
+        sound_ab.t = (uint8_t)(sb * 127.0f + 0.5f);
+        jr_sound_mix(&s, &sound_ab.a, &sound_ab.b, sb);
+        jr_sound_put(&eng_jr, &s);
+        return;
+    }
     if (ui.load_t < 1.0f) {
         ui.load_t = fm_minf(ui.load_t + dt * (1.0f / LOAD_GLIDE_S), 1.0f);
         jr_sound_mix(&s, &ld_from, &ld_to, ui.load_t);
@@ -2611,6 +2668,7 @@ void ui_init(void)
     ui.lp_edits = engine_looper_state()->edits;
     ui.touch_t = plat_ms();
     ui.ab_goal = ui.ab_now = (float)sound_ab.t * (1.0f / 127.0f);   /* (journey_load_work brought its A/B) */
+    ui.sb_last = -1.0f;
     ui.load_t = 1.0f;
     for (i = 0; i < 3; i++)
         blit_hash[i] = 0;
