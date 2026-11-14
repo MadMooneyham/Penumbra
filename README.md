@@ -2,7 +2,11 @@
 
 ![Penumbra: the Lunar Eclipse Forge mark in an eclipse's corona](assets/card.png)
 
-**A drone you travel through.** A space-drone instrument for the M-VAVE FM-1, by Lunar Eclipse Forge.
+**It plays itself until you do.** A space-drone instrument for the M-VAVE FM-1, by Lunar Eclipse Forge.
+
+An eclipse in six scenes, the drone gliding from one to the next, a far-off voice singing, the moon crossing
+the sun on screen. Any key joins in, always in tune, and looped layers follow each change of key. A thick,
+slow, cinematic drone, like the Solar 42.
 
 Most drones stay where they are put. Penumbra is a place, and it moves:
 
@@ -21,10 +25,9 @@ Most drones stay where they are put. Penumbra is a place, and it moves:
 - **The eclipse shows it.** On the screen the moon slides off the sun as a scene changes, the drone's voices
   swell as beads in the corona, notes come out as stars, and the loop circles as a satellite.
 
-The sound it reaches for is the cinematic drone of the ELTA Solar 42: thick, slow, and full of space. The
-silence between the notes is part of it.
+The silence between the notes is part of it.
 
-Version 1.4 · identity `FM-1_73010400` · GPL-3.0
+Version 1.5 · identity `FM-1_73010500` · GPL-3.0
 
 **[Play it in the browser](https://madmooneyham.github.io/Penumbra/emu/)** (the same code the FM-1 runs) ·
 **[Cheat sheet](https://madmooneyham.github.io/Penumbra/cheatsheet/)** (one printable page)
@@ -77,7 +80,7 @@ Penumbra is slow, and much of what it does best unfolds over a few minutes.
 - **The easy way:** install it in one click from [The Firmware Hub](https://thefirmwarehub.com/).
 - **In the browser:** the [web installer](https://madmooneyham.github.io/Penumbra/install/) writes it over USB
   (Chrome or Edge).
-- **By hand:** download `penumbra-1.4.fwsc` from this repository's
+- **By hand:** download `penumbra-1.5.fwsc` from this repository's
   [Releases](https://github.com/MadMooneyham/Penumbra/releases), and write it with an FM-1 firmware installer.
 
 Penumbra carries the update loader, so you can always go back to another firmware or to M-VAVE's own. If an
