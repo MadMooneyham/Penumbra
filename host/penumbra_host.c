@@ -550,6 +550,10 @@ static int expect(const char *what, const char *val)
         got = eng_jr.vsound[(what[2] - '1') % JR_VSOUNDS][atoi(what + 4) % JR_VS];
     else if (!strcmp(what, "vox_sounds"))           /* the VOX sounds with a note held now (bit 0 GLASS .. 3 LOW) */
         got = engine_vox_sounds();
+    else if (!strcmp(what, "vsing"))                /* VOX singing by itself: 0 not .. 3 often; vsing_snd: its sound, 1-4 */
+        got = eng_jr.vsing;
+    else if (!strcmp(what, "vsing_snd"))
+        got = eng_jr.vsing_snd + 1;
     else if (!strcmp(what, "vcur"))                 /* VOX's sound playing, 1-4 */
         got = eng_jr.vcur + 1;
     else if (!strncmp(what, "dvoice", 6))           /* dvoiceVF: drone voice V (1-5) field F (1 LEVEL .. 4 OCTAVE) */

@@ -727,6 +727,22 @@ static void vsound_knob(int k, int e)             /* a VOX sound key held: that 
     put_s(put_s(put_s(put_s(put_s(t, jr_vsound_name(eng_jr.vcur)), " "), VSH_N[k]), " "), b);
     say(t, 0);
 }
+/* ALGO, a VOX sound's key held: that sound sings by itself (right: more often; left: less, then not) */
+static const char *const SING_N[JR_SING_N] = {"DOES NOT SING", "SINGS RARELY", "SINGS NOW AND THEN", "SINGS OFTEN"};
+static void vsing_knob(int e)
+{
+    char t[40];
+    const int same = eng_jr.vsing_snd == eng_jr.vcur || !eng_jr.vsing;
+    int lv = clamp_i((same ? eng_jr.vsing : 0) + (e > 0 ? 1 : -1), 0, JR_SING_N - 1);
+    if (!same && e < 0)                           /* (another sound sings: left on this one leaves it be) */
+        lv = eng_jr.vsing;
+    else
+        eng_jr.vsing_snd = eng_jr.vcur;
+    eng_jr.vsing = (uint8_t)lv;
+    changed_jr();
+    put_s(put_s(put_s(t, jr_vsound_name(eng_jr.vsing_snd)), " "), SING_N[eng_jr.vsing]);
+    say(t, 0);
+}
 static void drone_mode(int e)                     /* ALGO, a drone key held: HELD (left) or SWELL, comes and goes (right) */
 {
     char t[40];
@@ -993,6 +1009,7 @@ static void reset_now(int what)
                 eng_jr.vsound[v][k] = d.vsound[v][k];
     if (all) {
         eng_jr.dswell = d.dswell;
+        eng_jr.vsing = 0;
         for (k = 0; k < NMACROS; k++)
             eng_jr.macro[k] = 64;
         settings_fx_default();
@@ -1500,6 +1517,8 @@ static void input(void)
             }
         } else if (layer() == L_DRONE) {
             drone_mode(e);
+        } else if (layer() == L_VSOUND) {
+            vsing_knob(e);
         } else if (layer() == L_THROW) {
             warp_knob(e);
         } else if (layer() == L_BEND) {
@@ -2346,7 +2365,7 @@ static void draw_knobs(void)
             cell(k, VSH_N[k], a, C_AMB);
         }
         put_s(put_s(a, "VOX "), jr_vsound_name(eng_jr.vcur));
-        hint(a, "IT STAYS");
+        hint(a, eng_jr.vsing && eng_jr.vsing_snd == eng_jr.vcur ? "ALGO: IT SINGS" : "ALGO: SING");
         cv_commit(2, 0, KNOB_Y);
         return;
     case L_SOUND:                                 /* ENV held (a moment, or used): A/B */

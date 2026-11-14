@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Penumbra's journeys (docs: "Penumbra: rewrite design"): banks of places to play in, and the sound.
- * Nothing here plays on its own but the drone you latch: VOX is your hands' (and the looper's).
+ * Nothing here plays on its own but the drone, and VOX when it is set to sing (vsing): else VOX is your
+ * hands' (and the looper's).
  *
  *   scene      a key and scale, the drone's pedal and how it voices it, VOX's brightness and register,
  *              the space, the wind's level and colour. Up to 8 a journey. PRESET moves to the next or
@@ -36,6 +37,7 @@
 #define JR_DVOICE 4                             /* each drone voice's own, its black key held (engine.h DV_*) */
 #define JR_DMOTION 4                            /* the drone's movement (engine.h DM_*) */
 #define JR_TIDE 5                               /* TIDES (engine.h TD_*) */
+#define JR_SING_N 4                             /* vsing's settings: not, rarely, now and then, often */
 #define JR_PAN JR_VOICES                        /* each voice's place in the field (64: the middle) */
 
 enum { SC_IONIAN, SC_DORIAN, SC_PHRYGIAN, SC_LYDIAN, SC_MIXOLYDIAN, SC_AEOLIAN, SC_HARMONIC, NSCALES };
@@ -83,7 +85,10 @@ typedef struct {
                                                  * SH_HIDE) (engine.h BL_*) */
     uint8_t vsound[JR_VSOUNDS][JR_VS];          /* VOX's four sounds (shape[VOX] is unused: these are VOX's) */
     uint8_t vcur;                               /* the one playing */
-    uint8_t rsv3[3];
+    uint8_t vsing;                              /* VOX sings by itself: 0 not, 1 rarely, 2 now and then, 3 often
+                                                 * (JR_SING_N - 1): a few soft, slow notes in the scene's key */
+    uint8_t vsing_snd;                          /* with this one of its sounds (0 .. JR_VSOUNDS - 1) */
+    uint8_t rsv3[1];
 } journey_t;
 
 /* a journey's sound alone, without its scenes: what SHAPE, the holds and TIDES set (A/B and the sound
@@ -111,6 +116,7 @@ typedef struct {
     void (*drone_latch)(void *ctx, uint32_t mask);        /* these voices on (the others as they are) */
     void (*drone_release)(void *ctx);                     /* every voice falls away */
     void (*drone_swell)(void *ctx, int voice);            /* a voice that comes and goes: in, then out */
+    void (*sing)(void *ctx, int midi, int vel, int snd);  /* VOX singing by itself: a note on (vel 0: off) */
 } jr_sink_t;
 
 /* the scene as it sounds now, gliding while it travels (0..127) */
@@ -130,6 +136,9 @@ typedef struct {
     uint8_t dpend;                              /* the voices still to move (bit v) */
     float dwait;                                /* seconds to the next */
     uint8_t swell_wait[JR_DRONES];              /* the swelling voices: bars to the next */
+    /* VOX singing: beats to its next note, notes left in the phrase, beats its note has left (0: none on),
+     * that note and its sound, the white key (degree) it is on */
+    uint8_t sing_wait, sing_left, sing_hold, sing_note, sing_snd, sing_w;
     uint32_t srng;
     float macro_s[NMACROS];
     /* MORPH: the way to the next scene (or the one before) by hand: mbase .. mto, mamt of the way */

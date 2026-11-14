@@ -354,7 +354,18 @@ static void js_drone_swell(void *x, int v)
         drone_set(&dn, v, DN_MODE, DN_MODE_SWELL);
     drone_trigger(&dn, v, 1.0f);
 }
-static const jr_sink_t JSINK = {0, js_drone_note, js_drone_latch, js_drone_release, js_drone_swell};
+static void vox_on(int midi, int vel, int snd);
+static void js_sing(void *x, int midi, int vel, int snd)   /* VOX singing by itself: not the looper's, not MIDI's */
+{
+    (void)x;
+    if (testing)
+        return;
+    if (vel)
+        vox_on(midi, vel, snd);
+    else
+        vox_note_off_s(&vox, midi, snd);
+}
+static const jr_sink_t JSINK = {0, js_drone_note, js_drone_latch, js_drone_release, js_drone_swell, js_sing};
 
 /* VOX's notes, the hands' (keys, MIDI) and the looper's: counted for the tests and the screen's stars.
  * The looper keeps a note as its degree in the scene (jr_note_code), and plays it in the scene playing

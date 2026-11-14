@@ -440,6 +440,8 @@ void jr_start(jrun_t *r, const jr_sink_t *o)
     const scene_t *s = sc(r);
     const uint32_t held = (s->drones & 0x1Fu ? s->drones & 0x1Fu : 0x07u) & ~(uint32_t)r->j->dswell;
     int v;
+    r->sing_wait = 3;                            /* (set to sing: its first note a few beats in) */
+    r->sing_left = r->sing_hold = 0;
     r->playing = 1;
     jr_tick(r, 0, o);
     drone_to_scene(r, 1, o);
@@ -455,8 +457,58 @@ void jr_start(jrun_t *r, const jr_sink_t *o)
             }
 }
 
+static void sing_off(jrun_t *r, const jr_sink_t *o)
+{
+    if (r->sing_hold)
+        o->sing(o->ctx, r->sing_note, 0, r->sing_snd);
+    r->sing_hold = 0;
+}
+
+/* VOX singing by itself, each beat: phrases of one to three soft notes, long and slow, with long rests
+ * between (the setting: how long). A note is a white key's (so in the scene's key, in VOX's register),
+ * the next a step or two from the last, coming to rest on the key's root, third or fifth. It plays with
+ * the sound it was set with, so the hands can play another over it */
+static void sing_beat(jrun_t *r, const jr_sink_t *o)
+{
+    static const uint8_t REST_LO[JR_SING_N] = {0, 20, 10, 4}, REST_N[JR_SING_N] = {1, 28, 14, 7};
+    static const int8_t STEP[8] = {-2, -1, -1, 1, 1, 2, -3, 3};
+    const int lv = r->j->vsing < JR_SING_N ? r->j->vsing : JR_SING_N - 1;
+    int w, d;
+    if (r->sing_hold && !--r->sing_hold)
+        o->sing(o->ctx, r->sing_note, 0, r->sing_snd);
+    if (!lv) {
+        sing_off(r, o);
+        r->sing_left = 0;
+        r->sing_wait = 2;                        /* (set to sing: its first note soon) */
+        return;
+    }
+    if (r->sing_wait) {
+        r->sing_wait--;
+        return;
+    }
+    if (!r->sing_left)                           /* a new phrase: from near the middle */
+        r->sing_left = (uint8_t)(1 + rndn(&r->srng, 3)), r->sing_w = (uint8_t)(3 + rndn(&r->srng, 6));
+    w = (int)r->sing_w + STEP[rndn(&r->srng, 8)];
+    w = w < 0 ? 0 : w > 11 ? 11 : w;
+    d = w % 7;
+    if (r->sing_left == 1 && d != 0 && d != 2 && d != 4)   /* the phrase's last: at rest */
+        w += d == 6 ? 1 : -1;
+    sing_off(r, o);
+    r->sing_w = (uint8_t)w;
+    r->sing_note = (uint8_t)jr_key_note(r, w, 0);
+    r->sing_snd = (uint8_t)(r->j->vsing_snd % JR_VSOUNDS);
+    r->sing_hold = (uint8_t)(2 + rndn(&r->srng, 5));       /* held two to six beats */
+    o->sing(o->ctx, r->sing_note, 56 + rndn(&r->srng, 36), r->sing_snd);
+    r->sing_left--;
+    r->sing_wait = r->sing_left ? (uint8_t)(r->sing_hold - 1 + rndn(&r->srng, 3))
+                                : (uint8_t)(r->sing_hold + REST_LO[lv] + rndn(&r->srng, REST_N[lv]));
+}
+
 void jr_stop(jrun_t *r, const jr_sink_t *o)
 {
+    sing_off(r, o);
+    r->sing_left = 0;
+    r->sing_wait = 2;
     o->drone_release(o->ctx);
     r->playing = 0;
 }
@@ -567,6 +619,8 @@ void jr_tick(jrun_t *r, uint32_t frames, const jr_sink_t *o)
 void jr_step(jrun_t *r, uint32_t n, const jr_sink_t *o)
 {
     int v;
+    if (r->playing && !(n & 3u))
+        sing_beat(r, o);
     if (!r->playing || (n & 15u))
         return;
     for (v = 0; v < JR_DRONES; v++)              /* a bar line: the voices that come and go, every 3 .. 18 bars */

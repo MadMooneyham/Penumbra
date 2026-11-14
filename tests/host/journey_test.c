@@ -19,6 +19,8 @@ static jrun_t R;
 static journey_t J;
 static struct {
     uint32_t out_key, moves, gap_min, last, swells, releases, latched;
+    uint32_t sung, sung_out, sung_on, sung_bad, sung_snd;   /* VOX singing: notes, out of the key, on now, an off
+                                                             * without its on (or two on), the sounds used (bit s) */
 } S;
 static uint32_t frames_now, started;
 static int in_key(int midi, const scene_t *s)
@@ -44,7 +46,21 @@ static void d_note(void *x, int v, int m)
 static void d_latch(void *x, uint32_t m) { (void)x; S.latched = m; }
 static void d_rel(void *x) { (void)x; S.releases++; }
 static void d_swell(void *x, int v) { (void)x; (void)v; S.swells++; }
-static const jr_sink_t SINK = {0, d_note, d_latch, d_rel, d_swell};
+static void d_sing(void *x, int m, int vel, int snd)
+{
+    (void)x;
+    S.sung_snd |= 1u << snd;
+    if (vel) {
+        S.sung++;
+        S.sung_out += !in_key(m, &J.scene[R.cur]);
+        S.sung_bad += S.sung_on != 0;
+        S.sung_on = (uint32_t)m;
+    } else {
+        S.sung_bad += S.sung_on != (uint32_t)m;
+        S.sung_on = 0;
+    }
+}
+static const jr_sink_t SINK = {0, d_note, d_latch, d_rel, d_swell, d_sing};
 
 #define STEP_FRAMES 7350u                          /* a 16th at 90 BPM */
 #define PER_MIN (60u * 6u)                         /* 16ths a minute at 90 BPM */
@@ -157,6 +173,32 @@ int main(void)
         printf("  swell: voice 5 swelled %u times in %u bars\n", S.swells, bars);
         CHECK(!(S.latched >> 4 & 1u) && S.swells * 20u >= bars && S.swells * 3u <= bars,
               "a swelling drone voice: not latched, in every 3 .. 20 bars");
+    }
+    {   /* VOX singing by itself: nothing as made; set, a few notes a minute, each in the scene's key, one
+         * at a time, each let go, with its sound; more of them the higher it is set; none once stopped */
+        uint32_t rare, often;
+        start(0);
+        play_steps(10u * PER_MIN);
+        CHECK(S.sung == 0, "as made, VOX does not sing");
+        start(2);
+        J.vsing = 1;
+        J.vsing_snd = 2;
+        play_steps(20u * PER_MIN);
+        rare = S.sung;
+        CHECK(rare >= 20u && rare <= 140u && S.sung_out == 0 && S.sung_bad == 0 && S.sung_snd == 1u << 2,
+              "set to sing rarely: a few notes a minute, in the key, one at a time, with its sound");
+        jr_travel(&R, 1);
+        play_steps(10u * PER_MIN);
+        CHECK(S.sung_out == 0, "after a move to another scene: in that key");
+        start(2);
+        J.vsing = 3;
+        play_steps(20u * PER_MIN);
+        often = S.sung;
+        printf("  sing: %u notes in 20 minutes rarely, %u often\n", rare, often);
+        CHECK(often > 2u * rare && S.sung_bad == 0, "set to often: more than twice as many");
+        jr_stop(&R, &SINK);
+        CHECK(S.sung_on == 0, "the clock stopped: its note let go");
+        J.vsing = 0;
     }
     printf(fails ? "%d FAILED\n" : "all passed\n", fails);
     return fails != 0;
