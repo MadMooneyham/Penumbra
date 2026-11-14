@@ -2,16 +2,21 @@
 
 ![Penumbra: the Lunar Eclipse Forge mark in an eclipse's corona](assets/card.png)
 
-**A space-drone instrument for the M-VAVE FM-1**, by Lunar Eclipse Forge.
+**A drone you travel through.** A space-drone instrument for the M-VAVE FM-1, by Lunar Eclipse Forge.
 
-Switched on, a deep drone breathes in: five slowly beating voices on a pedal, drifting in and out with
-space around them. Over it there's:
+Most drones stay where they are put. Penumbra is a place, and it moves:
 
-- **VOX**, a soft synth voice far back in a long shimmer reverb;
-- **BLOOM**, a slow swell in the key;
-- **the looper**, which follows the scene's key;
-- **the holds**, for playing the sound itself, with throws, bends and freeze;
-- **MORPH**, a walk from one place to the next by hand.
+- **It breathes on its own.** Drone voices drift in and out with space around them, and a VOX sound can
+  sing by itself: a few soft notes, now and then.
+- **Nothing sounds wrong.** Every white key is in the scene's key, and so is everything it plays itself.
+- **It travels.** One click of a knob and the whole place glides to a new scene over 12 seconds: the drone
+  voice by voice, the room, the key. Six journeys are built in, and there's room for eight more.
+- **Loops come along.** A loop is kept as steps of the key, so it follows into each new scene, and every
+  layer keeps the sound it was played with: a few instruments, built up one at a time.
+- **The sound itself is playable.** Throws of shimmer, a frozen room, bends, and a slow walk between two
+  versions of the whole sound.
+- **The eclipse shows it.** On the screen the moon slides off the sun as a scene changes, the drone's voices
+  swell as beads in the corona, notes come out as stars, and the loop circles as a satellite.
 
 The sound it reaches for is the cinematic drone of the ELTA Solar 42: thick, slow, and full of space. The
 silence between the notes is part of it.
@@ -46,6 +51,10 @@ Penumbra is slow, and much of what it does best unfolds over a few minutes.
   the key changes halfway.
 - **Held voices:** holding a drone key and turning **ALGO** left makes that voice HELD, on until its key is
   pressed again. In the other journeys most voices start held.
+- **A voice that sings:** holding one of VOX's sound keys (black 8-11) and turning **ALGO** right sets that
+  sound singing by itself, rarely or often, while the white keys play another sound over it.
+- **Layers of instruments:** each looped note keeps the VOX sound it was played with, so a layer of GLASS,
+  one of REED and one of HALO play together.
 - **Colour:** black key 7 is BLOOM, a slow swell; black keys 8-11 are VOX's four sounds.
 - **Other journeys:** **LFO** opens JOURNEY, **SELECT** moves through it, and **SEL** opens one. FAR SIDE is
   vast, PERIGEE close and quick, TRANQUILITY still.

@@ -3,7 +3,6 @@
 #include "texture.h"
 #include "fastmath.h"
 
-#define SR 44100.0f
 #define INV_SR (1.0f / 44100.0f)
 #define TX_K 0.55f                               /* the band-pass's damping: a breathy, wide band */
 #define TX_QUIET 1e-5f

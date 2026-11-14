@@ -2339,7 +2339,7 @@ static void draw_knobs(void)
     int k;
     cv_begin(240, KNOB_H, C_BG);
     cv_rect(0, 0, 240, 1, C_LINE);
-    switch (layer()) {                            /* a hold: its knobs, on any page */
+    switch (layer()) {                            /* a hold: its knobs (a key's: on any page but SHAPE) */
     case L_DRONE: {
         int v = lowest_bit(ui.dheld);
         for (k = 0; k < DV_N; k++) {

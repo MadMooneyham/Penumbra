@@ -1,5 +1,5 @@
 {
-  "what": "A slow, cinematic space drone to wander through. Its voices drift in and out on their own, and the black keys call them in. Every white key fits the scene's key, so nothing sounds wrong. A few notes looped with REC carry on when PRESET moves to a new scene: the drone glides there over 12 seconds, and the loop follows into the new key.",
+  "what": "A drone you travel through. Penumbra breathes on its own: voices drift in and out, a far-off voice can sing by itself, and an eclipse moves on the screen. Every key is in key, so nothing sounds wrong. A few looped notes, layered in different sounds, follow along as one knob glides the whole place to a new scene and a new key.",
   "author": "Lunar Eclipse Forge",
   "kinds": ["synth"],
   "play": "https://madmooneyham.github.io/Penumbra/emu/",

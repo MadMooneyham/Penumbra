@@ -10,7 +10,8 @@ Penumbra is a space-drone instrument. Three layers make its sound:
   swell in the key.
 - **The space** is a long shimmering reverb, a worn tape delay, and a wind that is always under everything.
 
-Nothing plays by itself except the drone. The silence between notes is part of the sound.
+Nothing plays by itself except the drone, and VOX when it is asked to sing. The silence between notes is
+part of the sound.
 
 **The first few minutes.** Penumbra is slow, and much of what it does best unfolds over a few minutes:
 
@@ -31,7 +32,8 @@ Contents:
 7. [Scenes and journeys](#7-scenes-and-journeys)
 8. [SHAPE: the sound](#8-shape-the-sound)
 9. [FX, SYSTEM and saving](#9-fx-system-and-saving)
-10. [Cheat sheet](#10-cheat-sheet)
+10. [MIDI and a DAW](#10-midi-and-a-daw)
+11. [Cheat sheet](#11-cheat-sheet)
 
 ---
 
@@ -126,7 +128,8 @@ sounds and it grows from where it is.
 
 ### Black keys 8-11: VOX's four sounds
 
-Each key picks one of VOX's sounds. You can switch even mid-phrase.
+Each key picks one of VOX's sounds, even mid-phrase. A note keeps the sound it began with, so notes
+already sounding ring on as they were while new ones take the new sound.
 
 | Key | Sound | Character |
 | --- | --- | --- |
@@ -137,14 +140,23 @@ Each key picks one of VOX's sounds. You can switch even mid-phrase.
 
 The key of the sound playing is lit. Each journey keeps its own four sounds.
 
+**A sound can sing by itself.** With a sound's key held, turning **ALGO** right makes that sound sing: a few
+soft, slow notes in the scene's key, a phrase now and then, with long rests between. Further right it sings
+more often (RARELY, NOW AND THEN, OFTEN); back left, less, then not at all. It keeps singing with that sound
+while another is in hand, so the white keys can play GLASS over a REED that sings. It sings only while the
+clock runs, its notes are not recorded by the looper, and it is saved with the journey. As made, nothing
+sings.
+
 ## 4. The holds
 
-While you hold one of these, the four knobs play something else, on any page.
+While you hold one of these, the four knobs play something else. The buttons (FX, ENV) do so on any
+page; the keys do on every page but SHAPE, where the knobs stay the page's, so keys can be played while a
+sound is shaped.
 
 | Hold | K1 | K2 | K3 | K4 | Extra |
 | --- | --- | --- | --- | --- | --- |
 | A drone key (black 1-5) | LEVEL | TONE | DETUNE | OCTAVE | ALGO: HELD or SWELL |
-| A VOX sound key (black 8-11) | BRIGHT | WAVE | FILTER | RELEASE | |
+| A VOX sound key (black 8-11) | BRIGHT | WAVE | FILTER | RELEASE | ALGO: it sings |
 | BLOOM's key (black 7) | LEVEL | LENGTH | HEIGHT | FIFTH | |
 | **FX** | SHIMMER | FEEDBACK | FREEZE | DIP | Throws; ALGO: WARP |
 | A white key | BRIGHT | VIBRATO | SHIMMER | RELEASE | Bends; ALGO: PITCH |
@@ -207,6 +219,12 @@ A loop can be up to 16 bars long, with up to 8 layers.
 
 **The loop follows the scene.** It keeps its notes as degrees of the scene's key, not as fixed pitches. Move
 to another scene, or MORPH, and the same tune plays on in the new key.
+
+**Each note keeps its sound.** A note loops with the VOX sound it was played with, whichever sound is in
+hand later. A layer of GLASS, then one of REED over it, then HALO played by hand: three instruments. Shaping
+a sound still changes it everywhere it plays, the loop included. VOX has four voices in all, shared by the
+hands, the loop and a sound that sings: the oldest note gives way when a fifth begins. (A loop recorded
+before 1.5 plays with the sound in hand, as it did.)
 
 **The loop is kept.** It is saved with the journey playing, so it comes back after a power cut, and it plays
 again when the clock starts. Stopping the clock silences it until the next start. User journey slots do not

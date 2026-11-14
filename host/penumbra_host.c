@@ -459,7 +459,7 @@ static int expect(const char *what, const char *val)
     bench_t b;
     if (!strcmp(what, "playing"))
         got = eng_clock.playing;
-    else if (!strcmp(what, "view"))                 /* 0 HOME, 1 SYSTEM, 2 BENCH */
+    else if (!strcmp(what, "view"))                 /* ui.c V_*: 0 HOME, 1 SHAPE, 2 SCENE, 3 FX, 4 JOURNEY, 5 SYSTEM, 6 BENCH, 7 SOUNDS */
         got = ui.view;
     else if (!strcmp(what, "row"))
         got = ui.row;
