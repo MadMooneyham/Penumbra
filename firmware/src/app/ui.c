@@ -48,8 +48,8 @@ static const int8_t KEY_WHITE[NKEYS] = {0, -1, 1, -1, 2, -1, 3, 4, -1, 5, -1, 6,
 static const int8_t KEY_BLACK[NKEYS] = {-1, 0, -1, 1, -1, 2, -1, -1, 3, -1, 4, -1, -1, 5, -1, 6, -1, 7, -1, -1, 8, -1, 9, -1, -1, 10, -1};
 static uint8_t BLACK_KEY[11], WHITE_KEY[16];
 
-enum { V_HOME, V_SHAPE, V_SCENE, V_FX, V_JOURNEY, V_SYSTEM, V_BENCH, V_SOUNDS, NVIEWS };
-static const char *const VIEW_N[NVIEWS] = {"HOME", "SHAPE", "SCENE", "FX", "JOURNEY", "SYSTEM", "BENCH", "SOUNDS"};
+enum { V_HOME, V_SHAPE, V_SCENE, V_FX, V_JOURNEY, V_SYSTEM, V_BENCH, V_SOUNDS, V_LOOP, NVIEWS };
+static const char *const VIEW_N[NVIEWS] = {"HOME", "SHAPE", "SCENE", "FX", "JOURNEY", "SYSTEM", "BENCH", "SOUNDS", "LOOP"};
 
 #define HELP_MS 600u                       /* held this long, a button says what it does instead */
 #define HELP_HOLD_MS 1500u                 /* (FX, a hold too: later, and not once the knobs have moved) */
@@ -66,6 +66,8 @@ typedef struct {
     int8_t oct;                        /* the white keys' octave, -2..+2 */
     uint8_t row;                       /* SYSTEM's row */
     uint8_t vsel, ssel, srow, fxrow, jrow;
+    uint8_t lrow, ldel;                /* LOOP: the layer shown; SEL pressed once on it (again takes it out) */
+    uint32_t ldel_t;
     int8_t sdest;                      /* the scene PRESET sent it to (-1: none) */
     uint32_t btn, keys;                /* held, as last seen */
     uint32_t press_t[NB], helped;      /* when each button went down; held long enough to say its job */
@@ -1159,12 +1161,13 @@ static const char *const FXROW_N[NFXROWS] = {"REVERB", "REVERB 2", "DELAY", "DEL
 static const uint8_t FXROW_EF[NFXROWS] = {EF_RV_DECAY, EF_RV_MOD, EF_DL_TIME, EF_DL_LEVEL};   /* each row's first */
 
 static const char *const HELP[NB] = {
-    [B_FX] = "FX. HELD: THROWS, ALGO WARP", [B_SEL] = "THE PAGE'S ACTION", [B_ENV] = "SHAPE. HELD: A/B",
+    [B_FX] = "FX. HELD: THROWS, ALGO WARP", [B_SEL] = "THE PAGE'S. HOME: THE LOOP", [B_ENV] = "SHAPE. HELD: A/B",
     [B_LFO] = "JOURNEYS, SOUNDS",   [B_EDIT] = "SCENE: KEY, DRONE", [B_GLO] = "SYSTEM, BENCH",
     [B_HOME] = "HOME",              [B_SAVE] = "SAVE. IN A HOLD: KEEP IT", [B_ARP] = "FREEZE THE NOTES HELD",
     [B_SEQ] = "CLOCK: START, STOP", [B_REC] = "LOOP: RECORD, LAYER",
     [B_OCTDN] = "WHITE KEYS DOWN",  [B_OCTUP] = "WHITE KEYS UP"};   /* (PLAY held: the undo) */
 
+static void loop_layer_out(void);                 /* (LOOP's SEL: below, with the page) */
 static void button(int i)
 {
     switch (i) {
@@ -1227,9 +1230,142 @@ static void button(int i)
             journey_sel();
         else if (ui.view == V_SOUNDS)
             sound_load(ui.snd_row);
+        else if (ui.view == V_LOOP)
+            loop_layer_out();
+        else if (ui.view == V_HOME)
+            set_view(V_LOOP);                     /* HOME's: the loop's layers */
         break;
     default: break;
     }
+}
+
+/* ------------------------------------------------------------------- LOOP --- */
+/* LOOP (SEL on HOME): the loop's layers, one a row. SELECT: the layer; the knobs its LEVEL (100%: as played),
+ * its SOUND (as played: each note the VOX sound it was played with; or one of the four for all of them), its
+ * OCTAVE (one down, as played, one up) and MUTE; SEL twice takes the layer out (the ones over it move down).
+ * The engine does each (engine_loop_layer); the page shows the looper as it is */
+static const char *const LK_N[4] = {"LEVEL", "SOUND", "OCTAVE", "MUTE"};
+static int loop_layers(void)
+{
+    const looper_t *l = engine_looper_state();
+    return l->state == LS_EMPTY || l->state == LS_REC ? 0 : l->layers;
+}
+static int loop_row(void)
+{
+    int n = loop_layers();
+    return n ? clamp_i(ui.lrow, 0, n - 1) : 0;
+}
+/* a layer's notes and hits, and the sound its notes were played with (0 .. 3; -1 more than one, -2 the one
+ * in hand: a loop from before 1.5; -3 no notes) */
+static void loop_layer_info(int y, int *notes, int *hits, int *snd)
+{
+    const looper_t *l = engine_looper_state();
+    int i, n = l->n > LP_EVENTS ? LP_EVENTS : l->n;
+    *notes = *hits = 0;
+    *snd = -3;
+    for (i = 0; i < n; i++) {
+        const lp_ev_t *e = &l->ev[i];
+        if (e->layer != y || !e->vel)
+            continue;
+        if ((e->kind & 15u) == LK_HIT) {
+            (*hits)++;
+        } else {
+            int s = (e->kind >> 4) ? (int)(e->kind >> 4) - 1 : -2;
+            (*notes)++;
+            *snd = *snd == -3 || *snd == s ? s : -1;
+        }
+    }
+}
+static const char *loop_sound_name(int y)          /* what the layer's notes sound with */
+{
+    const looper_t *l = engine_looper_state();
+    int notes, hits, snd;
+    if (l->lay[y].snd)
+        return jr_vsound_name(l->lay[y].snd - 1);
+    loop_layer_info(y, &notes, &hits, &snd);
+    return snd >= 0 ? jr_vsound_name(snd) : snd == -1 ? "MIXED" : snd == -2 ? "IN HAND" : hits ? "KICK, BLOOM" : "EMPTY";
+}
+static void loop_row_text(int y, char *b)
+{
+    const looper_t *l = engine_looper_state();
+    int notes, hits, snd;
+    char *q;
+    if (l->lay[y].mute) {
+        put_s(b, "MUTED");
+        return;
+    }
+    loop_layer_info(y, &notes, &hits, &snd);
+    q = put_s(b, loop_sound_name(y));
+    if (notes)
+        q = put_s(put_i(put_s(q, "  "), notes), notes == 1 ? " NOTE" : " NOTES");
+    if (l->lay[y].oct != 1)
+        q = put_s(q, l->lay[y].oct ? "  +1" : "  -1");
+    if (l->lay[y].level != 100)
+        put_s(put_i(put_s(q, "  "), l->lay[y].level), "%");
+}
+static void loop_knob_text(int y, int k, char *b)
+{
+    const lp_layer_t *ly = &engine_looper_state()->lay[y];
+    switch (k) {
+    case 0: put_s(put_i(b, ly->level), "%"); break;
+    case 1: put_s(b, ly->snd ? jr_vsound_name(ly->snd - 1) : "PLAYED"); break;
+    case 2: put_sgn(b, (int)ly->oct - 1); break;
+    default: put_s(b, ly->mute ? "MUTED" : "PLAYS"); break;
+    }
+}
+static void loop_layer_knob(int k, int e)
+{
+    const looper_t *l = engine_looper_state();
+    char t[40], b[16];
+    int y = loop_row(), v;
+    const lp_layer_t *ly = &l->lay[y];
+    if (!loop_layers()) {
+        warn("NO LOOP YET: REC RECORDS", 0);
+        return;
+    }
+    ui.ldel = 0;
+    switch (k) {
+    case 0: v = clamp_i(ly->level + 2 * e, 0, 127); break;
+    case 1: v = clamp_i(ly->snd + (e > 0 ? 1 : -1), 0, JR_VSOUNDS); break;
+    case 2: v = clamp_i(ly->oct + (e > 0 ? 1 : -1), 0, 2); break;
+    default: v = e > 0; break;
+    }
+    engine_loop_layer(y, k, v);                   /* (LL_LEVEL .. LL_MUTE: the knobs' order) */
+    switch (k) {                                  /* said as it will be (the engine takes it at its next block) */
+    case 0: put_s(put_i(b, v), "%"); break;
+    case 1: put_s(b, v ? jr_vsound_name(v - 1) : "AS PLAYED"); break;
+    case 2: put_sgn(b, v - 1); break;
+    default: put_s(b, v ? "MUTED" : "PLAYS"); break;
+    }
+    put_s(put_s(put_s(put_s(put_i(put_s(t, "LAYER "), y + 1), " "), k == 3 ? "" : LK_N[k]), k == 3 ? "" : " "), b);
+    say(t, 0);
+}
+static void loop_layer_out(void)                  /* SEL: once asks, again (within RESET_MS) takes the layer out */
+{
+    const looper_t *l = engine_looper_state();
+    char t[40];
+    int y = loop_row();
+    if (!loop_layers()) {
+        warn("NO LOOP YET: REC RECORDS", 0);
+        return;
+    }
+    if (l->state == LS_DUB) {
+        warn("RECORDING A LAYER: REC KEEPS IT", 0);
+        return;
+    }
+    if (!ui.ldel || plat_ms() - ui.ldel_t > 3000u) {
+        ui.ldel = 1;
+        ui.ldel_t = plat_ms();
+        put_s(put_i(put_s(t, "TAKE OUT LAYER "), y + 1), "? SEL AGAIN");
+        warn(t, 0);
+        return;
+    }
+    ui.ldel = 0;
+    engine_loop_layer(y, LOOP_LAYER_DELETE, 0);
+    put_s(put_i(put_s(t, "LAYER "), y + 1), l->layers > 1 ? " TAKEN OUT" : " TAKEN OUT: LOOP CLEARED");
+    say(t, 0);
+    if (ui.lrow && ui.lrow >= l->layers - 1)
+        ui.lrow--;
 }
 
 static void select_turn(int e)
@@ -1278,6 +1414,17 @@ static void select_turn(int e)
         put_s(put_i(put_s(v, "SOUND "), ui.snd_row + 1), sound_slot_used(ui.snd_row) ? "" : ": EMPTY");
         ann_say(v, 0, ANN_NOW);
         break;
+    case V_LOOP: {
+        int n = loop_layers();
+        if (!n)
+            break;
+        ui.lrow = (uint8_t)clamp_i(loop_row() + e, 0, n - 1);
+        ui.ldel = 0;
+        loop_row_text(ui.lrow, v);
+        put_s(put_s(put_i(put_s(t, "LAYER "), ui.lrow + 1), ": "), v);
+        ann_say(t, 0, ANN_NOW);
+        break;
+    }
     default: break;
     }
 }
@@ -1311,6 +1458,7 @@ static void knob_turn(int k, int e)
         break;
     }
     case V_SHAPE: shape_turn(k, e); break;
+    case V_LOOP: loop_layer_knob(k, e); break;
     case V_SCENE:
         if (k == 0) {
             int n = eng_jr.nscenes ? eng_jr.nscenes : 1;
@@ -2327,6 +2475,29 @@ static void draw_sounds(void)
     }
 }
 
+/* LOOP: a row a layer: what it sounds with, its notes, anything set on it; the one playing its notes lit */
+static void draw_loop(void)
+{
+    const looper_t *l = engine_looper_state();
+    int n = loop_layers(), sel = loop_row(), top = list_top(sel, n, ROWS_SHOWN), r, k;
+    if (!n) {
+        text_c(120, 44, &FONT_S, l->state == LS_REC ? "RECORDING" : "NO LOOP YET", C_HI);
+        text_c(120, 70, &FONT_XS, l->state == LS_REC ? "REC AGAIN: IT LOOPS" : "REC, A FEW NOTES, REC AGAIN", C_GRAY);
+        return;
+    }
+    for (r = top; r < n && r < top + ROWS_SHOWN; r++) {
+        char name[16], v[32];
+        int on = 0;
+        for (k = 0; k < 8; k++)
+            on |= l->sounding[r][k] != 0;
+        put_i(put_s(name, "LAYER "), r + 1);
+        loop_row_text(r, v);
+        list_row(r - top, r == sel, name, v, l->lay[r].mute ? C_DIM : on ? C_AMB : C_HI);
+    }
+    if (l->state == LS_DUB && n < ROWS_SHOWN)
+        text_c(120, 2 + n * ROW_H + 4, &FONT_XS, "RECORDING A NEW LAYER", C_RED);
+}
+
 /* ------------------------------------------------------------------ BENCH --- */
 static bench_t bench;
 static uint32_t bench_serial;
@@ -2369,6 +2540,7 @@ static void draw_main(void)
     case V_FX: draw_fx(); break;
     case V_JOURNEY: draw_journey(); break;
     case V_SOUNDS: draw_sounds(); break;
+    case V_LOOP: draw_loop(); break;
     case V_SYSTEM: draw_system(); break;
     default: draw_bench(); break;
     }
@@ -2518,6 +2690,18 @@ static void draw_knobs(void)
         cv_text(6, 34, &FONT_S, "INTO OR OUT OF A SLOT", C_HI);
         hint("SEL: LOAD (IT GLIDES)", "SAVE: STORE IT");
         break;
+    case V_LOOP:
+        if (!loop_layers()) {
+            hint("HOME: BACK", 0);
+            break;
+        }
+        for (k = 0; k < 4; k++) {
+            loop_knob_text(loop_row(), k, a);
+            cell(k, LK_N[k], a, C_HI);
+        }
+        put_i(put_s(b, "LAYER "), loop_row() + 1);
+        hint(b, "SELECT: LAYER   SEL TWICE: OUT");
+        break;
     case V_SYSTEM:
         text_c(120, 30, &FONT_XS, "SELECT: ROW    KNOB OR SEL: CHANGE", C_DIM);
         text_c(120, 46, &FONT_XS, "SAVE: SAVE NOW", C_DIM);
@@ -2607,6 +2791,15 @@ static void speak_where(void)
         for (k = 0; k < ENG_DRONES; k++)
             if (engine_drone_on(k))
                 q = put_i(put_s(q, " "), k + 1);
+        break;
+    case V_LOOP:
+        if (!loop_layers()) {
+            q = put_s(q, "NO LOOP YET");
+        } else {
+            char w[32];
+            loop_row_text(loop_row(), w);
+            q = put_s(put_s(put_i(put_s(q, "LAYER "), loop_row() + 1), ": "), w);
+        }
         break;
     case V_SYSTEM:
         row_text(ui.row, v);

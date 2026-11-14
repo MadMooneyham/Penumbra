@@ -13,19 +13,21 @@ static int fails;
 #define CHECK(c, what) do { if (c) printf("  ok   %s\n", what); else { printf("  FAIL %s\n", what); fails++; } } while (0)
 
 static looper_t L;
-static struct { int on[128], ons, offs, tags[16]; uint32_t at[64]; int nat; } S;
+static struct { int on[128], ons, offs, tags[16], octs[3], lays[LP_LAYERS], vel; uint32_t at[64]; int nat; } S;
 static uint32_t now;
-static void s_on(void *x, int n, int v, int tag)
+static void s_on(void *x, int n, int v, int tag, int layer)
 {
     (void)x;
-    (void)v;
+    S.vel = v;
     S.tags[tag & 15]++;
+    S.octs[(tag >> 4) % 3]++;
+    S.lays[layer % LP_LAYERS]++;
     S.on[n & 127]++;
     S.ons++;
     if (S.nat < 64)
         S.at[S.nat++] = now;
 }
-static void s_off(void *x, int n) { (void)x; S.on[n & 127]--; S.offs++; }
+static void s_off(void *x, int n, int layer) { (void)x; (void)layer; S.on[n & 127]--; S.offs++; }
 static int hits;
 static void s_hit(void *x, int w, int v) { (void)x; (void)w; (void)v; hits++; }
 static const lp_sink_t O = {0, s_on, s_off, s_hit};
@@ -101,7 +103,7 @@ int main(void)
     looper_undo(&L, &O);
     CHECK(L.state == LS_EMPTY, "UNDO with nothing: nothing");
     {   /* PULSE's hits loop too; the speed; and the loop saved and back */
-        static uint8_t buf[16 + LP_EVENTS * 8];
+        static uint8_t buf[LP_SAVE_MAX];
         uint32_t n, len;
         int before;
         looper_rec(&L, &O);
@@ -126,7 +128,7 @@ int main(void)
         n = looper_save(&L, buf, sizeof buf);
         before = L.n;
         looper_clear(&L, &O);
-        CHECK(n == 16u + (uint32_t)before * 8u && looper_load(&L, buf, n) == 0 && L.n == before && L.len == len &&
+        CHECK(n == LP_SAVE_HDR + (uint32_t)before * 8u && looper_load(&L, buf, n) == 0 && L.n == before && L.len == len &&
                   L.state == LS_PLAY && L.speed == LP_DOUBLE, "saved and loaded: the same loop, playing, its speed");
         buf[0] ^= 1u;
         CHECK(looper_load(&L, buf, n) != 0, "something else: not loaded");
@@ -134,7 +136,7 @@ int main(void)
         CHECK(looper_save(&L, buf, sizeof buf) == 0, "overdubbing: not saved (not now)");
     }
     {   /* tags: a layer played with tag 2, one over it with tag 4; each note comes back with its own */
-        static uint8_t buf[16 + LP_EVENTS * 8];
+        static uint8_t buf[LP_SAVE_MAX];
         uint32_t n;
         looper_clear(&L, &O);
         looper_rec(&L, &O);
@@ -157,6 +159,71 @@ int main(void)
         CHECK(looper_load(&L, buf, n) == 0, "a tagged loop loads");
         run(2u * L.len);
         CHECK(S.tags[2] == 2 && S.tags[4] == 2 && S.tags[0] == 0, "saved and loaded: the tags kept");
+    }
+    {   /* the layers' own settings: three layers (notes 60, 64, 67, the first tagged 2); the second muted is
+         * silent and what it has on is let go; a level scales its notes; a sound and an octave go out with
+         * them; the same note in two layers is two notes; the middle one taken out, the third is the second,
+         * with its settings; saved and loaded, they are kept; a loop saved by 1.4 loads, as played */
+        static uint8_t buf[LP_SAVE_MAX], old[LP_SAVE_MAX];
+        uint32_t n, k, m;
+        looper_clear(&L, &O);
+        memset(&S, 0, sizeof S);
+        looper_rec(&L, &O);
+        looper_note(&L, 60, 100, 2);
+        run(LP_BEAT);
+        looper_note(&L, 60, 0, 0);
+        run(LP_BEAT);
+        looper_rec(&L, &O);
+        for (k = 0; k < 2; k++) {
+            looper_rec(&L, &O);
+            looper_note(&L, k ? 67 : 64, 100, 3);
+            run(LP_BEAT / 2u);
+            looper_note(&L, k ? 67 : 64, 0, 0);
+            looper_rec(&L, &O);
+            run(L.len - L.pos % L.len);
+        }
+        CHECK(L.layers == 3 && L.lay[1].level == 100 && L.lay[1].oct == 1 && !L.lay[1].mute && !L.lay[1].snd,
+              "three layers, each as played");
+        memset(&S, 0, sizeof S);
+        run(2u * L.len);
+        CHECK(S.lays[0] == 2 && S.lays[1] == 2 && S.lays[2] == 2 && S.octs[1] == 6, "each layer's notes say whose they are");
+        looper_layer_set(&L, 1, LL_MUTE, 1, &O);
+        memset(&S, 0, sizeof S);
+        run(2u * L.len);
+        CHECK(S.lays[1] == 0 && S.lays[0] == 2 && S.lays[2] == 2 && S.on[64] <= 0, "a muted layer is silent, the others play");
+        looper_layer_set(&L, 1, LL_MUTE, 0, &O);
+        looper_layer_set(&L, 0, LL_MUTE, 1, &O);
+        looper_layer_set(&L, 1, LL_MUTE, 1, &O);
+        looper_layer_set(&L, 2, LL_LEVEL, 50, &O);
+        looper_layer_set(&L, 2, LL_SOUND, 4, &O);
+        looper_layer_set(&L, 2, LL_OCT, 2, &O);
+        memset(&S, 0, sizeof S);
+        run(2u * L.len);
+        CHECK(S.vel == 50 && S.tags[4] == 2 && S.tags[3] == 0 && S.octs[2] == 2,
+              "a layer's level, sound and octave go out with its notes");
+        looper_layer_set(&L, 0, LL_MUTE, 0, &O);
+        looper_layer_set(&L, 1, LL_MUTE, 0, &O);
+        looper_layer_delete(&L, 1, &O);
+        memset(&S, 0, sizeof S);
+        run(2u * L.len);
+        CHECK(L.layers == 2 && S.lays[0] == 2 && S.lays[1] == 2 && S.lays[2] == 0 && S.tags[4] == 2 && S.tags[2] == 2 &&
+                  L.lay[1].level == 50 && L.lay[2].level == 100 && sounding() <= 2,
+              "the middle layer taken out: the one over it moves down, with its settings");
+        n = looper_save(&L, buf, sizeof buf);
+        /* (1.4's file: the header with its magic, then the events, no layers' settings) */
+        memcpy(old, buf, 16);
+        old[0] = 'P', old[1] = 'N', old[2] = 'L', old[3] = '1';
+        memcpy(old + 16, buf + LP_SAVE_HDR, n - LP_SAVE_HDR);
+        m = n - (LP_SAVE_HDR - 16u);
+        looper_clear(&L, &O);
+        CHECK(looper_load(&L, buf, n) == 0 && L.layers == 2 && L.lay[1].level == 50 && L.lay[1].snd == 4 && L.lay[1].oct == 2,
+              "saved and loaded: the layers' settings kept");
+        looper_clear(&L, &O);
+        CHECK(looper_load(&L, old, m) == 0 && L.layers == 2 && L.lay[1].level == 100 && L.lay[1].oct == 1 && L.n == 4,
+              "a loop saved by 1.4 loads, its layers as played");
+        looper_layer_delete(&L, 0, &O);
+        looper_layer_delete(&L, 0, &O);
+        CHECK(L.state == LS_EMPTY && sounding() <= 0, "the last layer taken out: the loop gone");
     }
     printf(fails ? "%d FAILED\n" : "all passed\n", fails);
     return fails != 0;

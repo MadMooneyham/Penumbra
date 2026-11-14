@@ -197,6 +197,7 @@ footer { margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--rule); 
           <tr><td><b>PLAY</b> held, let go</td><td>undo the last layer</td></tr>
           <tr><td><b>PLAY</b> held + ALGO</td><td>½ speed · as played · 2×</td></tr>
           <tr><td><b>REC + PLAY</b></td><td>clear the loop</td></tr>
+          <tr><td><b>SEL</b> on HOME</td><td>LOOP: each layer's LEVEL, SOUND, OCTAVE, MUTE · SEL ×2: out</td></tr>
         </tbody>
       </table>
       <p class="note">Up to 16 bars, 8 layers. It follows the scene's key, each note keeps its VOX sound, and it
@@ -258,7 +259,7 @@ footer { margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--rule); 
     parent.appendChild(e);
     return e;
   }
-  const ROW1 = [["FX", "FX", "held: throws"], ["SEL", "choose", "×2: reset"], ["ENV", "SHAPE", "held: A/B"],
+  const ROW1 = [["FX", "FX", "held: throws"], ["SEL", "choose", "HOME: LOOP"], ["ENV", "SHAPE", "held: A/B"],
                 ["LFO", "JOURNEY", "again: SOUNDS"], ["EDIT", "SCENE", ""], ["GLO", "SYSTEM", "again: BENCH"]];
   const ROW2 = [["HOME", "HOME", ""], ["SAVE", "save", "in a hold: keep"], ["ARP", "FREEZE", ""],
                 ["SEQ", "clock", "start / stop"], ["PLAY", "loop", "play / stop"], ["REC", "loop", "rec / dub"]];

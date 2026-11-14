@@ -155,7 +155,7 @@ static void guard_apply(void)
 /* ------------------------------------------------------- command queue --- */
 /* uint32 commands, single producer (main loop) / single consumer (audio ISR): type:4 | a:8 | b:8 | c:12 */
 enum { C_DRONE_KEY, C_TEST, C_MIDI_CH, C_PULSE, C_WHITE, C_LOOPER, C_TRAVEL, C_LOADED,
-       C_PERF, C_FX, C_FREEZE, C_MORPH, C_BRANGE, C_MIDIOUT };
+       C_PERF, C_FX, C_FREEZE, C_MORPH, C_BRANGE, C_MIDIOUT, C_LPLAYER };   /* (four bits: one more) */
 #define CQ 256u
 static uint32_t cq[CQ];
 static volatile uint32_t cq_w, cq_r;
@@ -186,6 +186,7 @@ void engine_midi_ch(int ch) { cq_put(C_MIDI_CH, (uint32_t)ch, 0, 0); }
 void engine_pulse(int which, int vel) { cq_put(C_PULSE, (uint32_t)which, 0, (uint32_t)vel); }
 void engine_white_key(int w, int down, int oct) { cq_put(C_WHITE, (uint32_t)w, (uint32_t)(down != 0), (uint32_t)(oct + 8)); }
 void engine_looper(int op) { cq_put(C_LOOPER, (uint32_t)op, 0, 0); }
+void engine_loop_layer(int layer, int field, int value) { cq_put(C_LPLAYER, (uint32_t)layer, (uint32_t)field, (uint32_t)value); }
 void engine_freeze(void) { cq_put(C_FREEZE, 0, 0, 0); }
 void engine_morph(int detents) { cq_put(C_MORPH, 0, 0, (uint32_t)(detents + 2048)); }
 void engine_bend_range(int semitones) { cq_put(C_BRANGE, (uint32_t)semitones, 0, 0); }
@@ -374,20 +375,26 @@ static const jr_sink_t JSINK = {0, js_drone_note, js_drone_latch, js_drone_relea
  * was recorded with (its tag, the sound + 1; 0, a loop from before 1.5: the sound in hand) */
 _Static_assert(JR_VSOUNDS == VOX_SOUNDS, "a VOX sound each");
 volatile uint32_t eng_vox_notes;
-static uint8_t lp_midi[256], lp_snd[256], hand_code[128], hand_snd[128];
+static uint8_t lp_midi[LP_LAYERS][256] POOL, lp_snd[LP_LAYERS][256] POOL, hand_code[128], hand_snd[128];
 static void vox_on(int midi, int vel, int snd)
 {
     vox_note_on_s(&vox, midi, (float)vel * (1.0f / 127.0f), snd);
     eng_vox_notes++;
 }
-static void ls_on(void *x, int code, int vel, int tag)
+static void ls_on(void *x, int code, int vel, int tag, int layer)
+{
+    const int snd = tag & 15, m = jr_code_note(&jr, code) + 12 * ((tag >> 4) - 1);   /* (the layer's octave) */
+    uint8_t *midi = &lp_midi[layer % LP_LAYERS][code & 255], *s = &lp_snd[layer % LP_LAYERS][code & 255];
+    (void)x;
+    *midi = (uint8_t)(m < 0 ? m + 12 : m > 127 ? m - 12 : m);
+    *s = (uint8_t)((snd ? snd - 1 : eng_jr.vcur) % JR_VSOUNDS);
+    vox_on(*midi, vel, *s);
+}
+static void ls_off(void *x, int code, int layer)
 {
     (void)x;
-    lp_midi[code & 255] = (uint8_t)jr_code_note(&jr, code);
-    lp_snd[code & 255] = (uint8_t)((tag ? tag - 1 : eng_jr.vcur) % JR_VSOUNDS);
-    vox_on(lp_midi[code & 255], vel, lp_snd[code & 255]);
+    vox_note_off_s(&vox, lp_midi[layer % LP_LAYERS][code & 255], lp_snd[layer % LP_LAYERS][code & 255]);
 }
-static void ls_off(void *x, int code) { (void)x; vox_note_off_s(&vox, lp_midi[code & 255], lp_snd[code & 255]); }
 static void ls_hit(void *x, int which, int vel) { (void)x; hit(which, (float)vel * (1.0f / 127.0f)); }
 static const lp_sink_t LSINK = {0, ls_on, ls_off, ls_hit};
 static void hand_on(int note, int vel)
@@ -919,6 +926,11 @@ static void drain(void)
                 looper_speed(&lp, a == LOOPER_FASTER ? 1 : -1);
             else
                 looper_clear(&lp, &LSINK);
+        } else if (type == C_LPLAYER && !testing) {  /* a layer's setting (LL_*), or LOOP_LAYER_DELETE */
+            if (b == LOOP_LAYER_DELETE)
+                looper_layer_delete(&lp, (int)a, &LSINK);
+            else
+                looper_layer_set(&lp, (int)a, (int)b, (int)(c & 0xFFFu), &LSINK);
         } else if (type == C_FREEZE)
             freeze();
         else if (type == C_MORPH)

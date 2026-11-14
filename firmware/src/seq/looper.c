@@ -13,20 +13,37 @@ static void zero(void *p, uint32_t n)
         *z++ = 0;
 }
 
-void looper_init(looper_t *l)
+static void layer_default(lp_layer_t *y)
 {
-    zero(l, sizeof *l);
-    l->speed = LP_AS_PLAYED;
+    y->level = 100;
+    y->snd = 0;
+    y->oct = 1;
+    y->mute = 0;
 }
 
-void looper_quiet(looper_t *l, const lp_sink_t *o)
+void looper_init(looper_t *l)
+{
+    int k;
+    zero(l, sizeof *l);
+    l->speed = LP_AS_PLAYED;
+    for (k = 0; k < LP_LAYERS; k++)
+        layer_default(&l->lay[k]);
+}
+
+static void quiet_layer(looper_t *l, int y, const lp_sink_t *o)
 {
     uint32_t k;
     for (k = 0; k < 256u; k++)
-        if (BIT(l->sounding, k)) {
-            CLR(l->sounding, k);
-            o->off(o->ctx, (int)k);
+        if (BIT(l->sounding[y], k)) {
+            CLR(l->sounding[y], k);
+            o->off(o->ctx, (int)k, y);
         }
+}
+void looper_quiet(looper_t *l, const lp_sink_t *o)
+{
+    int y;
+    for (y = 0; y < LP_LAYERS; y++)
+        quiet_layer(l, y, o);
 }
 
 static void add(looper_t *l, uint32_t t, int kind, int note, int vel)
@@ -40,7 +57,7 @@ static void add(looper_t *l, uint32_t t, int kind, int note, int vel)
     e->t = t;
     e->note = (uint8_t)(note & 255);
     e->vel = (uint8_t)(vel & 127);
-    e->layer = l->layers;
+    e->layer = (uint8_t)(l->layers < LP_LAYERS ? l->layers : LP_LAYERS - 1);
     e->kind = (uint8_t)kind;
 }
 
@@ -86,18 +103,27 @@ static void fire(looper_t *l, uint32_t from, uint32_t to, int incl_from, const l
     uint32_t i;
     for (i = 0; i < l->n; i++) {
         const lp_ev_t *e = &l->ev[i];
+        const int y = e->layer % LP_LAYERS;
+        const lp_layer_t *ly = &l->lay[y];
+        uint32_t *on = l->sounding[y];
+        int vel;
         if (!((e->t > from || (incl_from && e->t == from)) && e->t <= to))
             continue;
+        vel = ((int)e->vel * (int)ly->level + 50) / 100;
+        vel = vel < 1 ? 1 : vel > 127 ? 127 : vel;
         if ((e->kind & 15u) == LK_HIT) {
-            o->hit(o->ctx, e->note, e->vel);
+            if (!ly->mute && ly->level)
+                o->hit(o->ctx, e->note, vel);
         } else if (e->vel) {
-            if (BIT(l->sounding, e->note))
-                o->off(o->ctx, e->note);
-            SET(l->sounding, e->note);
-            o->on(o->ctx, e->note, e->vel, e->kind >> 4);
-        } else if (BIT(l->sounding, e->note)) {
-            CLR(l->sounding, e->note);
-            o->off(o->ctx, e->note);
+            if (ly->mute || !ly->level)
+                continue;
+            if (BIT(on, e->note))
+                o->off(o->ctx, e->note, y);
+            SET(on, e->note);
+            o->on(o->ctx, e->note, vel, (ly->snd ? ly->snd : e->kind >> 4) | ly->oct << 4, y);
+        } else if (BIT(on, e->note)) {
+            CLR(on, e->note);
+            o->off(o->ctx, e->note, y);
         }
     }
 }
@@ -203,8 +229,56 @@ void looper_undo(looper_t *l, const lp_sink_t *o)
         l->state = LS_PLAY;
     else
         l->layers--;
+    layer_default(&l->lay[gone % LP_LAYERS]);
     l->edits++;
     looper_quiet(l, o);                          /* (what the rest has on comes back round) */
+}
+
+void looper_layer_set(looper_t *l, int y, int field, int value, const lp_sink_t *o)
+{
+    lp_layer_t *ly;
+    if (y < 0 || y >= (int)l->layers || y >= LP_LAYERS || l->state == LS_EMPTY || l->state == LS_REC)
+        return;
+    ly = &l->lay[y];
+    switch (field) {
+    case LL_LEVEL: ly->level = (uint8_t)(value < 0 ? 0 : value > 127 ? 127 : value); break;
+    case LL_SOUND: ly->snd = (uint8_t)(value < 0 ? 0 : value > 15 ? 15 : value); break;
+    case LL_OCT: ly->oct = (uint8_t)(value < 0 ? 0 : value > 2 ? 2 : value); break;
+    case LL_MUTE:
+        ly->mute = (uint8_t)(value != 0);
+        if (ly->mute)
+            quiet_layer(l, y, o);                /* (what it has on: let go now) */
+        break;
+    default: return;
+    }
+    l->edits++;
+}
+
+void looper_layer_delete(looper_t *l, int y, const lp_sink_t *o)
+{
+    uint32_t i, k = 0;
+    int j;
+    if (y < 0 || y >= (int)l->layers || l->state == LS_EMPTY || l->state == LS_REC || l->state == LS_DUB)
+        return;                                  /* (overdubbing: PLAY held undoes that layer) */
+    if (l->layers <= 1) {
+        looper_clear(l, o);
+        return;
+    }
+    looper_quiet(l, o);
+    for (i = 0; i < l->n; i++)
+        if (l->ev[i].layer != y) {
+            l->ev[k] = l->ev[i];
+            if (l->ev[k].layer > y)
+                l->ev[k].layer--;                /* the ones over it: down one */
+            k++;
+        }
+    l->n = (uint16_t)k;
+    l->full = 0;
+    for (j = y; j < LP_LAYERS - 1; j++)
+        l->lay[j] = l->lay[j + 1];
+    layer_default(&l->lay[LP_LAYERS - 1]);
+    l->layers--;
+    l->edits++;
 }
 
 void looper_speed(looper_t *l, int dir)
@@ -272,7 +346,8 @@ void looper_advance(looper_t *l, uint32_t ticks, const lp_sink_t *o)
 }
 
 /* ------------------------------------------------------------------- saving --- */
-#define LP_MAGIC 0x314C4E50u                     /* "PNL1" */
+#define LP_MAGIC1 0x314C4E50u                    /* "PNL1" (to 1.4): the header, then the events */
+#define LP_MAGIC 0x324C4E50u                     /* "PNL2": the header, the layers' settings, then the events */
 #define LP_HDR 16u
 typedef struct {
     uint32_t magic;
@@ -280,14 +355,15 @@ typedef struct {
     uint32_t len;
     uint8_t layers, state, speed, rsv2;
 } lp_hdr_t;
-_Static_assert(sizeof(lp_hdr_t) == LP_HDR && sizeof(lp_ev_t) == 8u, "the saved loop's layout");
+_Static_assert(sizeof(lp_hdr_t) == LP_HDR && sizeof(lp_ev_t) == 8u && sizeof(lp_layer_t) == 4u &&
+               LP_SAVE_HDR == LP_HDR + sizeof(((looper_t *)0)->lay), "the saved loop's layout");
 
 uint32_t looper_save(const looper_t *l, void *dst, uint32_t max)
 {
     lp_hdr_t h;
     uint8_t *d = (uint8_t *)dst;
     const uint8_t *s;
-    uint32_t k, bytes = LP_HDR + (uint32_t)l->n * sizeof(lp_ev_t);
+    uint32_t k, bytes = LP_SAVE_HDR + (uint32_t)l->n * sizeof(lp_ev_t);
     if (l->state == LS_REC || l->state == LS_DUB || bytes > max)
         return 0;
     h.magic = LP_MAGIC;
@@ -298,13 +374,16 @@ uint32_t looper_save(const looper_t *l, void *dst, uint32_t max)
     h.state = l->state;
     h.speed = l->speed;
     h.rsv2 = 0;
-    bytes = LP_HDR + (uint32_t)h.n * sizeof(lp_ev_t);
+    bytes = LP_SAVE_HDR + (uint32_t)h.n * sizeof(lp_ev_t);
     s = (const uint8_t *)&h;
     for (k = 0; k < LP_HDR; k++)
         d[k] = s[k];
-    s = (const uint8_t *)l->ev;
-    for (k = 0; k < bytes - LP_HDR; k++)
+    s = (const uint8_t *)l->lay;
+    for (k = 0; k < sizeof l->lay; k++)
         d[LP_HDR + k] = s[k];
+    s = (const uint8_t *)l->ev;
+    for (k = 0; k < bytes - LP_SAVE_HDR; k++)
+        d[LP_SAVE_HDR + k] = s[k];
     return bytes;
 }
 
@@ -313,22 +392,36 @@ int looper_load(looper_t *l, const void *src, uint32_t n)
     const uint8_t *s = (const uint8_t *)src;
     lp_hdr_t h;
     uint8_t *d = (uint8_t *)&h;
-    uint32_t k;
+    uint32_t k, hdr;
     if (n < LP_HDR)
         return -1;
     for (k = 0; k < LP_HDR; k++)
         d[k] = s[k];
-    if (h.magic != LP_MAGIC || h.n > LP_EVENTS || n != LP_HDR + (uint32_t)h.n * sizeof(lp_ev_t) ||
-        h.len > LP_MAX_LEN || h.layers > LP_LAYERS || h.speed > LP_DOUBLE)
+    hdr = h.magic == LP_MAGIC ? LP_SAVE_HDR : LP_HDR;   /* (a loop from 1.4 or before: its layers as played) */
+    if ((h.magic != LP_MAGIC && h.magic != LP_MAGIC1) || h.n > LP_EVENTS ||
+        n != hdr + (uint32_t)h.n * sizeof(lp_ev_t) || h.len > LP_MAX_LEN || h.layers > LP_LAYERS || h.speed > LP_DOUBLE)
         return -1;
     looper_init(l);
     if (!h.n || !h.len || (h.state != LS_PLAY && h.state != LS_STOP))
         return 0;                                /* (an empty one: empty) */
+    if (hdr == LP_SAVE_HDR) {
+        d = (uint8_t *)l->lay;
+        for (k = 0; k < sizeof l->lay; k++)
+            d[k] = s[LP_HDR + k];
+        for (k = 0; k < LP_LAYERS; k++) {        /* (each in range) */
+            lp_layer_t *y = &l->lay[k];
+            y->level &= 0x7Fu;
+            y->snd &= 15u;
+            y->oct = (uint8_t)(y->oct > 2 ? 1 : y->oct);
+            y->mute = (uint8_t)(y->mute != 0);
+        }
+    }
     d = (uint8_t *)l->ev;
     for (k = 0; k < (uint32_t)h.n * sizeof(lp_ev_t); k++)
-        d[k] = s[LP_HDR + k];
+        d[k] = s[hdr + k];
     for (k = 0; k < h.n; k++) {                  /* (each where it can be) */
         l->ev[k].t %= h.len;
+        l->ev[k].layer %= LP_LAYERS;
         l->ev[k].kind = (l->ev[k].kind & 15u) == LK_HIT ? LK_HIT : (uint8_t)(LK_NOTE | (l->ev[k].kind & 0xF0u));
     }
     l->n = h.n;

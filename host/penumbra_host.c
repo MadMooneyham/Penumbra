@@ -459,7 +459,7 @@ static int expect(const char *what, const char *val)
     bench_t b;
     if (!strcmp(what, "playing"))
         got = eng_clock.playing;
-    else if (!strcmp(what, "view"))                 /* ui.c V_*: 0 HOME, 1 SHAPE, 2 SCENE, 3 FX, 4 JOURNEY, 5 SYSTEM, 6 BENCH, 7 SOUNDS */
+    else if (!strcmp(what, "view"))                 /* ui.c V_*: 0 HOME, 1 SHAPE, 2 SCENE, 3 FX, 4 JOURNEY, 5 SYSTEM, 6 BENCH, 7 SOUNDS, 8 LOOP */
         got = ui.view;
     else if (!strcmp(what, "row"))
         got = ui.row;
@@ -590,6 +590,11 @@ static int expect(const char *what, const char *val)
         got = eng_jr.scene[(atoi(what + 4) - 1) % JR_SCENES].room;
     else if (!strncmp(what, "halo", 4))
         got = eng_jr.scene[(atoi(what + 4) - 1) % JR_SCENES].halo;
+    else if (!strncmp(what, "lay", 3) && what[3] >= '1' && what[3] <= '8')   /* layYF: the loop's layer Y (1 ..),
+                                                                              * F 0 LEVEL, 1 SOUND, 2 OCTAVE, 3 MUTE */
+        got = ((const uint8_t *)&engine_looper_state()->lay[what[3] - '1'])[(what[4] - '0') & 3];
+    else if (!strcmp(what, "lrow"))                 /* LOOP's layer shown, 1 .. */
+        got = ui.lrow + 1;
     else if (!strcmp(what, "jtravel"))              /* the journey travels by itself: 0 not, 1 .. 4 every 8 .. 64 bars */
         got = eng_jr.travel;
     else if (!strcmp(what, "nscenes"))

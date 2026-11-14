@@ -1,0 +1,83 @@
+# LOOP (SEL on HOME): the loop's layers, a row each. SELECT: the layer. The knobs: its LEVEL, its
+# SOUND (as played, or one of VOX's four for all its notes), its OCTAVE, MUTE. SEL twice takes a layer out,
+# the ones over it moving down with their settings. Two layers of the same note sound as two (one an octave
+# up, in another sound). All of it is saved with the loop. With no loop, the page says so.
+wait 1000
+tap SEL
+wait 100
+expect view 8
+shot loop_empty.png
+turn K1 2
+tap HOME
+expect view 0
+tap REC
+key w2 down
+wait 2600
+tap REC
+wait 100
+key w2 up
+expect looper 2
+tap REC
+key w2 down
+wait 2400
+key w2 up
+wait 300
+tap REC
+wait 100
+expect layers 2
+tap SEL
+wait 100
+expect view 8
+expect lrow 1
+expect lay10 100
+turn SELECT 1
+expect lrow 2
+turn K2 2
+turn K3 1
+wait 200
+expect lay21 2
+expect lay22 2
+wait 3000
+expect vox_sounds 3
+shot loop_layers.png
+turn K1 -10
+wait 100
+expect lay20 80
+turn SELECT -1
+turn K4 1
+wait 3400
+expect lay13 1
+expect vox_sounds 2
+turn K4 -1
+wait 3000
+expect lay13 0
+expect vox_sounds 3
+tap SAVE
+wait 500
+expect store_writes >0
+reboot
+wait 3000
+expect layers 2
+expect lay20 80
+expect lay21 2
+expect lay22 2
+tap SEL
+wait 100
+tap SEL
+wait 100
+expect layers 2
+tap SEL
+wait 300
+expect layers 1
+expect lay10 80
+expect lay11 2
+expect lay12 2
+wait 3000
+expect vox_sounds 2
+tap SEL
+wait 100
+tap SEL
+wait 300
+expect looper 0
+expect vox_sounds 0
+expect clips 0

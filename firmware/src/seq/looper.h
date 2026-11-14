@@ -14,7 +14,12 @@
  * caller says it is (Penumbra's: a scale degree, so a loop follows the scene's key): the loop plays it
  * back through a sink. A note on carries a tag (0 .. 15), the caller's too (Penumbra's: the VOX sound it
  * was played with, 1 .. 4; 0, a loop from before 1.5: the sound in hand). At most LP_EVENTS. One context
- * (the audio ISR) calls everything. */
+ * (the audio ISR) calls everything.
+ *
+ * Each layer has settings of its own (lp_layer_t): its LEVEL (100: as played), a sound instead of the ones
+ * its notes were played with, an octave down or up, and a mute. A layer can be taken out from anywhere
+ * (looper_layer_delete): the ones over it move down. The layers sound apart: the same note in two of them
+ * is two notes. */
 #pragma once
 #include <stdint.h>
 
@@ -27,6 +32,14 @@
 enum { LS_EMPTY, LS_REC, LS_PLAY, LS_DUB, LS_STOP };
 enum { LP_HALF, LP_AS_PLAYED, LP_DOUBLE };
 enum { LK_NOTE, LK_HIT };                        /* an event's kind: a note (on, off), a hit (PULSE: on only) */
+enum { LL_LEVEL, LL_SOUND, LL_OCT, LL_MUTE, LL_N };   /* a layer's settings (looper_layer_set) */
+
+typedef struct {
+    uint8_t level;                              /* 0 .. 127: its notes' and hits' loudness, 100 as played */
+    uint8_t snd;                                /* 0: each note the tag it was played with; else this tag (1 .. 15) */
+    uint8_t oct;                                /* 0 an octave down, 1 as played, 2 an octave up (the sink's to do) */
+    uint8_t mute;                               /* 1: it does not sound */
+} lp_layer_t;
 
 typedef struct {
     uint32_t t;                                 /* ticks from the loop's start */
@@ -35,8 +48,9 @@ typedef struct {
 
 typedef struct {
     void *ctx;
-    void (*on)(void *ctx, int note, int vel, int tag);
-    void (*off)(void *ctx, int note);
+    /* tag: the note's (or its layer's) in the low four bits, the layer's octave (0, 1, 2) above them */
+    void (*on)(void *ctx, int note, int vel, int tag, int layer);
+    void (*off)(void *ctx, int note, int layer);
     void (*hit)(void *ctx, int which, int vel);
 } lp_sink_t;
 
@@ -45,7 +59,8 @@ typedef struct {
     uint16_t n;
     uint8_t state, layers;                      /* layers kept (the one being recorded is layers) */
     uint32_t len, pos;                          /* ticks; pos: where it is in it (recording first: since its start) */
-    uint32_t sounding[8];                       /* notes it has on (bit note: 0..255) */
+    uint32_t sounding[LP_LAYERS][8];            /* notes each layer has on (bit note: 0..255) */
+    lp_layer_t lay[LP_LAYERS];
     uint32_t held[8];                           /* the hands' notes on, while recording */
     uint8_t full;                               /* events were dropped */
     uint8_t speed, frac;                        /* LP_*; half speed's odd tick */
@@ -66,6 +81,11 @@ void looper_seek(looper_t *l, uint32_t ticks, const lp_sink_t *o);
 void looper_note(looper_t *l, int note, int vel, int tag);    /* the hands (vel 0: off): recorded while it records */
 void looper_hit(looper_t *l, int which, int vel);             /* a hit, the same */
 void looper_advance(looper_t *l, uint32_t ticks, const lp_sink_t *o);
+/* a layer's setting (LL_*; 0 .. layers - 1: the kept ones), and a layer taken out (the only one: the loop gone) */
+void looper_layer_set(looper_t *l, int layer, int field, int value, const lp_sink_t *o);
+void looper_layer_delete(looper_t *l, int layer, const lp_sink_t *o);
 /* saving: what is worth keeping, n bytes of it (0: nothing, or not now: recording); and back */
+#define LP_SAVE_HDR (16u + LP_LAYERS * 4u)
+#define LP_SAVE_MAX (LP_SAVE_HDR + LP_EVENTS * 8u)
 uint32_t looper_save(const looper_t *l, void *dst, uint32_t max);
 int looper_load(looper_t *l, const void *src, uint32_t n);    /* 0: loaded (stopped, or playing as it was) */

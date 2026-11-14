@@ -218,6 +218,22 @@ layers.
 
 A loop can be up to 16 bars long, with up to 8 layers.
 
+**LOOP: the layers.** SEL pressed on HOME opens LOOP, a row for each layer: the sound it plays with, how many
+notes it has, and anything set on it. The row of a layer sounding is lit. SELECT picks a layer, and the knobs
+are that layer's:
+
+| Knob | What it sets |
+| --- | --- |
+| K1 LEVEL | How loud the layer is: 100% as played, down to silent, up to 127% |
+| K2 SOUND | PLAYED: each note the VOX sound it was played with. Or GLASS, REED, HALO or LOW for the whole layer |
+| K3 OCTAVE | The layer an octave down, as played, or an octave up |
+| K4 MUTE | Right: the layer is silent, and stays in the loop. Left: it plays again |
+
+**SEL** twice takes the layer shown out of the loop; the layers over it move down, keeping their settings.
+Taking out the only layer clears the loop. The layers sound apart, so the same phrase recorded twice, one
+layer an octave up in another sound, is two parts. The kick and BLOOM in a layer follow its LEVEL and MUTE.
+All of it is saved with the loop.
+
 **The loop follows the scene.** It keeps its notes as degrees of the scene's key, not as fixed pitches. Move
 to another scene, or MORPH, and the same tune plays on in the new key.
 

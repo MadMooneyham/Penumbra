@@ -128,6 +128,8 @@ enum { LOOPER_REC, LOOPER_PLAY, LOOPER_UNDO, LOOPER_CLEAR, LOOPER_SLOWER, LOOPER
 uint32_t engine_looper_save(void *dst, uint32_t max);   /* (main loop) the loop as it is, to keep: bytes (0: not now) */
 int engine_looper_load(const void *src, uint32_t n);    /* (before the audio, or between blocks) */
 const looper_t *engine_looper_state(void);         /* (main loop, read only) */
+#define LOOP_LAYER_DELETE LL_N                     /* engine_loop_layer's field: the layer taken out */
+void engine_loop_layer(int layer, int field, int value);   /* a kept layer's LEVEL, SOUND, OCTAVE or MUTE (looper.h LL_*) */
 void engine_freeze(void);                          /* the notes held keep sounding (again: they let go) */
 int engine_frozen(void);                           /* (main loop) notes frozen */
 void engine_travel(int scene);                     /* the scene glides there */

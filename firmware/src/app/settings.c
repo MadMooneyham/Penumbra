@@ -226,7 +226,7 @@ int journey_load_work(void)
 }
 
 /* the loop (OBJ_LOOP): kept with the journey playing, so a session survives a power cut */
-static uint8_t lp_buf[16u + LP_EVENTS * 8u] __attribute__((aligned(4))) PEN_POOL;
+static uint8_t lp_buf[LP_SAVE_MAX] __attribute__((aligned(4))) PEN_POOL;
 _Static_assert(sizeof lp_buf <= PLAT_STORE_MAX, "the loop fits one object");
 int loop_load_work(void)
 {
