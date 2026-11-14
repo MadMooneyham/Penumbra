@@ -125,3 +125,5 @@ also runs on a desktop simulator for testing.
   full credits are in LICENSING.md.
 
 M-VAVE and FM-1 are trademarks of their owners.
+
+You can also try Penumbra in the browser, no flashing needed, in the free community [FM-1 Emulator](https://fm1-emulator.atst.tools/).
