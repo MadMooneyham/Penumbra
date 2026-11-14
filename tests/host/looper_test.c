@@ -2,7 +2,8 @@
 /* The looper (firmware/src/seq/looper.c) alone: a phrase recorded plays back as played, round after
  * round, its length the nearest whole beat; an overdub adds a layer, UNDO takes it away again, CLEAR
  * the lot; a note held as a recording closes is let go round the loop, never stuck; STOP lets
- * everything go, PLAY starts from the start. */
+ * everything go, PLAY starts from the start. A note's tag (Penumbra's: the VOX sound it was played with)
+ * comes back with it, each layer's its own, saved and loaded too. */
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
@@ -12,12 +13,13 @@ static int fails;
 #define CHECK(c, what) do { if (c) printf("  ok   %s\n", what); else { printf("  FAIL %s\n", what); fails++; } } while (0)
 
 static looper_t L;
-static struct { int on[128], ons, offs; uint32_t at[64]; int nat; } S;
+static struct { int on[128], ons, offs, tags[16]; uint32_t at[64]; int nat; } S;
 static uint32_t now;
-static void s_on(void *x, int n, int v)
+static void s_on(void *x, int n, int v, int tag)
 {
     (void)x;
     (void)v;
+    S.tags[tag & 15]++;
     S.on[n & 127]++;
     S.ons++;
     if (S.nat < 64)
@@ -46,9 +48,9 @@ static void run(uint32_t ticks)                     /* in blocks of 13 ticks (ab
 }
 static void hand(int note, uint32_t held, uint32_t after)   /* a note played: on, held, off */
 {
-    looper_note(&L, note, 100);
+    looper_note(&L, note, 100, 0);
     run(held);
-    looper_note(&L, note, 0);
+    looper_note(&L, note, 0, 0);
     run(after);
 }
 
@@ -82,10 +84,10 @@ int main(void)
     run(2u * L.len);
     CHECK(L.layers == 1 && L.n == 4 && S.ons == 4, "UNDO: the last layer gone, the first plays on");
     looper_rec(&L, &O);
-    looper_note(&L, 72, 100);                      /* held as the layer closes */
+    looper_note(&L, 72, 100, 0);                    /* held as the layer closes */
     run(40u);
     looper_rec(&L, &O);
-    looper_note(&L, 72, 0);
+    looper_note(&L, 72, 0, 0);
     run(3u * L.len);
     CHECK(S.on[72] == 0, "a note held as a layer closes: let go round the loop, not stuck");
     looper_play(&L, &O);
@@ -130,6 +132,31 @@ int main(void)
         CHECK(looper_load(&L, buf, n) != 0, "something else: not loaded");
         looper_rec(&L, &O);
         CHECK(looper_save(&L, buf, sizeof buf) == 0, "overdubbing: not saved (not now)");
+    }
+    {   /* tags: a layer played with tag 2, one over it with tag 4; each note comes back with its own */
+        static uint8_t buf[16 + LP_EVENTS * 8];
+        uint32_t n;
+        looper_clear(&L, &O);
+        looper_rec(&L, &O);
+        looper_note(&L, 60, 100, 2);
+        run(LP_BEAT);
+        looper_note(&L, 60, 0, 2);
+        run(LP_BEAT);
+        looper_rec(&L, &O);
+        looper_rec(&L, &O);
+        looper_note(&L, 64, 100, 4);
+        run(LP_BEAT / 2u);
+        looper_note(&L, 64, 0, 4);
+        looper_rec(&L, &O);
+        memset(S.tags, 0, sizeof S.tags);
+        run(2u * L.len);
+        CHECK(S.tags[2] == 2 && S.tags[4] == 2 && S.tags[0] == 0, "each layer's notes come back with their own tag");
+        n = looper_save(&L, buf, sizeof buf);
+        looper_clear(&L, &O);
+        memset(S.tags, 0, sizeof S.tags);
+        CHECK(looper_load(&L, buf, n) == 0, "a tagged loop loads");
+        run(2u * L.len);
+        CHECK(S.tags[2] == 2 && S.tags[4] == 2 && S.tags[0] == 0, "saved and loaded: the tags kept");
     }
     printf(fails ? "%d FAILED\n" : "all passed\n", fails);
     return fails != 0;

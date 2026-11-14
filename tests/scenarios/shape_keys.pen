@@ -1,0 +1,63 @@
+# On a SHAPE page the knobs stay the page's while keys are played: a drone key, a VOX sound's key, BLOOM's
+# or a white key held there does not take the knobs (a hold), and SHAPE stays on its page. (It jumped to
+# DRONE, its first page, when a drone key was played while a knob turned.) FX held still throws there.
+# On HOME the holds are as they were, and ENV then opens that part's page.
+autoplay 0
+wait 300
+tap ENV
+turn SELECT 7
+wait 100
+expect page 7
+expect tide0 64
+key b1 down
+wait 50
+turn K1 5
+wait 50
+key b1 up
+wait 100
+expect page 7
+expect tide0 74
+expect dvoice21 106
+key w3 down
+wait 50
+turn K2 -3
+wait 50
+key w3 up
+wait 100
+expect page 7
+expect tide1 18
+expect perf5 0
+key b8 down
+wait 50
+turn K3 2
+key b8 up
+wait 100
+expect page 7
+expect tide2 24
+key b6 down
+wait 50
+turn K4 2
+key b6 up
+wait 100
+expect page 7
+expect tide3 4
+press FX
+wait 100
+turn K1 10
+wait 100
+expect perf0 40
+release FX
+wait 100
+expect page 7
+tap HOME
+key b1 down
+wait 50
+turn K1 -5
+wait 50
+key b1 up
+wait 100
+expect dvoice21 96
+tap ENV
+wait 100
+expect page 0
+expect clips 0

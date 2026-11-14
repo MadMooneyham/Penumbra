@@ -38,9 +38,18 @@ static void voice_pans(vox_t *x)
 
 void vox_set(vox_t *x, int i, int value)
 {
+    int s;
+    for (s = 0; s < VOX_SOUNDS; s++)
+        vox_set_s(x, s, i, value);
+}
+
+void vox_set_s(vox_t *xx, int snd, int i, int value)
+{
     const param_t *p = vox_param(i);
-    if (!p)
+    vox_sound_t *x;
+    if (!p || snd < 0 || snd >= VOX_SOUNDS)
         return;
+    x = &xx->s[snd];
     value = value < 0 ? 0 : value > p->max ? p->max : value;
     x->pot[i] = (uint8_t)value;
     switch (i) {
@@ -56,7 +65,7 @@ void vox_set(vox_t *x, int i, int value)
     case VX_SUSTAIN: x->sus = pot01(value); break;
     case VX_RELEASE: x->rel_c = one_pole(pot_exp(value, 0.005f, 10.6f)); break;
     case VX_VIB: x->vib = pot01(value) * 20.0f; break;                      /* cents */
-    case VX_SPREAD: x->spread = pot01(value); voice_pans(x); break;
+    case VX_SPREAD: xx->spread = pot01(value); voice_pans(xx); break;
     case VX_LEVEL: x->level = pot01(value) * pot01(value) * 1.6129f; break; /* 100 = unity, square law */
     case VX_WAVE:                                                           /* saw .. square, then narrower */
         x->wmix = value >= 64 ? 1.0f : (float)value * (1.0f / 64.0f);
@@ -83,6 +92,8 @@ void vox_init(vox_t *x)
     }
     for (k = 0; k < VX_NPARAMS; k++)
         vox_set(x, k, VOX_P[k].def);
+    for (k = 0; k < VOX_SOUNDS; k++)
+        x->s[k].level_s = x->s[k].level;
     x->last_note = -1.0f;
 }
 
@@ -105,14 +116,14 @@ int vox_held(const vox_t *x, int note)
     return 0;
 }
 
-/* the voice a new note takes: the one with that note already, else a silent one, else the one let
- * go longest ago, else the oldest held */
-static int pick(const vox_t *x, int note)
+/* the voice a new note takes: the one with that note (of that sound) already, else a silent one, else
+ * the one let go longest ago, else the oldest held */
+static int pick(const vox_t *x, int note, int snd)
 {
     int i, best = -1, best_rank = 99;
     uint32_t best_age = 0;
     for (i = 0; i < VOX_VOICES; i++)
-        if (x->v[i].note == note && !voice_idle(&x->v[i]))
+        if (x->v[i].note == note && x->v[i].snd == snd && !voice_idle(&x->v[i]))
             return i;
     for (i = 0; i < VOX_VOICES; i++) {
         const vox_voice_t *v = &x->v[i];
@@ -126,14 +137,19 @@ static int pick(const vox_t *x, int note)
     return best;
 }
 
-void vox_note_on(vox_t *x, int note, float vel)
+void vox_note_on(vox_t *x, int note, float vel) { vox_note_on_s(x, note, vel, 0); }
+
+void vox_note_on_s(vox_t *x, int note, float vel, int snd)
 {
-    vox_voice_t *v = &x->v[pick(x, note)];
-    if (x->glide_c < 1.0f && x->last_note >= 0.0f)  /* GLIDE: from the last note played */
+    vox_voice_t *v;
+    snd = snd < 0 ? 0 : snd >= VOX_SOUNDS ? VOX_SOUNDS - 1 : snd;
+    v = &x->v[pick(x, note, snd)];
+    if (x->s[snd].glide_c < 1.0f && x->last_note >= 0.0f)  /* GLIDE: from the last note played */
         v->pitch = x->last_note;
     else if (v->note != note || voice_idle(v))
         v->pitch = (float)note;
     x->last_note = (float)note;
+    v->snd = snd;
     v->note = note;
     v->gate = 1;
     v->stage = 0;                                   /* the attack, from wherever the level is */
@@ -142,16 +158,17 @@ void vox_note_on(vox_t *x, int note, float vel)
     x->ctrl_left = 0;                               /* its pitch now */
 }
 
-void vox_note_off(vox_t *x, int note)
+void vox_note_off_s(vox_t *x, int note, int snd)       /* (snd < 0: whatever its sound) */
 {
     int i;
     for (i = 0; i < VOX_VOICES; i++)
-        if (x->v[i].gate && x->v[i].note == note) {
+        if (x->v[i].gate && x->v[i].note == note && (snd < 0 || x->v[i].snd == snd)) {
             x->v[i].gate = 0;
             x->v[i].stage = 2;
             x->v[i].age = ++x->clock;
         }
 }
+void vox_note_off(vox_t *x, int note) { vox_note_off_s(x, note, -1); }
 
 void vox_bend(vox_t *x, float semitones) { x->bend = semitones; }
 
@@ -168,29 +185,35 @@ static float mtof_inc(float midi) { return 440.0f * fm_exp2f((midi - 69.0f) * (1
 
 static void control(vox_t *x)
 {
-    float vib;
+    float lfo;
     int i;
     x->vib_ph += 5.2f * (float)VOX_CTRL * INV_SR;
     if (x->vib_ph >= 1.0f)
         x->vib_ph -= 1.0f;
-    vib = fm_sin_turns(x->vib_ph) * x->vib * 0.01f;
+    lfo = fm_sin_turns(x->vib_ph) * 0.01f;
     x->bend_s += (x->bend - x->bend_s) * 0.03f;     /* (a control step is 0.36 ms: ~12 ms to get there) */
     if (fm_fabsf(x->bend - x->bend_s) < 1e-4f)
         x->bend_s = x->bend;
-    vib += x->bend_s;
+    for (i = 0; i < VOX_SOUNDS; i++) {
+        vox_sound_t *s = &x->s[i];
+        s->level_s += (s->level - s->level_s) * 0.02f;
+        if (fm_fabsf(s->level - s->level_s) < 1e-5f)
+            s->level_s = s->level;
+    }
     for (i = 0; i < VOX_VOICES; i++) {
         vox_voice_t *v = &x->v[i];
+        const vox_sound_t *s = &x->s[v->snd];
         float n, fc, g, k;
         if (voice_idle(v))
             continue;
-        v->pitch += ((float)v->note - v->pitch) * x->glide_c;
-        n = v->pitch + vib;
-        v->inc[0] = mtof_inc(n - x->det * 0.005f);
-        v->inc[1] = mtof_inc(n + x->octb + x->det * 0.005f);
-        fc = x->cutoff * fm_exp2f(x->envamt * v->env + x->keytrk * ((float)v->note - 60.0f) * (1.0f / 12.0f));
+        v->pitch += ((float)v->note - v->pitch) * s->glide_c;
+        n = v->pitch + lfo * s->vib + x->bend_s;
+        v->inc[0] = mtof_inc(n - s->det * 0.005f);
+        v->inc[1] = mtof_inc(n + s->octb + s->det * 0.005f);
+        fc = s->cutoff * fm_exp2f(s->envamt * v->env + s->keytrk * ((float)v->note - 60.0f) * (1.0f / 12.0f));
         fc = fm_clampf(fc, 20.0f, SR * 0.45f);
         g = fm_tanf(FM_PI * fc * INV_SR);
-        k = 2.0f - 2.0f * x->reso;
+        k = 2.0f - 2.0f * s->reso;
         v->a1 = 1.0f / (1.0f + g * (g + k));
         v->a2 = g * v->a1;
         v->a3 = g * v->a2;
@@ -221,10 +244,10 @@ static inline float pulse(float t, float dt, float pw)
     return saw(t, dt) - saw(t2, dt);
 }
 
-static void voice_chunk(vox_t *x, vox_voice_t *v, float *l, float *r, int n)
+static void voice_chunk(const vox_sound_t *x, vox_voice_t *v, float *l, float *r, int n)
 {
     const float ga = 1.0f - x->mixb, gb = x->mixb, sus = x->sus, wm = x->wmix, pw = x->pw;
-    const float gain = VOX_SCALE * x->level * (0.4f + 0.6f * v->vel);
+    const float gain = VOX_SCALE * x->level_s * (0.4f + 0.6f * v->vel);
     const float pl = v->pan_l * gain, pr = v->pan_r * gain;
     const float a1 = v->a1, a2 = v->a2, a3 = v->a3, lpg = 1.0f - x->bp, bpg = x->bp * v->bpk;
     float ta = v->ph[0], tb = v->ph[1], da = v->inc[0], db = v->inc[1];
@@ -281,7 +304,7 @@ void vox_render(vox_t *x, float *l, float *r, int n)
         m = n - done < x->ctrl_left ? n - done : x->ctrl_left;
         for (i = 0; i < VOX_VOICES; i++)
             if (!voice_idle(&x->v[i]))
-                voice_chunk(x, &x->v[i], l + done, r + done, m);
+                voice_chunk(&x->s[x->v[i].snd], &x->v[i], l + done, r + done, m);
         x->ctrl_left -= m;
         done += m;
     }

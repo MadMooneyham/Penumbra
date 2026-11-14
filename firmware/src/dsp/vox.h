@@ -4,6 +4,10 @@
  * cutoff the envelope opens and the key follows, a slow ADSR, one gentle vibrato for all, the voices
  * spread across the field.
  *
+ * It has VOX_SOUNDS sounds, each a full set of the parameters; a note is played with one of them and keeps
+ * it until it ends, so notes of different sounds sound together (a loop's with its own, the hands' with
+ * another). The vibrato's rate, the bend and the glide's last note are shared.
+ *
  * Notes take a free voice, else the one released longest ago, else the oldest held. A taken voice
  * carries on from its level and its phases (its envelope starts its attack from where it is), so a
  * steal never clicks. A silent voice costs nothing.
@@ -15,7 +19,8 @@
 #include "param.h"
 
 #define VOX_VOICES 4
-#define VOX_CTRL 16                       /* control rate: every 16 samples */
+#define VOX_SOUNDS 4
+#define VOX_CTRL 16                      /* control rate: every 16 samples */
 #define VOX_MAX_BLOCK 256
 
 /* WAVE: saw (0) .. square (64) .. a narrow pulse (127), both oscillators. FMODE: the filter low-pass (0)
@@ -35,12 +40,19 @@ typedef struct {
     float vel;
     float pitch;                          /* the note it sounds, gliding to note */
     float bpk;                            /* the band-pass's gain: k, so its peak is unity */
+    int32_t snd;                          /* the sound it plays with (taken at its note on) */
 } vox_voice_t;
 
 typedef struct {
     uint8_t pot[VX_NPARAMS];
-    float det, octb, mixb, cutoff, reso, envamt, keytrk, atk_c, dec_c, sus, rel_c, vib, spread, level;
-    float wmix, pw, bp, glide_c, last_note;
+    float det, octb, mixb, cutoff, reso, envamt, keytrk, atk_c, dec_c, sus, rel_c, vib, level;
+    float level_s;                        /* the level, gliding (~20 ms: a turned LEVEL has no steps) */
+    float wmix, pw, bp, glide_c;
+} vox_sound_t;
+
+typedef struct {
+    vox_sound_t s[VOX_SOUNDS];
+    float spread, last_note;              /* (SPREAD is all the sounds': the voices' places) */
     float bend, bend_s;                   /* pitch bend, semitones: where it is going, where it is */
     vox_voice_t v[VOX_VOICES];
     float vib_ph;
@@ -49,8 +61,10 @@ typedef struct {
 } vox_t;
 
 void vox_init(vox_t *x);
-void vox_note_on(vox_t *x, int note, float vel);
-void vox_note_off(vox_t *x, int note);
+void vox_note_on(vox_t *x, int note, float vel);              /* with sound 0 */
+void vox_note_off(vox_t *x, int note);                        /* that note, whatever its sound */
+void vox_note_on_s(vox_t *x, int note, float vel, int snd);   /* with sound snd (0 .. VOX_SOUNDS - 1) */
+void vox_note_off_s(vox_t *x, int note, int snd);             /* that note of that sound only */
 void vox_all_off(vox_t *x);
 void vox_bend(vox_t *x, float semitones);   /* every voice, sliding there (~10 ms) */
 int vox_active(const vox_t *x);           /* any voice sounding */
@@ -58,4 +72,5 @@ int vox_held(const vox_t *x, int note);   /* (tests) a voice holds the note */
 /* adds the voices into l and r (the caller clears them) */
 void vox_render(vox_t *x, float *l, float *r, int n);
 const param_t *vox_param(int i);
-void vox_set(vox_t *x, int i, int value);
+void vox_set(vox_t *x, int i, int value);                     /* every sound's */
+void vox_set_s(vox_t *x, int snd, int i, int value);          /* one sound's */

@@ -1,0 +1,47 @@
+# A loop keeps the VOX sound it was recorded with. A note recorded with GLASS (held round the whole loop,
+# so it sounds all the way round) loops as GLASS after REED is picked; the hands then play REED over it,
+# both sounding at once; a layer recorded with REED loops as REED beside the first, whichever sound is in
+# hand (that layer's note is held for most of the loop: longer than the loop, it would end just after it
+# began). PRESET: the loop still follows the scene's key, each layer its own sound.
+wait 1000
+expect vcur 1
+tap REC
+key w2 down
+wait 2600
+tap REC
+wait 100
+key w2 up
+expect looper 2
+tapkey b8
+wait 100
+expect vcur 2
+wait 3000
+expect vox_sounds 1
+key w5 down
+wait 300
+expect vox_sounds 3
+key w5 up
+wait 300
+expect vox_sounds 1
+tap REC
+key w6 down
+wait 2500
+key w6 up
+wait 300
+tap REC
+wait 100
+expect layers 2
+tapkey b7
+wait 100
+expect vcur 1
+wait 3000
+expect vox_sounds 3
+tapkey b10
+wait 3000
+expect vcur 4
+expect vox_sounds 3
+turn PRESET 1
+wait 13000
+expect scene 2
+expect vox_sounds 3
+expect clips 0

@@ -88,13 +88,13 @@ static void fire(looper_t *l, uint32_t from, uint32_t to, int incl_from, const l
         const lp_ev_t *e = &l->ev[i];
         if (!((e->t > from || (incl_from && e->t == from)) && e->t <= to))
             continue;
-        if (e->kind == LK_HIT) {
+        if ((e->kind & 15u) == LK_HIT) {
             o->hit(o->ctx, e->note, e->vel);
         } else if (e->vel) {
             if (BIT(l->sounding, e->note))
                 o->off(o->ctx, e->note);
             SET(l->sounding, e->note);
-            o->on(o->ctx, e->note, e->vel);
+            o->on(o->ctx, e->note, e->vel, e->kind >> 4);
         } else if (BIT(l->sounding, e->note)) {
             CLR(l->sounding, e->note);
             o->off(o->ctx, e->note);
@@ -217,7 +217,7 @@ void looper_speed(looper_t *l, int dir)
     l->edits++;
 }
 
-static void record(looper_t *l, int kind, int note, int vel)
+static void record(looper_t *l, int kind, int note, int vel, int tag)
 {
     if (l->state != LS_REC && l->state != LS_DUB)
         return;
@@ -230,10 +230,10 @@ static void record(looper_t *l, int kind, int note, int vel)
         else
             CLR(l->held, (uint32_t)note);
     }
-    add(l, l->pos, kind, note, vel);
+    add(l, l->pos, kind | (tag & 15) << 4, note, vel);
 }
-void looper_note(looper_t *l, int note, int vel) { record(l, LK_NOTE, note, vel); }
-void looper_hit(looper_t *l, int which, int vel) { record(l, LK_HIT, which, vel ? vel : 1); }
+void looper_note(looper_t *l, int note, int vel, int tag) { record(l, LK_NOTE, note, vel, vel ? tag : 0); }
+void looper_hit(looper_t *l, int which, int vel) { record(l, LK_HIT, which, vel ? vel : 1, 0); }
 
 void looper_advance(looper_t *l, uint32_t ticks, const lp_sink_t *o)
 {
@@ -329,7 +329,7 @@ int looper_load(looper_t *l, const void *src, uint32_t n)
         d[k] = s[LP_HDR + k];
     for (k = 0; k < h.n; k++) {                  /* (each where it can be) */
         l->ev[k].t %= h.len;
-        l->ev[k].kind = l->ev[k].kind == LK_HIT ? LK_HIT : LK_NOTE;
+        l->ev[k].kind = (l->ev[k].kind & 15u) == LK_HIT ? LK_HIT : (uint8_t)(LK_NOTE | (l->ev[k].kind & 0xF0u));
     }
     l->n = h.n;
     l->len = h.len;

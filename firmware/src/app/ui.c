@@ -632,17 +632,20 @@ static void vsound_pick(int s)
 /* ---------------------------------------------------------------- the holds --- */
 static int layer(void)
 {
-    if (ui.dheld)
+    const int keys = ui.view != V_SHAPE;          /* on SHAPE the knobs stay the page's: keys there are for
+                                                   * playing while you shape (a key hold would take the knob
+                                                   * and send SHAPE to that part's page) */
+    if (keys && ui.dheld)
         return L_DRONE;
-    if (ui.vheld)
+    if (keys && ui.vheld)
         return L_VSOUND;
-    if (ui.bheld)
+    if (keys && ui.bheld)
         return L_BLOOM;
     if (ui.btn >> B_ENV & 1u)
         return L_SOUND;
     if (ui.btn >> B_FX & 1u)
         return L_THROW;
-    if (ui.wheld)
+    if (keys && ui.wheld)
         return L_BEND;
     return L_PAGE;
 }

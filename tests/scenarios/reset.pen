@@ -3,13 +3,13 @@
 # HOME's macros, a throw kept. The scenes, the tempo and the loop stay. Once alone does nothing.
 autoplay 0
 wait 300
-tap ENV
-turn K1 10
-expect shape11 95
 key b2 down
 turn K2 -5
 key b2 up
 expect dvoice32 65
+tap ENV
+turn K1 10
+expect shape11 95
 tap SEL
 wait 100
 expect shape11 95

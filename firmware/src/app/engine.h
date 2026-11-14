@@ -144,6 +144,7 @@ int engine_drone_on(int voice);                    /* (main loop) the voice is o
 float engine_drone_level(int voice);               /* (main loop) how loud it is now, 0..1 of its LEVEL (it rises, falls) */
 void engine_pulse(int which, int vel);             /* PULSE_KICK (0) or PULSE_BLOOM (1), vel 0..127 */
 int engine_vox_sounding(void);                     /* (main loop) a VOX voice sounds */
+int engine_vox_sounds(void);                    /* (tests) the VOX sounds with a note held now (bit s) */
 void engine_load_test(int on);                     /* every voice at its heaviest: the worst case */
 int engine_load_testing(void);
 void engine_out_loud(int on);                      /* 1: the output at the codec's full scale */

@@ -12,7 +12,9 @@
  * Time is the clock's: LP_TPS ticks a 16th, counted by the caller (looper_advance with the ticks since
  * the last call, from the clock's steps and the frames since the last one). A note is whatever the
  * caller says it is (Penumbra's: a scale degree, so a loop follows the scene's key): the loop plays it
- * back through a sink. At most LP_EVENTS. One context (the audio ISR) calls everything. */
+ * back through a sink. A note on carries a tag (0 .. 15), the caller's too (Penumbra's: the VOX sound it
+ * was played with, 1 .. 4; 0, a loop from before 1.5: the sound in hand). At most LP_EVENTS. One context
+ * (the audio ISR) calls everything. */
 #pragma once
 #include <stdint.h>
 
@@ -28,12 +30,12 @@ enum { LK_NOTE, LK_HIT };                        /* an event's kind: a note (on,
 
 typedef struct {
     uint32_t t;                                 /* ticks from the loop's start */
-    uint8_t note, vel, layer, kind;             /* vel 0: off */
+    uint8_t note, vel, layer, kind;             /* vel 0: off. kind: LK_* in its low four bits, the tag above */
 } lp_ev_t;
 
 typedef struct {
     void *ctx;
-    void (*on)(void *ctx, int note, int vel);
+    void (*on)(void *ctx, int note, int vel, int tag);
     void (*off)(void *ctx, int note);
     void (*hit)(void *ctx, int which, int vel);
 } lp_sink_t;
@@ -61,7 +63,7 @@ void looper_restart(looper_t *l, const lp_sink_t *o);         /* the clock start
 /* the clock put at a place (a DAW's SONG POSITION): a playing loop where it would be, had it played from
  * the downbeat (ticks since it), silently there (what starts at that tick plays) */
 void looper_seek(looper_t *l, uint32_t ticks, const lp_sink_t *o);
-void looper_note(looper_t *l, int note, int vel);             /* the hands (vel 0: off): recorded while it records */
+void looper_note(looper_t *l, int note, int vel, int tag);    /* the hands (vel 0: off): recorded while it records */
 void looper_hit(looper_t *l, int which, int vel);             /* a hit, the same */
 void looper_advance(looper_t *l, uint32_t ticks, const lp_sink_t *o);
 /* saving: what is worth keeping, n bytes of it (0: nothing, or not now: recording); and back */

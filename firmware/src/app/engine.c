@@ -171,6 +171,14 @@ static void cq_put(uint32_t type, uint32_t a, uint32_t b, uint32_t c)
 void engine_drone_key(int voice) { cq_put(C_DRONE_KEY, (uint32_t)voice, 0, 0); }
 static volatile uint8_t vox_sounding;
 int engine_vox_sounding(void) { return vox_sounding; }
+int engine_vox_sounds(void)                      /* (tests) the VOX sounds with a note held now (bit s) */
+{
+    int i, m = 0;
+    for (i = 0; i < VOX_VOICES; i++)
+        if (vox.v[i].gate)
+            m |= 1 << vox.v[i].snd;
+    return m;
+}
 static volatile uint8_t testing;
 void engine_load_test(int on) { cq_put(C_TEST, (uint32_t)(on != 0), 0, 0); }
 int engine_load_testing(void) { return testing; }
@@ -350,44 +358,50 @@ static const jr_sink_t JSINK = {0, js_drone_note, js_drone_latch, js_drone_relea
 
 /* VOX's notes, the hands' (keys, MIDI) and the looper's: counted for the tests and the screen's stars.
  * The looper keeps a note as its degree in the scene (jr_note_code), and plays it in the scene playing
- * then; what each of its notes sounds as is kept, so its off ends that one whatever the scene is now */
+ * then; what each of its notes sounds as is kept, so its off ends that one whatever the scene is now.
+ * A note keeps the VOX sound it was played with: the hands' the one in hand then, the looper's the one it
+ * was recorded with (its tag, the sound + 1; 0, a loop from before 1.5: the sound in hand) */
+_Static_assert(JR_VSOUNDS == VOX_SOUNDS, "a VOX sound each");
 volatile uint32_t eng_vox_notes;
-static uint8_t lp_midi[256], hand_code[128];
-static void vox_on(int midi, int vel)
+static uint8_t lp_midi[256], lp_snd[256], hand_code[128], hand_snd[128];
+static void vox_on(int midi, int vel, int snd)
 {
-    vox_note_on(&vox, midi, (float)vel * (1.0f / 127.0f));
+    vox_note_on_s(&vox, midi, (float)vel * (1.0f / 127.0f), snd);
     eng_vox_notes++;
 }
-static void ls_on(void *x, int code, int vel)
+static void ls_on(void *x, int code, int vel, int tag)
 {
     (void)x;
     lp_midi[code & 255] = (uint8_t)jr_code_note(&jr, code);
-    vox_on(lp_midi[code & 255], vel);
+    lp_snd[code & 255] = (uint8_t)((tag ? tag - 1 : eng_jr.vcur) % JR_VSOUNDS);
+    vox_on(lp_midi[code & 255], vel, lp_snd[code & 255]);
 }
-static void ls_off(void *x, int code) { (void)x; vox_note_off(&vox, lp_midi[code & 255]); }
+static void ls_off(void *x, int code) { (void)x; vox_note_off_s(&vox, lp_midi[code & 255], lp_snd[code & 255]); }
 static void ls_hit(void *x, int which, int vel) { (void)x; hit(which, (float)vel * (1.0f / 127.0f)); }
 static const lp_sink_t LSINK = {0, ls_on, ls_off, ls_hit};
 static void hand_on(int note, int vel)
 {
-    vox_on(note, vel);
+    hand_snd[note & 127] = (uint8_t)(eng_jr.vcur % JR_VSOUNDS);
+    vox_on(note, vel, hand_snd[note & 127]);
     hand_code[note & 127] = (uint8_t)jr_note_code(&jr, note);
-    looper_note(&lp, hand_code[note & 127], vel);
+    looper_note(&lp, hand_code[note & 127], vel, hand_snd[note & 127] + 1);
 }
 static void hand_off(int note)
 {
-    vox_note_off(&vox, note);
-    looper_note(&lp, hand_code[note & 127], 0);
+    vox_note_off_s(&vox, note, hand_snd[note & 127]);
+    looper_note(&lp, hand_code[note & 127], 0, 0);
 }
 
 /* the sound (the SHAPE pages, the drone voices' own), the scene, the HOME macros and the hands' moves
  * into the voices, each block. The drone is the backbone: only its sound and TONE move it, never the
  * scene. VOX is the colour: the scene's brightness, the shape's, a bend. TONE brightens everything,
  * SPACE scales every send, the wind follows the moon. Each pot is set only when its value moves */
-enum { K_DCUT, K_DRESO, K_SWARM, K_VCUT, K_VATK, K_VREL, K_VVIB, K_PPITCH, K_PDEC, K_PTICK, K_TLVL, K_TCOL,
+enum { KV_CUT, KV_ATK, KV_REL, KV_VIB, KV_LEVEL, KV_OF, KV_N = KV_OF + 8 };   /* a VOX sound's, each of the four */
+enum { K_DCUT, K_DRESO, K_SWARM, K_PPITCH, K_PDEC, K_PTICK, K_TLVL, K_TCOL,
        K_TSWEEP, K_TRATE, K_TWIDTH, K_ROOT, K_SHIM, K_FDBK, K_DECAY, K_DIP, K_BLVL, K_BLEN, K_BHGT, K_B5TH,
        K_LEVEL, K_DWAVE = K_LEVEL + EV_N, K_DLVL = K_DWAVE + DRONE_VOICES, K_DTONE = K_DLVL + DRONE_VOICES,
        K_DSPREAD = K_DTONE + DRONE_VOICES, K_DOCT = K_DSPREAD + DRONE_VOICES, K_DMODE = K_DOCT + DRONE_VOICES,
-       K_VX = K_DMODE + DRONE_VOICES, K_SIZE = K_VX + 8, K_DM = K_SIZE + 1, K_WARP = K_DM + DM_N, NK = K_WARP + 1 };
+       K_VX = K_DMODE + DRONE_VOICES, K_SIZE = K_VX + VOX_SOUNDS * KV_N, K_DM = K_SIZE + 1, K_WARP = K_DM + DM_N, NK = K_WARP + 1 };
 static int16_t cache[NK];
 static int moved(int k, int v)
 {
@@ -501,7 +515,7 @@ static void conduct(void)
         if (moved(K_DM + v, dm[v]))
             drone_set(&dn, DRONE_KIT, DM_OF[v], dm[v]);
     for (v = 0; v < EV_N; v++)
-        if (moved(K_LEVEL + v, x = v == EV_VOX ? vs[VS_LEVEL] : sh[v][SH_LEVEL]))
+        if (moved(K_LEVEL + v, x = v == EV_VOX ? 100 : sh[v][SH_LEVEL]))   /* (VOX: each sound's own, below) */
             voice_level(v, x);
     /* DRONE: HOME's DRONE opens its filter and its body together */
     if (moved(K_DCUT, x = clamp127((float)sh[EV_DRONE][SH_K1] + tone * 0.66f + dmac * 0.8f + t_drone)))
@@ -528,22 +542,31 @@ static void conduct(void)
                 drone_trigger(&dn, v, 1.0f);
         }                                        /* (comes and goes -> held: one sounding stays, latched) */
     }
-    /* VOX: the sound playing (of its four), the scene's brightness, a bend */
-    if (moved(K_VCUT, x = clamp127(30.0f + bright * 0.47f + (float)(vs[VS_BRIGHT] - 64 + perf[PF_BRIGHT]) + t_vox)))
-        vox_set(&vox, VX_CUTOFF, x);
-    if (moved(K_VATK, vs[VS_ATTACK]))
-        vox_set(&vox, VX_ATTACK, vs[VS_ATTACK]);
-    if (moved(K_VREL, x = clamp127((float)(vs[VS_RELEASE] + perf[PF_VREL]))))
-        vox_set(&vox, VX_RELEASE, x);
-    if (moved(K_VVIB, x = clamp127((float)(vs[VS_VIB] + perf[PF_VIB]))))
-        vox_set(&vox, VX_VIB, x);
-    vox_bend(&vox, (float)perf[PF_PITCH] * bend_range * (1.0f / 127.0f) + midi_bend);
+    /* VOX: its four sounds, each its own (a note keeps the one it was played with), the scene's brightness
+     * and the tide on all of them; the hands' bends on the one in hand */
     {
         static const uint8_t VX_OF[] = {VX_WAVE, VX_FMODE, VX_RESO, VX_GLIDE, VX_DETUNE, VX_OCTB, VX_MIXB, VX_ENVAMT};
-        for (v = 0; v < 8; v++)
-            if (moved(K_VX + v, vs[VS_WAVE + v]))
-                vox_set(&vox, VX_OF[v], vs[VS_WAVE + v]);
+        int s;
+        for (s = 0; s < JR_VSOUNDS; s++) {
+            const uint8_t *q = eng_jr.vsound[s];
+            const int hand = s == eng_jr.vcur % JR_VSOUNDS, k = K_VX + s * KV_N;
+            if (moved(k + KV_CUT, x = clamp127(30.0f + bright * 0.47f +
+                                               (float)(q[VS_BRIGHT] - 64 + (hand ? perf[PF_BRIGHT] : 0)) + t_vox)))
+                vox_set_s(&vox, s, VX_CUTOFF, x);
+            if (moved(k + KV_ATK, q[VS_ATTACK]))
+                vox_set_s(&vox, s, VX_ATTACK, q[VS_ATTACK]);
+            if (moved(k + KV_REL, x = clamp127((float)(q[VS_RELEASE] + (hand ? perf[PF_VREL] : 0)))))
+                vox_set_s(&vox, s, VX_RELEASE, x);
+            if (moved(k + KV_VIB, x = clamp127((float)(q[VS_VIB] + (hand ? perf[PF_VIB] : 0)))))
+                vox_set_s(&vox, s, VX_VIB, x);
+            if (moved(k + KV_LEVEL, q[VS_LEVEL]))
+                vox_set_s(&vox, s, VX_LEVEL, q[VS_LEVEL]);
+            for (v = 0; v < 8; v++)
+                if (moved(k + KV_OF + v, q[VS_WAVE + v]))
+                    vox_set_s(&vox, s, VX_OF[v], q[VS_WAVE + v]);
+        }
     }
+    vox_bend(&vox, (float)perf[PF_PITCH] * bend_range * (1.0f / 127.0f) + midi_bend);
     /* PULSE */
     if (moved(K_PPITCH, sh[EV_PULSE][SH_K1]))
         pulse_set(&pulse, PL_PITCH, sh[EV_PULSE][SH_K1]);
