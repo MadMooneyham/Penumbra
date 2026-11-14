@@ -486,16 +486,38 @@ static void jrow_name(int r, char *b)
     else
         put_s(put_i(put_s(b, "USER "), r - JR_PRESETS + 1), journey_slot_used(r - JR_PRESETS) ? "" : "  -");
 }
+/* A journey opened brings its own sound, gliding in from the one playing (as a library sound does), so each
+ * sounds as it was made. LOCKED (JOURNEY's knobs; saved with the settings), the sound playing stays, and its
+ * A and B: the journey brings its scenes (and each part's place in the field) alone */
+static jr_sound_t ld_from, ld_to;
 static void journey_sel(void)
 {
+    static jr_sound_t keep;
+    static sound_ab_t keep_ab;
     char b[24];
+    int k;
     jrow_name(ui.jrow, b);
-    if (ui.jrow < JR_PRESETS) {
-        journey_open_preset(ui.jrow);
-    } else if (journey_slot_open(ui.jrow - JR_PRESETS) != 0) {
+    if (ui.jrow >= JR_PRESETS && !journey_slot_used(ui.jrow - JR_PRESETS)) {
         warn("EMPTY: SAVE INTO IT", 0);
         return;
     }
+    jr_sound_get(&eng_jr, &keep);
+    keep_ab = sound_ab;
+    if (ui.jrow < JR_PRESETS)
+        journey_open_preset(ui.jrow);
+    else
+        journey_slot_open(ui.jrow - JR_PRESETS);
+    if (cfg.sound_lock) {
+        sound_ab = keep_ab;
+        for (k = 0; k < JR_SCENES; k++)           /* (its scenes do not move the sound either) */
+            eng_jr.scene[k].blend = 0;
+        ui.load_t = 1.0f;
+    } else {
+        jr_sound_get(&eng_jr, &ld_to);
+        ld_from = keep;
+        ui.load_t = 0.0f;                         /* (ab_tick glides it in) */
+    }
+    jr_sound_put(&eng_jr, &keep);                 /* from the sound playing: no jump */
     midi_ctl_send(0xC0, ui.jrow < JR_PRESETS ? PC_PRESET + ui.jrow : PC_USER + ui.jrow - JR_PRESETS, 0);
     ui.ssel = 0;
     ui.sb_last = -1.0f;                           /* (its scenes' place between A and B: afresh) */
@@ -1459,6 +1481,11 @@ static void knob_turn(int k, int e)
     }
     case V_SHAPE: shape_turn(k, e); break;
     case V_LOOP: loop_layer_knob(k, e); break;
+    case V_JOURNEY:                               /* any knob: the sound locked (right), or the journey's (left) */
+        cfg.sound_lock = (uint8_t)(e > 0);
+        changed();
+        say(cfg.sound_lock ? "SOUND LOCKED: IT STAYS" : "SOUND: EACH JOURNEY'S OWN", 0);
+        break;
     case V_SCENE:
         if (k == 0) {
             int n = eng_jr.nscenes ? eng_jr.nscenes : 1;
@@ -2683,7 +2710,10 @@ static void draw_knobs(void)
     case V_JOURNEY:
         cv_text(6, 20, &FONT_XS, "PLAYING", C_GRAY);
         cv_text(6, 34, &FONT_S, eng_jr.name, C_AMB);
-        hint("SEL: OPEN   LFO: SOUNDS", "SAVE: INTO A USER SLOT");
+        cv_rect(150, 24, 1, 28, C_LINE);
+        text_c(195, 20, &FONT_XS, "SOUND (KNOBS)", C_GRAY);
+        text_c(195, 38, &FONT_S, cfg.sound_lock ? "LOCKED" : "ITS OWN", cfg.sound_lock ? C_AMB : C_HI);
+        hint("SEL: OPEN   LFO: SOUNDS", "SAVE: A USER SLOT");
         break;
     case V_SOUNDS:
         cv_text(6, 20, &FONT_XS, "THE SOUND PLAYING, NOT THE SCENES", C_GRAY);

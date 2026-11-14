@@ -1,0 +1,57 @@
+# A journey opened brings its own sound, gliding in over two seconds from the one playing: FAR SIDE's vast
+# tide, its drone, the voices that come and go. LOCKED (a knob on JOURNEY, right), the sound playing stays and
+# a journey brings its scenes alone; the lock is kept through a power cut. Unlocked again (left), the next
+# one opened brings its own.
+autoplay 0
+wait 300
+expect journey 1
+expect tide0 64
+expect shape11 75
+expect dswell 31
+expect sound_lock 0
+tap LFO
+turn SELECT 5
+tap SEL
+wait 200
+expect journey 6
+expect nscenes 4
+wait 1000
+expect tide0 >64
+expect tide0 <127
+wait 2000
+expect tide0 127
+expect shape11 60
+expect shape13 100
+expect dswell 22
+expect vcur 3
+shot journey_lock.png
+turn K1 1
+wait 100
+expect sound_lock 1
+turn SELECT -4
+tap SEL
+wait 3000
+expect journey 2
+expect nscenes 3
+expect tide0 127
+expect shape11 60
+expect dswell 22
+expect pan1 52
+tap SAVE
+wait 300
+reboot
+wait 300
+expect sound_lock 1
+expect journey 2
+tap LFO
+turn K2 -1
+wait 100
+expect sound_lock 0
+turn SELECT 2
+tap SEL
+wait 3000
+expect journey 4
+expect tide0 112
+expect shape11 86
+expect dswell 0
+expect clips 0

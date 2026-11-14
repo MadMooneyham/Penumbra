@@ -28,7 +28,9 @@ typedef struct {
     uint8_t bend;                        /* PITCH's range either way: 0 2, 1 5, 2 7, 3 12 semitones (BEND_SEMIS) */
     uint8_t midi_quiet;                  /* what does not go out: bit 0 the notes, bit 1 the CCs and program changes
                                           * (a spare byte in 1.1: 0, everything out) */
-    uint8_t rsv[4];
+    uint8_t sound_lock;                  /* 1: a journey opened brings its scenes, and the sound playing stays
+                                          * (0, and a spare byte to 1.4: it brings its own sound, gliding in) */
+    uint8_t rsv[3];
     uint8_t fx[EF_N];                    /* the FX page (engine.h EF_*) */
     uint8_t rsv2[28 - EF_N];
 } settings_t;
@@ -68,7 +70,7 @@ int journey_slot_used(int slot);
 const char *journey_slot_name(int slot);
 int journey_slot_save(int slot);         /* the one playing into the slot; 0 = saved */
 int journey_slot_open(int slot);         /* the slot's journey plays; 0 = done */
-void journey_open_preset(int i);
+void journey_open_preset(int i);          /* the preset plays, all of it: its scenes and its own sound */
 extern uint8_t journey_first;            /* the preset a new unit plays */
 
 void ui_init(void);

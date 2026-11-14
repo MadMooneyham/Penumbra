@@ -318,7 +318,7 @@ these writes to the FM-1's memory as it moves, so a journey can travel all night
 **JOURNEY (LFO)** lists the seven presets and eight user slots:
 
 - **The presets**: ECLIPSE, PENUMBRA, SELENE, TRANQUILITY, PERIGEE, FAR SIDE and TOTALITY. Each has a
-  character of its own as well as its scenes:
+  sound of its own as well as its scenes:
 
   | Journey | Its sound |
   | --- | --- |
@@ -334,9 +334,12 @@ these writes to the FM-1's memory as it moves, so a journey can travel all night
   (JOURNEY, SEL) to have its own sound back.
 - SELECT or PRESET moves through the list, and SEL opens the journey shown.
 - SAVE on a user slot stores the journey playing there.
-- Opening one of the first six presets brings its scenes and each part's place in the field (PAN), and keeps
-  the sound you have made. TOTALITY brings its whole sound, its A and B, its singing and its travelling.
-  Opening a user journey brings back everything saved with it.
+- **A journey opened brings its own sound.** It glides in over two seconds from the sound playing, so each
+  journey sounds as it was made: its drone, its tide, its movement, the voices that come and go. TOTALITY
+  brings its A and B too, its singing and its travelling. A user journey brings back the sound saved with it.
+- **SOUND: LOCKED.** Any knob turned right on JOURNEY locks the sound: journeys opened then bring their
+  scenes (and each part's place in the field) and the sound playing stays, with its A and B. Turned left, it
+  is ITS OWN again. The lock is saved with the settings. A sound worth keeping also fits in SOUNDS or in A.
 
 **SOUNDS (LFO again, from JOURNEY)** is a library of eight sounds, apart from the journeys. A sound is
 everything the SHAPE pages, the holds, DRONE 2 and TIDES set; not the scenes, and not the FX page.

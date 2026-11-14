@@ -64,8 +64,9 @@ Penumbra is slow, and much of what it does best unfolds over a few minutes.
 - **The loop's layers:** **SEL** pressed on HOME opens LOOP, where each layer has its own level, sound,
   octave and mute, and any layer can be taken out.
 - **Colour:** black key 7 is BLOOM, a slow swell; black keys 8-11 are VOX's four sounds.
-- **Other journeys:** **LFO** opens JOURNEY, **SELECT** moves through it, and **SEL** opens one. FAR SIDE is
-  vast, PERIGEE close and quick, TRANQUILITY still.
+- **Other journeys:** **LFO** opens JOURNEY, **SELECT** moves through it, and **SEL** opens one. Each brings
+  its own sound, gliding in: FAR SIDE is vast, PERIGEE close and quick, TRANQUILITY still. A knob turned
+  right there locks the sound playing, so only the scenes change.
 - **Two sounds:** with **ENV** held, **OCT-** keeps the sound as A and **OCT+** as B, and **SELECT** walks
   between them.
 - **SLEEP** (in SYSTEM, the **GLO** button) lets everything go over 20 to 90 minutes.

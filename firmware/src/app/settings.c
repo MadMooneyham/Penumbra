@@ -51,6 +51,7 @@ int settings_load(void)
         s.drone_core = DRONE_SPLIT;
     s.bend %= BEND_RANGES;
     s.midi_quiet &= 3u;
+    s.sound_lock &= 1u;
     for (i = 0; i < EF_N; i++)
         if (s.fx[i] > engine_fx_max(i))
             s.fx[i] = FX_DEF[i];
@@ -346,32 +347,13 @@ uint8_t journey_first = JR_PRESETS - 1;
 void journey_open_preset(int i)
 {
     journey_t j;
-    uint32_t k;
     jr_preset(i, &j);
-    if (jr_preset_ab(i, &sound_ab.a, &sound_ab.b)) {   /* one with two sounds of its own: all of it, at its
-                                                        * first scene's place between them */
+    j.mode = eng_jr.mode;
+    if (jr_preset_ab(i, &sound_ab.a, &sound_ab.b)) {   /* one with two sounds of its own: at its first scene's
+                                                        * place between them */
         sound_ab.have = 3u;
         sound_ab.t = j.scene[0].blend;
-        eng_jr = j;
-        engine_journey_loaded();
-        return;
     }
-    j.mode = eng_jr.mode;                         /* (the mode and the sound are how you are playing: they stay;
-                                                   * a user journey brings its own) */
-    for (k = 0; k < sizeof j.shape; k++)
-        (&j.shape[0][0])[k] = (&eng_jr.shape[0][0])[k];
-    for (k = 0; k < sizeof j.dvoice; k++)
-        (&j.dvoice[0][0])[k] = (&eng_jr.dvoice[0][0])[k];
-    j.dswell = eng_jr.dswell;
-    for (k = 0; k < sizeof j.bloom; k++)
-        j.bloom[k] = eng_jr.bloom[k];
-    for (k = 0; k < sizeof j.vsound; k++)
-        (&j.vsound[0][0])[k] = (&eng_jr.vsound[0][0])[k];
-    j.vcur = eng_jr.vcur;
-    for (k = 0; k < JR_DMOTION; k++)
-        j.dmotion[k] = eng_jr.dmotion[k];
-    for (k = 0; k < JR_TIDE; k++)
-        j.tide[k] = eng_jr.tide[k];
     eng_jr = j;
     engine_journey_loaded();
 }

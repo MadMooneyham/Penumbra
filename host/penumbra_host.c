@@ -595,6 +595,8 @@ static int expect(const char *what, const char *val)
         got = ((const uint8_t *)&engine_looper_state()->lay[what[3] - '1'])[(what[4] - '0') & 3];
     else if (!strcmp(what, "lrow"))                 /* LOOP's layer shown, 1 .. */
         got = ui.lrow + 1;
+    else if (!strcmp(what, "sound_lock"))           /* JOURNEY's lock: 1 the sound playing stays when a journey opens */
+        got = cfg.sound_lock;
     else if (!strcmp(what, "jtravel"))              /* the journey travels by itself: 0 not, 1 .. 4 every 8 .. 64 bars */
         got = eng_jr.travel;
     else if (!strcmp(what, "nscenes"))
