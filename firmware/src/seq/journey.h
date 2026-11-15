@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Penumbra's journeys (docs: "Penumbra: rewrite design"): banks of places to play in, and the sound.
- * Nothing here plays on its own but the drone, and VOX when it is set to sing (vsing): else VOX is your
+ * Nothing here plays on its own but the drone, and VOX's sounds set to sing (sing): else VOX is your
  * hands' (and the looper's).
  *
  *   scene      a key and scale, the drone's pedal and how it voices it, VOX's brightness and register,
@@ -38,7 +38,7 @@
 #define JR_DVOICE 4                             /* each drone voice's own, its black key held (engine.h DV_*) */
 #define JR_DMOTION 4                            /* the drone's movement (engine.h DM_*) */
 #define JR_TIDE 5                               /* TIDES (engine.h TD_*) */
-#define JR_SING_N 4                             /* vsing's settings: not, rarely, now and then, often */
+#define JR_SING_N 4                             /* a sound's singing: not, rarely, now and then, often */
 #define JR_PAN JR_VOICES                        /* each voice's place in the field (64: the middle) */
 
 enum { SC_IONIAN, SC_DORIAN, SC_PHRYGIAN, SC_LYDIAN, SC_MIXOLYDIAN, SC_AEOLIAN, SC_HARMONIC, NSCALES };
@@ -88,11 +88,13 @@ typedef struct {
                                                  * SH_HIDE) (engine.h BL_*) */
     uint8_t vsound[JR_VSOUNDS][JR_VS];          /* VOX's four sounds (shape[VOX] is unused: these are VOX's) */
     uint8_t vcur;                               /* the one playing */
-    uint8_t vsing;                              /* VOX sings by itself: 0 not, 1 rarely, 2 now and then, 3 often
-                                                 * (JR_SING_N - 1): a few soft, slow notes in the scene's key */
-    uint8_t vsing_snd;                          /* with this one of its sounds (0 .. JR_VSOUNDS - 1) */
-    uint8_t rsv3[1];
+    uint8_t vsing, vsing_snd;                   /* (1.5's: one sound singing, at that level; settings.c moves it
+                                                 * into sing, and they stay 0) */
+    uint8_t sing;                               /* each VOX sound singing by itself, two bits each (sound s: bits
+                                                 * 2s, 2s + 1): 0 not, 1 rarely, 2 now and then, 3 often; a few
+                                                 * soft, slow notes in the scene's key, each sound its own phrases */
 } journey_t;
+#define JR_SING(j, s) ((int)((j)->sing >> (2 * ((s) % JR_VSOUNDS)) & 3u))
 
 /* a journey's sound alone, without its scenes: what SHAPE, the holds and TIDES set (A/B and the sound
  * library keep these). All bytes, laid out as in journey_t */
@@ -139,9 +141,10 @@ typedef struct {
     uint8_t dpend;                              /* the voices still to move (bit v) */
     float dwait;                                /* seconds to the next */
     uint8_t swell_wait[JR_DRONES];              /* the swelling voices: bars to the next */
-    /* VOX singing: beats to its next note, notes left in the phrase, beats its note has left (0: none on),
-     * that note and its sound, the white key (degree) it is on */
-    uint8_t sing_wait, sing_left, sing_hold, sing_note, sing_snd, sing_w;
+    /* VOX singing, each sound its own: beats to its next note, notes left in the phrase, beats its note has
+     * left (0: none on), that note, the white key (degree) it is on */
+    uint8_t sing_wait[JR_VSOUNDS], sing_left[JR_VSOUNDS], sing_hold[JR_VSOUNDS], sing_note[JR_VSOUNDS],
+        sing_w[JR_VSOUNDS];
     uint16_t bars_here;                         /* bars in this scene (it travels by itself: on at JR_TRAVEL_BARS) */
     uint32_t srng;
     float macro_s[NMACROS];

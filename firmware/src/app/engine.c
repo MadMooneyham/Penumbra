@@ -356,13 +356,14 @@ static void js_drone_swell(void *x, int v)
     drone_trigger(&dn, v, 1.0f);
 }
 static void vox_on(int midi, int vel, int snd);
+volatile uint8_t eng_sung;                       /* (tests) the sounds that have sung a note (bit s) */
 static void js_sing(void *x, int midi, int vel, int snd)   /* VOX singing by itself: not the looper's, not MIDI's */
 {
     (void)x;
     if (testing)
         return;
     if (vel)
-        vox_on(midi, vel, snd);
+        eng_sung |= (uint8_t)(1u << (snd & 7)), vox_on(midi, vel, snd);
     else
         vox_note_off_s(&vox, midi, snd);
 }

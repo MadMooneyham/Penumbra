@@ -19,8 +19,9 @@ static jrun_t R;
 static journey_t J;
 static struct {
     uint32_t out_key, moves, gap_min, last, swells, releases, latched;
-    uint32_t sung, sung_out, sung_on, sung_bad, sung_snd;   /* VOX singing: notes, out of the key, on now, an off
-                                                             * without its on (or two on), the sounds used (bit s) */
+    uint32_t sung, sung_out, sung_on[JR_VSOUNDS], sung_bad, sung_snd;   /* VOX singing: notes, out of the key, each
+                                                             * sound's on now, an off without its on (or two on in one
+                                                             * sound), the sounds used (bit s) */
 } S;
 static uint32_t frames_now, started;
 static int in_key(int midi, const scene_t *s)
@@ -49,15 +50,16 @@ static void d_swell(void *x, int v) { (void)x; (void)v; S.swells++; }
 static void d_sing(void *x, int m, int vel, int snd)
 {
     (void)x;
+    snd %= JR_VSOUNDS;
     S.sung_snd |= 1u << snd;
     if (vel) {
         S.sung++;
         S.sung_out += !in_key(m, &J.scene[R.cur]);
-        S.sung_bad += S.sung_on != 0;
-        S.sung_on = (uint32_t)m;
+        S.sung_bad += S.sung_on[snd] != 0;
+        S.sung_on[snd] = (uint32_t)m;
     } else {
-        S.sung_bad += S.sung_on != (uint32_t)m;
-        S.sung_on = 0;
+        S.sung_bad += S.sung_on[snd] != (uint32_t)m;
+        S.sung_on[snd] = 0;
     }
 }
 static const jr_sink_t SINK = {0, d_note, d_latch, d_rel, d_swell, d_sing};
@@ -182,8 +184,7 @@ int main(void)
         play_steps(10u * PER_MIN);
         CHECK(S.sung == 0, "as made, VOX does not sing");
         start(2);
-        J.vsing = 1;
-        J.vsing_snd = 2;
+        J.sing = 1u << 4;                           /* (HALO rarely) */
         play_steps(20u * PER_MIN);
         rare = S.sung;
         CHECK(rare >= 20u && rare <= 140u && S.sung_out == 0 && S.sung_bad == 0 && S.sung_snd == 1u << 2,
@@ -192,14 +193,19 @@ int main(void)
         play_steps(10u * PER_MIN);
         CHECK(S.sung_out == 0, "after a move to another scene: in that key");
         start(2);
-        J.vsing = 3;
+        J.sing = 3u << 4;
         play_steps(20u * PER_MIN);
         often = S.sung;
         printf("  sing: %u notes in 20 minutes rarely, %u often\n", rare, often);
         CHECK(often > 2u * rare && S.sung_bad == 0, "set to often: more than twice as many");
         jr_stop(&R, &SINK);
-        CHECK(S.sung_on == 0, "the clock stopped: its note let go");
-        J.vsing = 0;
+        CHECK(!S.sung_on[0] && !S.sung_on[1] && !S.sung_on[2] && !S.sung_on[3], "the clock stopped: its note let go");
+        start(2);
+        J.sing = 2u << 0 | 2u << 2 | 1u << 6;       /* GLASS and REED now and then, LOW rarely, HALO not */
+        play_steps(20u * PER_MIN);
+        CHECK(S.sung_snd == (1u | 2u | 8u) && S.sung_out == 0 && S.sung_bad == 0,
+              "several sounds sing together, each its own phrases, in the key; one not set stays quiet");
+        J.sing = 0;
     }
     {   /* travelling by itself: TOTALITY as made, on every 16 bars (and the 12 s there), round all six and on;
          * by hand (0), it stays; a preset names its two sounds, the others none */
@@ -208,7 +214,7 @@ int main(void)
         int k, okk = 1;
         start(JR_PRESETS - 1);
         jr_preset(JR_PRESETS - 1, &J);
-        CHECK(J.travel == 2 && J.vsing == 2 && J.nscenes == 6, "TOTALITY: it travels every 16 bars, and sings");
+        CHECK(J.travel == 2 && JR_SING(&J, 2) == 2 && J.nscenes == 6, "TOTALITY: it travels every 16 bars, and HALO sings");
         for (k = 1; k <= 7; k++) {
             play_steps(per);
             okk &= R.cur == k % 6 && !R.travelling;

@@ -36,7 +36,7 @@ expect journey 7
 expect nscenes 6
 expect ab_have 3
 expect jtravel 2
-expect vsing 2
+expect vsing3 2
 turn SELECT -6
 tap SEL
 wait 100

@@ -10,8 +10,7 @@ expect nscenes 6
 expect playing 1
 expect scene 1
 expect jtravel 2
-expect vsing 2
-expect vsing_snd 3
+expect vsing3 2
 expect ab_have 3
 expect ab_t 0
 shot totality_1.png

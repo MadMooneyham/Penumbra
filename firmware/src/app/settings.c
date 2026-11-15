@@ -128,9 +128,9 @@ static void journey_sane(journey_t *j)          /* a loaded one: every field in 
         if (j->dvoice[i][DV_OCT] > 2)
             j->dvoice[i][DV_OCT] = 1;
     j->dswell &= (1u << ENG_DRONES) - 1u;
-    if (j->vsing >= JR_SING_N)
-        j->vsing = 0;
-    j->vsing_snd %= JR_VSOUNDS;
+    if (j->vsing && j->vsing < JR_SING_N)        /* (1.5's one sound singing: into sing) */
+        j->sing |= (uint8_t)(j->vsing << (2 * (j->vsing_snd % JR_VSOUNDS)));
+    j->vsing = j->vsing_snd = 0;
     if (j->travel >= JR_TRAVEL_N)
         j->travel = 0;
     for (i = 0; i < JR_SCENES; i++)

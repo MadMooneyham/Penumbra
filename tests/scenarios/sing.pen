@@ -1,6 +1,7 @@
 # VOX sings by itself when asked: a VOX sound's key held and ALGO turned right, that sound sings (rarely,
 # now and then, often): a few soft notes in the key, not the hands', with rests between. It sings with
-# that sound whichever is in hand after; left again, it stops. Nothing sings as made, or with the clock
+# that sound whichever is in hand after; a second sound set beside it sings too, each its own phrases;
+# left again, each stops. Nothing sings as made, or with the clock
 # stopped. The tempo is not turned by that ALGO.
 wait 1000
 expect vsing 0
@@ -11,15 +12,23 @@ wait 100
 turn ALGO 3
 wait 100
 key b8 up
-expect vsing 3
-expect vsing_snd 2
+expect vsing2 3
 expect set_bpm 90
 shot sing.png
+key b9 down
+wait 100
+turn ALGO 2
+wait 100
+key b9 up
+expect vsing2 3
+expect vsing3 2
 tapkey b7
 wait 100
 expect vcur 1
+expect sung <99
 wait 60000
 expect vox_notes >3
+expect sung 6
 expect clips 0
 tap SEQ
 wait 5000
@@ -35,6 +44,11 @@ wait 100
 turn ALGO -3
 wait 100
 key b8 up
+key b9 down
+wait 100
+turn ALGO -3
+wait 100
+key b9 up
 expect vsing 0
 wait 4000
 expect vox_notes <99
