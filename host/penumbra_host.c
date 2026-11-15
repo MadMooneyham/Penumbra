@@ -598,7 +598,13 @@ static int expect(const char *what, const char *val)
         got = eng_jr.scene[(atoi(what + 4) - 1) % JR_SCENES].halo;
     else if (!strncmp(what, "lay", 3) && what[3] >= '1' && what[3] <= '8')   /* layYF: the loop's layer Y (1 ..),
                                                                               * F 0 LEVEL, 1 SOUND, 2 OCTAVE, 3 MUTE */
-        got = ((const uint8_t *)&engine_looper_state()->lay[what[3] - '1'])[(what[4] - '0') & 3];
+        got = ((const uint8_t *)&engine_looper_state()->lay[what[3] - '1'])[(unsigned)(what[4] - '0') % sizeof(lp_layer_t)];
+    else if (!strcmp(what, "vpan"))                 /* a looped note sounding: its place (-1: none); vtone: its filter x100 */
+        got = engine_vox_probe(0);
+    else if (!strcmp(what, "vtone"))
+        got = engine_vox_probe(1);
+    else if (!strcmp(what, "lpage"))                /* LOOP's knob page: 0 LEVEL.., 1 PAN.. */
+        got = ui.lpage;
     else if (!strcmp(what, "lrow"))                 /* LOOP's layer shown, 1 .. */
         got = ui.lrow + 1;
     else if (!strcmp(what, "sound_lock"))           /* JOURNEY's lock: 1 the sound playing stays when a journey opens */

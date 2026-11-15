@@ -66,7 +66,8 @@ typedef struct {
     int8_t oct;                        /* the white keys' octave, -2..+2 */
     uint8_t row;                       /* SYSTEM's row */
     uint8_t vsel, ssel, srow, fxrow, jrow;
-    uint8_t lrow, ldel;                /* LOOP: the layer shown; SEL pressed once on it (again takes it out) */
+    uint8_t lrow, ldel, lpage;         /* LOOP: the layer shown; SEL pressed once on it (again takes it out);
+                                        * its knobs' page (0 LEVEL..MUTE, 1 PAN..SWELL: ENV) */
     uint32_t ldel_t;
     int8_t sdest;                      /* the scene PRESET sent it to (-1: none) */
     uint32_t btn, keys;                /* held, as last seen */
@@ -1190,7 +1191,10 @@ static void button(int i)
     switch (i) {
     case B_HOME: set_view(V_HOME); break;
     case B_ENV:
-        if (ui.view == V_SHAPE) {                 /* again: the next voice */
+        if (ui.view == V_LOOP) {                  /* LOOP: the layer's other knobs */
+            ui.lpage ^= 1u;
+            say(ui.lpage ? "PAN, DRIFT, TONE, SWELL" : "LEVEL, SOUND, OCTAVE, MUTE", 0);
+        } else if (ui.view == V_SHAPE) {                 /* again: the next voice */
             ui.vsel = (uint8_t)((ui.vsel + 1) % NPG);
             say(PAGE[ui.vsel].name, 0);
         } else {
@@ -1261,7 +1265,7 @@ static void button(int i)
  * its SOUND (as played: each note the VOX sound it was played with; or one of the four for all of them), its
  * OCTAVE (one down, as played, one up) and MUTE; SEL twice takes the layer out (the ones over it move down).
  * The engine does each (engine_loop_layer); the page shows the looper as it is */
-static const char *const LK_N[4] = {"LEVEL", "SOUND", "OCTAVE", "MUTE"};
+static const char *const LK_N[8] = {"LEVEL", "SOUND", "OCTAVE", "MUTE", "PAN", "DRIFT", "TONE", "SWELL"};
 static int loop_layers(void)
 {
     const looper_t *l = engine_looper_state();
@@ -1318,12 +1322,27 @@ static void loop_row_text(int y, char *b)
     if (l->lay[y].oct != 1)
         q = put_s(q, l->lay[y].oct ? "  +1" : "  -1");
     if (l->lay[y].level != 100)
-        put_s(put_i(put_s(q, "  "), l->lay[y].level), "%");
+        q = put_s(put_i(put_s(q, "  "), l->lay[y].level), "%");
+    if (l->lay[y].pan != 64)
+        q = put_pan(put_s(q, "  "), l->lay[y].pan, 1);   /* (as PAN's knob says it) */
+    if (l->lay[y].drift)
+        q = put_s(q, "~");
+    if (l->lay[y].tone != 64 || l->lay[y].swell != 64)
+        put_s(q, "  *");
 }
-static void loop_knob_text(int y, int k, char *b)
+static void loop_knob_text(int y, int k, char *b)   /* k: 0 .. 7, the two pages' */
 {
     const lp_layer_t *ly = &engine_looper_state()->lay[y];
     switch (k) {
+    case 4: put_pan(b, ly->pan, 1); return;
+    case 5:
+        if (ly->drift)
+            put_pct(b, ly->drift);
+        else
+            put_s(b, "STILL");
+        return;
+    case 6: put_spct(b, ly->tone - 64); return;
+    case 7: put_spct(b, ly->swell - 64); return;
     case 0: put_s(put_i(b, ly->level), "%"); break;
     case 1: put_s(b, ly->snd ? jr_vsound_name(ly->snd - 1) : "PLAYED"); break;
     case 2: put_sgn(b, (int)ly->oct - 1); break;
@@ -1341,18 +1360,28 @@ static void loop_layer_knob(int k, int e)
         return;
     }
     ui.ldel = 0;
+    k += ui.lpage ? 4 : 0;                        /* (LL_LEVEL .. LL_SWELL: the knobs' order, page by page) */
     switch (k) {
     case 0: v = clamp_i(ly->level + 2 * e, 0, 127); break;
     case 1: v = clamp_i(ly->snd + (e > 0 ? 1 : -1), 0, JR_VSOUNDS); break;
     case 2: v = clamp_i(ly->oct + (e > 0 ? 1 : -1), 0, 2); break;
-    default: v = e > 0; break;
+    case 3: v = e > 0; break;
+    default: v = clamp_i((&ly->pan)[k - 4] + 2 * e, 0, 127); break;
     }
-    engine_loop_layer(y, k, v);                   /* (LL_LEVEL .. LL_MUTE: the knobs' order) */
+    engine_loop_layer(y, k, v);
     switch (k) {                                  /* said as it will be (the engine takes it at its next block) */
     case 0: put_s(put_i(b, v), "%"); break;
     case 1: put_s(b, v ? jr_vsound_name(v - 1) : "AS PLAYED"); break;
     case 2: put_sgn(b, v - 1); break;
-    default: put_s(b, v ? "MUTED" : "PLAYS"); break;
+    case 3: put_s(b, v ? "MUTED" : "PLAYS"); break;
+    case 4: put_pan(b, v, 0); break;
+    case 5:
+        if (v)
+            put_pct(b, v);
+        else
+            put_s(b, "STILL");
+        break;
+    default: put_spct(b, v - 64); break;
     }
     put_s(put_s(put_s(put_s(put_i(put_s(t, "LAYER "), y + 1), " "), k == 3 ? "" : LK_N[k]), k == 3 ? "" : " "), b);
     say(t, 0);
@@ -2721,11 +2750,11 @@ static void draw_knobs(void)
             break;
         }
         for (k = 0; k < 4; k++) {
-            loop_knob_text(loop_row(), k, a);
-            cell(k, LK_N[k], a, C_HI);
+            loop_knob_text(loop_row(), k + (ui.lpage ? 4 : 0), a);
+            cell(k, LK_N[k + (ui.lpage ? 4 : 0)], a, C_HI);
         }
-        put_i(put_s(b, "LAYER "), loop_row() + 1);
-        hint(b, "SELECT: LAYER   SEL TWICE: OUT");
+        put_s(put_i(put_s(b, "LAYER "), loop_row() + 1), ui.lpage ? "   ENV: LEVEL.." : "   ENV: PAN..");
+        hint(b, "SEL TWICE: OUT");
         break;
     case V_SYSTEM:
         text_c(120, 30, &FONT_XS, "SELECT: ROW    KNOB OR SEL: CHANGE", C_DIM);

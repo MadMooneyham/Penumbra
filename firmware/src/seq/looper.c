@@ -19,6 +19,8 @@ static void layer_default(lp_layer_t *y)
     y->snd = 0;
     y->oct = 1;
     y->mute = 0;
+    y->pan = y->tone = y->swell = 64;
+    y->drift = 0;
 }
 
 void looper_init(looper_t *l)
@@ -244,6 +246,10 @@ void looper_layer_set(looper_t *l, int y, int field, int value, const lp_sink_t 
     case LL_LEVEL: ly->level = (uint8_t)(value < 0 ? 0 : value > 127 ? 127 : value); break;
     case LL_SOUND: ly->snd = (uint8_t)(value < 0 ? 0 : value > 15 ? 15 : value); break;
     case LL_OCT: ly->oct = (uint8_t)(value < 0 ? 0 : value > 2 ? 2 : value); break;
+    case LL_PAN:
+    case LL_DRIFT:
+    case LL_TONE:
+    case LL_SWELL: (&ly->pan)[field - LL_PAN] = (uint8_t)(value < 0 ? 0 : value > 127 ? 127 : value); break;
     case LL_MUTE:
         ly->mute = (uint8_t)(value != 0);
         if (ly->mute)
@@ -347,7 +353,8 @@ void looper_advance(looper_t *l, uint32_t ticks, const lp_sink_t *o)
 
 /* ------------------------------------------------------------------- saving --- */
 #define LP_MAGIC1 0x314C4E50u                    /* "PNL1" (to 1.4): the header, then the events */
-#define LP_MAGIC 0x324C4E50u                     /* "PNL2": the header, the layers' settings, then the events */
+#define LP_MAGIC2 0x324C4E50u                    /* "PNL2" (1.5): the header, four bytes a layer, the events */
+#define LP_MAGIC 0x334C4E50u                     /* "PNL3": the header, the layers' settings, then the events */
 #define LP_HDR 16u
 typedef struct {
     uint32_t magic;
@@ -355,7 +362,7 @@ typedef struct {
     uint32_t len;
     uint8_t layers, state, speed, rsv2;
 } lp_hdr_t;
-_Static_assert(sizeof(lp_hdr_t) == LP_HDR && sizeof(lp_ev_t) == 8u && sizeof(lp_layer_t) == 4u &&
+_Static_assert(sizeof(lp_hdr_t) == LP_HDR && sizeof(lp_ev_t) == 8u && sizeof(lp_layer_t) == 8u &&
                LP_SAVE_HDR == LP_HDR + sizeof(((looper_t *)0)->lay), "the saved loop's layout");
 
 uint32_t looper_save(const looper_t *l, void *dst, uint32_t max)
@@ -397,23 +404,28 @@ int looper_load(looper_t *l, const void *src, uint32_t n)
         return -1;
     for (k = 0; k < LP_HDR; k++)
         d[k] = s[k];
-    hdr = h.magic == LP_MAGIC ? LP_SAVE_HDR : LP_HDR;   /* (a loop from 1.4 or before: its layers as played) */
-    if ((h.magic != LP_MAGIC && h.magic != LP_MAGIC1) || h.n > LP_EVENTS ||
+    hdr = h.magic == LP_MAGIC ? LP_SAVE_HDR : h.magic == LP_MAGIC2 ? LP_HDR + LP_LAYERS * 4u
+                                                               : LP_HDR;   /* (1.4's: its layers as played) */
+    if ((h.magic != LP_MAGIC && h.magic != LP_MAGIC2 && h.magic != LP_MAGIC1) || h.n > LP_EVENTS ||
         n != hdr + (uint32_t)h.n * sizeof(lp_ev_t) || h.len > LP_MAX_LEN || h.layers > LP_LAYERS || h.speed > LP_DOUBLE)
         return -1;
     looper_init(l);
     if (!h.n || !h.len || (h.state != LS_PLAY && h.state != LS_STOP))
         return 0;                                /* (an empty one: empty) */
-    if (hdr == LP_SAVE_HDR) {
-        d = (uint8_t *)l->lay;
-        for (k = 0; k < sizeof l->lay; k++)
-            d[k] = s[LP_HDR + k];
+    if (hdr != LP_HDR) {                         /* (1.5's: the first four of each, the rest as made) */
+        const uint32_t each = h.magic == LP_MAGIC ? sizeof(lp_layer_t) : 4u;
+        for (k = 0; k < LP_LAYERS * each; k++)
+            ((uint8_t *)&l->lay[k / each])[k % each] = s[LP_HDR + k];
         for (k = 0; k < LP_LAYERS; k++) {        /* (each in range) */
             lp_layer_t *y = &l->lay[k];
             y->level &= 0x7Fu;
             y->snd &= 15u;
             y->oct = (uint8_t)(y->oct > 2 ? 1 : y->oct);
             y->mute = (uint8_t)(y->mute != 0);
+            y->pan &= 0x7Fu;
+            y->drift &= 0x7Fu;
+            y->tone &= 0x7Fu;
+            y->swell &= 0x7Fu;
         }
     }
     d = (uint8_t *)l->ev;

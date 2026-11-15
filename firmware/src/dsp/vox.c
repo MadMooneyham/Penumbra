@@ -26,14 +26,20 @@ static float one_pole(float seconds) { return 1.0f - fm_expf(-1.0f / (seconds * 
 /* lo x 2^(octaves x pot / 127) */
 static float pot_exp(int p, float lo, float octaves) { return lo * fm_exp2f(octaves * pot01(p)); }
 
+/* a voice's place: by SPREAD (neighbours apart); a note with its own place, there, its voice a little to
+ * one side of it */
+static void voice_pan(vox_t *x, int i)
+{
+    static const float AT[VOX_VOICES] = {-1.0f, 0.333f, -0.333f, 1.0f};
+    vox_voice_t *v = &x->v[i];
+    float pot = v->pan_pot < 0.0f ? 64.0f + AT[i] * x->spread * 63.0f : v->pan_pot + AT[i] * x->spread * 19.0f;
+    pan_gains_f(pot < 0.0f ? 0.0f : pot > 127.0f ? 127.0f : pot, &v->pan_l, &v->pan_r);
+}
 static void voice_pans(vox_t *x)
 {
-    static const float AT[VOX_VOICES] = {-1.0f, 0.333f, -0.333f, 1.0f};   /* neighbours apart */
     int i;
-    for (i = 0; i < VOX_VOICES; i++) {
-        int pot = 64 + (int)(AT[i] * x->spread * 63.0f + (AT[i] > 0.0f ? 0.5f : -0.5f));
-        pan_gains(pot < 0 ? 0 : pot > 127 ? 127 : pot, &x->v[i].pan_l, &x->v[i].pan_r);
-    }
+    for (i = 0; i < VOX_VOICES; i++)
+        voice_pan(x, i);
 }
 
 void vox_set(vox_t *x, int i, int value)
@@ -89,6 +95,8 @@ void vox_init(vox_t *x)
         x->v[k].stage = 2;
         x->v[k].ph[0] = 0.13f * (float)k;           /* (the voices' saws start apart) */
         x->v[k].ph[1] = 0.61f + 0.07f * (float)k;
+        x->v[k].pan_pot = -1.0f;
+        x->v[k].fc_mul = 1.0f;
     }
     for (k = 0; k < VX_NPARAMS; k++)
         vox_set(x, k, VOX_P[k].def);
@@ -116,14 +124,14 @@ int vox_held(const vox_t *x, int note)
     return 0;
 }
 
-/* the voice a new note takes: the one with that note (of that sound) already, else a silent one, else
- * the one let go longest ago, else the oldest held */
-static int pick(const vox_t *x, int note, int snd)
+/* the voice a new note takes: the one with that note (of that sound and owner) already, else a silent
+ * one, else the one let go longest ago, else the oldest held */
+static int pick(const vox_t *x, int note, int snd, int owner)
 {
     int i, best = -1, best_rank = 99;
     uint32_t best_age = 0;
     for (i = 0; i < VOX_VOICES; i++)
-        if (x->v[i].note == note && x->v[i].snd == snd && !voice_idle(&x->v[i]))
+        if (x->v[i].note == note && x->v[i].snd == snd && x->v[i].owner == owner && !voice_idle(&x->v[i]))
             return i;
     for (i = 0; i < VOX_VOICES; i++) {
         const vox_voice_t *v = &x->v[i];
@@ -139,11 +147,23 @@ static int pick(const vox_t *x, int note, int snd)
 
 void vox_note_on(vox_t *x, int note, float vel) { vox_note_on_s(x, note, vel, 0); }
 
-void vox_note_on_s(vox_t *x, int note, float vel, int snd)
+int vox_note_on_s(vox_t *x, int note, float vel, int snd) { return vox_note_on_o(x, note, vel, snd, 0); }
+
+int vox_note_on_o(vox_t *x, int note, float vel, int snd, int owner)
 {
     vox_voice_t *v;
+    int i;
     snd = snd < 0 ? 0 : snd >= VOX_SOUNDS ? VOX_SOUNDS - 1 : snd;
-    v = &x->v[pick(x, note, snd)];
+    i = pick(x, note, snd, owner);
+    v = &x->v[i];
+    v->owner = owner;
+    if (v->pan_pot >= 0.0f) {                     /* (a note before had its own: this one has none, yet) */
+        v->pan_pot = -1.0f;
+        voice_pan(x, i);
+    }
+    v->fc_mul = 1.0f;
+    v->reso_add = 0.0f;
+    v->own_env = 0;
     if (x->s[snd].glide_c < 1.0f && x->last_note >= 0.0f)  /* GLIDE: from the last note played */
         v->pitch = x->last_note;
     else if (v->note != note || voice_idle(v))
@@ -156,13 +176,42 @@ void vox_note_on_s(vox_t *x, int note, float vel, int snd)
     v->age = ++x->clock;
     v->vel = vel < 0.0f ? 0.0f : vel > 1.0f ? 1.0f : vel;
     x->ctrl_left = 0;                               /* its pitch now */
+    return i;
 }
 
-void vox_note_off_s(vox_t *x, int note, int snd)       /* (snd < 0: whatever its sound) */
+void vox_voice_mod(vox_t *x, int i, const vox_mod_t *m)
+{
+    vox_voice_t *v;
+    const vox_sound_t *s;
+    int a, r;
+    if (i < 0 || i >= VOX_VOICES)
+        return;
+    v = &x->v[i];
+    s = &x->s[v->snd];
+    if (v->pan_pot != m->pan) {
+        v->pan_pot = m->pan < 0.0f ? 0.0f : m->pan > 127.0f ? 127.0f : m->pan;
+        voice_pan(x, i);
+    }
+    v->fc_mul = m->fc_oct == 0.0f ? 1.0f : fm_exp2f(m->fc_oct);
+    v->reso_add = m->reso_add;
+    a = (int)s->pot[VX_ATTACK] + m->atk_off;
+    r = (int)s->pot[VX_RELEASE] + m->rel_off;
+    a = a < 0 ? 0 : a > 127 ? 127 : a;
+    r = r < 0 ? 0 : r > 127 ? 127 : r;
+    if (!v->own_env || a != v->atk_pot)
+        v->atk_c = one_pole(pot_exp(a, 0.002f, 11.0f)), v->atk_pot = a;
+    if (!v->own_env || r != v->rel_pot)
+        v->rel_c = one_pole(pot_exp(r, 0.005f, 10.6f)), v->rel_pot = r;
+    v->own_env = 1;
+}
+
+void vox_note_off_s(vox_t *x, int note, int snd) { vox_note_off_o(x, note, snd, -1); }
+void vox_note_off_o(vox_t *x, int note, int snd, int owner)   /* (snd, owner < 0: whatever it is) */
 {
     int i;
     for (i = 0; i < VOX_VOICES; i++)
-        if (x->v[i].gate && x->v[i].note == note && (snd < 0 || x->v[i].snd == snd)) {
+        if (x->v[i].gate && x->v[i].note == note && (snd < 0 || x->v[i].snd == snd) &&
+            (owner < 0 || x->v[i].owner == owner)) {
             x->v[i].gate = 0;
             x->v[i].stage = 2;
             x->v[i].age = ++x->clock;
@@ -210,10 +259,10 @@ static void control(vox_t *x)
         n = v->pitch + lfo * s->vib + x->bend_s;
         v->inc[0] = mtof_inc(n - s->det * 0.005f);
         v->inc[1] = mtof_inc(n + s->octb + s->det * 0.005f);
-        fc = s->cutoff * fm_exp2f(s->envamt * v->env + s->keytrk * ((float)v->note - 60.0f) * (1.0f / 12.0f));
+        fc = s->cutoff * v->fc_mul * fm_exp2f(s->envamt * v->env + s->keytrk * ((float)v->note - 60.0f) * (1.0f / 12.0f));
         fc = fm_clampf(fc, 20.0f, SR * 0.45f);
         g = fm_tanf(FM_PI * fc * INV_SR);
-        k = 2.0f - 2.0f * s->reso;
+        k = 2.0f - 2.0f * fm_clampf(s->reso + v->reso_add, 0.0f, 0.9f);
         v->a1 = 1.0f / (1.0f + g * (g + k));
         v->a2 = g * v->a1;
         v->a3 = g * v->a2;
@@ -250,6 +299,7 @@ static void voice_chunk(const vox_sound_t *x, vox_voice_t *v, float *l, float *r
     const float gain = VOX_SCALE * x->level_s * (0.4f + 0.6f * v->vel);
     const float pl = v->pan_l * gain, pr = v->pan_r * gain;
     const float a1 = v->a1, a2 = v->a2, a3 = v->a3, lpg = 1.0f - x->bp, bpg = x->bp * v->bpk;
+    const float atk_c = v->own_env ? v->atk_c : x->atk_c, rel_c = v->own_env ? v->rel_c : x->rel_c;
     float ta = v->ph[0], tb = v->ph[1], da = v->inc[0], db = v->inc[1];
     float env = v->env, ic1 = v->ic1, ic2 = v->ic2;
     int stage = v->stage, i;
@@ -265,7 +315,7 @@ static void voice_chunk(const vox_sound_t *x, vox_voice_t *v, float *l, float *r
         tb += db;
         if (tb >= 1.0f) tb -= 1.0f;
         if (stage == 0) {                           /* toward past the top, so it gets there */
-            env += (1.25f - env) * x->atk_c;
+            env += (1.25f - env) * atk_c;
             if (env >= 1.0f) {
                 env = 1.0f;
                 stage = 1;
@@ -273,7 +323,7 @@ static void voice_chunk(const vox_sound_t *x, vox_voice_t *v, float *l, float *r
         } else if (stage == 1) {
             env += (sus - env) * x->dec_c;
         } else {
-            env -= env * x->rel_c;
+            env -= env * rel_c;
         }
         v3 = s - ic2;
         v1 = a1 * ic1 + a2 * v3;

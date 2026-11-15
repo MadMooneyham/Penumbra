@@ -1,0 +1,63 @@
+# LOOP's second page (ENV there): each layer's PAN (its place, over VOX's), DRIFT (how far it sways round
+# it, on the tide), TONE (its filter, darker .. brighter) and SWELL (its envelope, plucked .. slow). They are
+# heard on its notes at once, the drift moves its place as the tide goes, and all of it is saved with the
+# loop. ENV again: the first page. (The note recorded is held as the loop closes, the hand's and the loop's
+# the same note: the key let go does not end the loop's.)
+wait 1000
+tap REC
+key w2 down
+wait 2600
+tap REC
+wait 100
+key w2 up
+expect looper 2
+tap SEL
+wait 100
+expect view 8
+expect lpage 0
+tap ENV
+wait 100
+expect lpage 1
+expect view 8
+turn K1 -20
+wait 300
+expect lay14 24
+expect vpan 24
+turn K3 12
+wait 300
+expect lay16 88
+expect vtone >200
+expect vtone <240
+turn K4 -10
+wait 100
+expect lay17 44
+shot loop_place.png
+turn K2 40
+wait 100
+expect lay15 80
+expect vpan <99
+wait 9000
+expect vpan <99
+tap ENV
+wait 100
+expect lpage 0
+tap SAVE
+wait 500
+reboot
+wait 3000
+expect lay14 24
+expect lay15 80
+expect lay16 88
+expect lay17 44
+tap SEL
+tap ENV
+turn K1 20
+turn K2 -40
+turn K3 -12
+turn K4 10
+wait 300
+expect lay14 64
+expect lay15 0
+expect vpan 64
+expect vtone 100
+expect clips 0

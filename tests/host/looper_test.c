@@ -221,7 +221,38 @@ int main(void)
         looper_clear(&L, &O);
         CHECK(looper_load(&L, old, m) == 0 && L.layers == 2 && L.lay[1].level == 100 && L.lay[1].oct == 1 && L.n == 4,
               "a loop saved by 1.4 loads, its layers as played");
-        looper_layer_delete(&L, 0, &O);
+        {   /* PAN, DRIFT, TONE, SWELL: kept for the sink, as made 64, 0, 64, 64; they move down with their layer;
+             * saved; a loop saved by 1.5 (four bytes a layer) loads with them as made */
+            static uint8_t two[LP_SAVE_MAX];
+            uint32_t j, n2;
+            CHECK(L.lay[0].pan == 64 && L.lay[0].drift == 0 && L.lay[0].tone == 64 && L.lay[0].swell == 64,
+                  "a layer's place, drift, tone and swell as made");
+            looper_layer_set(&L, 1, LL_PAN, 20, &O);
+            looper_layer_set(&L, 1, LL_DRIFT, 90, &O);
+            looper_layer_set(&L, 1, LL_TONE, 100, &O);
+            looper_layer_set(&L, 1, LL_SWELL, 300, &O);
+            CHECK(L.lay[1].pan == 20 && L.lay[1].drift == 90 && L.lay[1].tone == 100 && L.lay[1].swell == 127,
+                  "set, each in range");
+            n = looper_save(&L, buf, sizeof buf);
+            looper_clear(&L, &O);
+            CHECK(looper_load(&L, buf, n) == 0 && L.lay[1].pan == 20 && L.lay[1].drift == 90 && L.lay[1].tone == 100,
+                  "saved and loaded: kept");
+            /* (1.5's file: "PNL2", the header, four bytes a layer, the events) */
+            memcpy(two, buf, 16);
+            two[0] = 'P', two[1] = 'N', two[2] = 'L', two[3] = '2';
+            for (j = 0; j < LP_LAYERS; j++)
+                memcpy(two + 16 + 4 * j, buf + 16 + 8 * j, 4);
+            memcpy(two + 16 + 4 * LP_LAYERS, buf + LP_SAVE_HDR, n - LP_SAVE_HDR);
+            n2 = n - 4u * LP_LAYERS;
+            looper_clear(&L, &O);
+            CHECK(looper_load(&L, two, n2) == 0 && L.layers == 2 && L.lay[1].level == 100 && L.lay[1].oct == 1 &&
+                      L.lay[1].pan == 64 && L.lay[1].drift == 0 && L.lay[1].tone == 64,
+                  "a loop saved by 1.5 loads: its settings, the new ones as made");
+            looper_load(&L, buf, n);
+            looper_layer_delete(&L, 0, &O);
+            CHECK(L.layers == 1 && L.lay[0].pan == 20 && L.lay[0].tone == 100 && L.lay[1].pan == 64,
+                  "the first taken out: the second's place and tone move down with it");
+        }
         looper_layer_delete(&L, 0, &O);
         CHECK(L.state == LS_EMPTY && sounding() <= 0, "the last layer taken out: the loop gone");
     }

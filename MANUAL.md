@@ -143,8 +143,9 @@ The key of the sound playing is lit. Each journey keeps its own four sounds.
 
 **A sound can sing by itself.** With a sound's key held, turning **ALGO** right makes that sound sing: a few
 soft, slow notes in the scene's key, a phrase now and then, with long rests between. Further right it sings
-more often (RARELY, NOW AND THEN, OFTEN); back left, less, then not at all. It keeps singing with that sound
-while another is in hand, so the white keys can play GLASS over a REED that sings. It sings only while the
+more often (RARELY, NOW AND THEN, OFTEN); back left, less, then not at all. Each of the four sounds has its own
+setting, so several can sing at once, each with its own phrases, and the white keys can play another over
+them. It sings only while the
 clock runs, its notes are not recorded by the looper, and it is saved with the journey. As made, nothing
 sings.
 
@@ -220,14 +221,16 @@ A loop can be up to 16 bars long, with up to 8 layers.
 
 **LOOP: the layers.** SEL pressed on HOME opens LOOP, a row for each layer: the sound it plays with, how many
 notes it has, and anything set on it. The row of a layer sounding is lit. SELECT picks a layer, and the knobs
-are that layer's:
+are that layer's, on two pages. **ENV** there turns from one page to the other.
 
-| Knob | What it sets |
-| --- | --- |
-| K1 LEVEL | How loud the layer is: 100% as played, down to silent, up to 127% |
-| K2 SOUND | PLAYED: each note the VOX sound it was played with. Or GLASS, REED, HALO or LOW for the whole layer |
-| K3 OCTAVE | The layer an octave down, as played, or an octave up |
-| K4 MUTE | Right: the layer is silent, and stays in the loop. Left: it plays again |
+| Knob | First page | Second page |
+| --- | --- | --- |
+| K1 | LEVEL: 100% as played, down to silent, up to 127% | PAN: the layer's place, over VOX's own (MID: as VOX is) |
+| K2 | SOUND: PLAYED (each note the VOX sound it was played with), or GLASS, REED, HALO or LOW for the whole layer | DRIFT: STILL, or how far the layer sways round its place on the tide, each layer a quarter tide behind the one before |
+| K3 | OCTAVE: one down, as played, or one up | TONE: the layer's filter, darker to the left, brighter to the right (with a little resonance); 0% as its sound |
+| K4 | MUTE: right, the layer is silent and stays in the loop; left, it plays again | SWELL: the layer's envelope, shorter and plucked to the left, slower in and longer out to the right; 0% as its sound |
+
+A row shows a layer's place (L or R), a ~ when it drifts, and a * when its TONE or SWELL is changed.
 
 **SEL** twice takes the layer shown out of the loop; the layers over it move down, keeping their settings.
 Taking out the only layer clears the loop. The layers sound apart, so the same phrase recorded twice, one

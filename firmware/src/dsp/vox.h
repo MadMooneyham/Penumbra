@@ -41,7 +41,20 @@ typedef struct {
     float pitch;                          /* the note it sounds, gliding to note */
     float bpk;                            /* the band-pass's gain: k, so its peak is unity */
     int32_t snd;                          /* the sound it plays with (taken at its note on) */
+    int32_t owner;                        /* whose note it is (the caller's: the same note of another owner is
+                                           * another voice, and only its owner lets it go) */
+    /* a note's own (vox_voice_mod; a new note: none): its place (-1: its voice's, by SPREAD), its filter
+     * over its sound's (times, and resonance more), its envelope (own_env: atk_c, rel_c from its pots) */
+    float pan_pot, fc_mul, reso_add, atk_c, rel_c;
+    int32_t own_env, atk_pot, rel_pot;
 } vox_voice_t;
+
+typedef struct {
+    float pan;                            /* 0 .. 127: the note's place (its voices around it, narrowed) */
+    float fc_oct;                         /* the filter, octaves over its sound's */
+    float reso_add;                       /* resonance over its sound's (0 .. ) */
+    int atk_off, rel_off;                 /* ATTACK and RELEASE, pot steps over its sound's */
+} vox_mod_t;
 
 typedef struct {
     uint8_t pot[VX_NPARAMS];
@@ -61,10 +74,13 @@ typedef struct {
 } vox_t;
 
 void vox_init(vox_t *x);
-void vox_note_on(vox_t *x, int note, float vel);              /* with sound 0 */
-void vox_note_off(vox_t *x, int note);                        /* that note, whatever its sound */
-void vox_note_on_s(vox_t *x, int note, float vel, int snd);   /* with sound snd (0 .. VOX_SOUNDS - 1) */
-void vox_note_off_s(vox_t *x, int note, int snd);             /* that note of that sound only */
+void vox_note_on(vox_t *x, int note, float vel);              /* with sound 0, owner 0 */
+void vox_note_off(vox_t *x, int note);                        /* that note, whatever its sound and owner */
+int vox_note_on_o(vox_t *x, int note, float vel, int snd, int owner);   /* its voice */
+void vox_note_off_o(vox_t *x, int note, int snd, int owner);  /* that note of that sound and owner (< 0: any) */
+int vox_note_on_s(vox_t *x, int note, float vel, int snd);    /* with sound snd (0 .. VOX_SOUNDS - 1), owner 0 */
+void vox_voice_mod(vox_t *x, int voice, const vox_mod_t *m);  /* that voice's note its own (at once, and as it moves) */
+void vox_note_off_s(vox_t *x, int note, int snd);             /* that note of that sound only (any owner) */
 void vox_all_off(vox_t *x);
 void vox_bend(vox_t *x, float semitones);   /* every voice, sliding there (~10 ms) */
 int vox_active(const vox_t *x);           /* any voice sounding */

@@ -355,7 +355,10 @@ static void js_drone_swell(void *x, int v)
         drone_set(&dn, v, DN_MODE, DN_MODE_SWELL);
     drone_trigger(&dn, v, 1.0f);
 }
-static void vox_on(int midi, int vel, int snd);
+/* whose a VOX note is (vox.h's owner): the same note of two owners is two voices, and only its owner lets
+ * it go (a key let go does not end the loop's same note) */
+enum { OWN_HANDS, OWN_SING, OWN_LOOP };          /* (the loop's: OWN_LOOP + its layer) */
+static int vox_on(int midi, int vel, int snd, int owner);
 volatile uint8_t eng_sung;                       /* (tests) the sounds that have sung a note (bit s) */
 static void js_sing(void *x, int midi, int vel, int snd)   /* VOX singing by itself: not the looper's, not MIDI's */
 {
@@ -363,9 +366,9 @@ static void js_sing(void *x, int midi, int vel, int snd)   /* VOX singing by its
     if (testing)
         return;
     if (vel)
-        eng_sung |= (uint8_t)(1u << (snd & 7)), vox_on(midi, vel, snd);
+        eng_sung |= (uint8_t)(1u << (snd & 7)), vox_on(midi, vel, snd, OWN_SING);
     else
-        vox_note_off_s(&vox, midi, snd);
+        vox_note_off_o(&vox, midi, snd, OWN_SING);
 }
 static const jr_sink_t JSINK = {0, js_drone_note, js_drone_latch, js_drone_release, js_drone_swell, js_sing};
 
@@ -377,10 +380,46 @@ static const jr_sink_t JSINK = {0, js_drone_note, js_drone_latch, js_drone_relea
 _Static_assert(JR_VSOUNDS == VOX_SOUNDS, "a VOX sound each");
 volatile uint32_t eng_vox_notes;
 static uint8_t lp_midi[LP_LAYERS][256] POOL, lp_snd[LP_LAYERS][256] POOL, hand_code[128], hand_snd[128];
-static void vox_on(int midi, int vel, int snd)
+static uint8_t voice_layer[VOX_VOICES];         /* the loop's layer each VOX voice plays for, + 1 (0: none) */
+static int vox_on(int midi, int vel, int snd, int owner)
 {
-    vox_note_on_s(&vox, midi, (float)vel * (1.0f / 127.0f), snd);
+    const int i = vox_note_on_o(&vox, midi, (float)vel * (1.0f / 127.0f), snd, owner);
+    voice_layer[i] = 0;                          /* (the hands', a sound singing: their own as made) */
     eng_vox_notes++;
+    return i;
+}
+/* a layer's own on its notes: its place, drifting round it on the tide (each layer a quarter tide behind the
+ * one before, as PAN 2's OFFSET), its TONE (the filter: three octaves either way, a little resonance as it
+ * brightens) and its SWELL (ATTACK and RELEASE together: shorter one way, slower and longer the other) */
+static float tide_ago(float lag);
+static void layer_mod(int y, vox_mod_t *m)
+{
+    const lp_layer_t *ly = &lp.lay[y % LP_LAYERS];
+    m->pan = (float)ly->pan;
+    if (ly->drift)
+        m->pan += tide_ago((float)(y % 4) * 0.25f) * (float)ly->drift * (63.0f / 127.0f);
+    m->fc_oct = (float)(ly->tone - 64) * (3.0f / 64.0f);
+    m->reso_add = ly->tone > 64 ? (float)(ly->tone - 64) * (0.2f / 63.0f) : 0.0f;
+    m->atk_off = (int)ly->swell - 64;
+    m->rel_off = ((int)ly->swell - 64) * 4 / 5;
+}
+static void layers_apply(void)                   /* each block: what each layer's notes are now (a drift moves) */
+{
+    vox_mod_t m;
+    int i;
+    for (i = 0; i < VOX_VOICES; i++)
+        if (voice_layer[i]) {
+            layer_mod(voice_layer[i] - 1, &m);
+            vox_voice_mod(&vox, i, &m);
+        }
+}
+int engine_vox_probe(int what)                   /* (tests) a looped note sounding: 0 its place, 1 its filter x100 */
+{
+    int i;
+    for (i = 0; i < VOX_VOICES; i++)
+        if (voice_layer[i] && vox.v[i].gate)
+            return what ? (int)(vox.v[i].fc_mul * 100.0f + 0.5f) : (int)(vox.v[i].pan_pot + 0.5f);
+    return -1;
 }
 static void ls_on(void *x, int code, int vel, int tag, int layer)
 {
@@ -389,25 +428,32 @@ static void ls_on(void *x, int code, int vel, int tag, int layer)
     (void)x;
     *midi = (uint8_t)(m < 0 ? m + 12 : m > 127 ? m - 12 : m);
     *s = (uint8_t)((snd ? snd - 1 : eng_jr.vcur) % JR_VSOUNDS);
-    vox_on(*midi, vel, *s);
+    {
+        const int i = vox_on(*midi, vel, *s, OWN_LOOP + layer % LP_LAYERS);
+        vox_mod_t md;
+        voice_layer[i] = (uint8_t)(layer % LP_LAYERS + 1);
+        layer_mod(layer % LP_LAYERS, &md);
+        vox_voice_mod(&vox, i, &md);
+    }
 }
 static void ls_off(void *x, int code, int layer)
 {
     (void)x;
-    vox_note_off_s(&vox, lp_midi[layer % LP_LAYERS][code & 255], lp_snd[layer % LP_LAYERS][code & 255]);
+    vox_note_off_o(&vox, lp_midi[layer % LP_LAYERS][code & 255], lp_snd[layer % LP_LAYERS][code & 255],
+                   OWN_LOOP + layer % LP_LAYERS);
 }
 static void ls_hit(void *x, int which, int vel) { (void)x; hit(which, (float)vel * (1.0f / 127.0f)); }
 static const lp_sink_t LSINK = {0, ls_on, ls_off, ls_hit};
 static void hand_on(int note, int vel)
 {
     hand_snd[note & 127] = (uint8_t)(eng_jr.vcur % JR_VSOUNDS);
-    vox_on(note, vel, hand_snd[note & 127]);
+    vox_on(note, vel, hand_snd[note & 127], OWN_HANDS);
     hand_code[note & 127] = (uint8_t)jr_note_code(&jr, note);
     looper_note(&lp, hand_code[note & 127], vel, hand_snd[note & 127] + 1);
 }
 static void hand_off(int note)
 {
-    vox_note_off_s(&vox, note, hand_snd[note & 127]);
+    vox_note_off_o(&vox, note, hand_snd[note & 127], OWN_HANDS);
     looper_note(&lp, hand_code[note & 127], 0, 0);
 }
 
@@ -586,6 +632,7 @@ static void conduct(void)
         }
     }
     vox_bend(&vox, (float)perf[PF_PITCH] * bend_range * (1.0f / 127.0f) + midi_bend);
+    layers_apply();
     /* PULSE */
     if (moved(K_PPITCH, sh[EV_PULSE][SH_K1]))
         pulse_set(&pulse, PL_PITCH, sh[EV_PULSE][SH_K1]);
@@ -681,6 +728,8 @@ static void test_set(int on)
         vox_set(&vox, VX_WAVE, 127);             /* VOX's dearest: the pulses (four saws), the band-pass */
         vox_set(&vox, VX_FMODE, 64);
         looper_quiet(&lp, &LSINK);               /* (the test plays its own) */
+        for (v = 0; v < VOX_VOICES; v++)
+            voice_layer[v] = 0;
         test_left = test_i = 0;
         guard_enabled = 0;
     } else {

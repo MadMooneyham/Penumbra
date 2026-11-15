@@ -17,7 +17,8 @@
  * (the audio ISR) calls everything.
  *
  * Each layer has settings of its own (lp_layer_t): its LEVEL (100: as played), a sound instead of the ones
- * its notes were played with, an octave down or up, and a mute. A layer can be taken out from anywhere
+ * its notes were played with, an octave down or up, a mute, and four the sink applies to its notes (its
+ * place in the field and how far it drifts round it, its tone and its swell). A layer can be taken out from anywhere
  * (looper_layer_delete): the ones over it move down. The layers sound apart: the same note in two of them
  * is two notes. */
 #pragma once
@@ -32,13 +33,17 @@
 enum { LS_EMPTY, LS_REC, LS_PLAY, LS_DUB, LS_STOP };
 enum { LP_HALF, LP_AS_PLAYED, LP_DOUBLE };
 enum { LK_NOTE, LK_HIT };                        /* an event's kind: a note (on, off), a hit (PULSE: on only) */
-enum { LL_LEVEL, LL_SOUND, LL_OCT, LL_MUTE, LL_N };   /* a layer's settings (looper_layer_set) */
+enum { LL_LEVEL, LL_SOUND, LL_OCT, LL_MUTE, LL_PAN, LL_DRIFT, LL_TONE, LL_SWELL, LL_N };   /* (looper_layer_set) */
 
 typedef struct {
     uint8_t level;                              /* 0 .. 127: its notes' and hits' loudness, 100 as played */
     uint8_t snd;                                /* 0: each note the tag it was played with; else this tag (1 .. 15) */
     uint8_t oct;                                /* 0 an octave down, 1 as played, 2 an octave up (the sink's to do) */
     uint8_t mute;                               /* 1: it does not sound */
+    uint8_t pan;                                /* its place, over its notes' (64: the middle) */
+    uint8_t drift;                              /* 0 still .. 127: how far it sways round its place (the sink's) */
+    uint8_t tone;                               /* 64 as its sound: darker .. brighter (the sink's) */
+    uint8_t swell;                              /* 64 as its sound: shorter, plucked .. slower in, longer out */
 } lp_layer_t;
 
 typedef struct {
@@ -85,7 +90,7 @@ void looper_advance(looper_t *l, uint32_t ticks, const lp_sink_t *o);
 void looper_layer_set(looper_t *l, int layer, int field, int value, const lp_sink_t *o);
 void looper_layer_delete(looper_t *l, int layer, const lp_sink_t *o);
 /* saving: what is worth keeping, n bytes of it (0: nothing, or not now: recording); and back */
-#define LP_SAVE_HDR (16u + LP_LAYERS * 4u)
+#define LP_SAVE_HDR (16u + LP_LAYERS * 8u)
 #define LP_SAVE_MAX (LP_SAVE_HDR + LP_EVENTS * 8u)
 uint32_t looper_save(const looper_t *l, void *dst, uint32_t max);
 int looper_load(looper_t *l, const void *src, uint32_t n);    /* 0: loaded (stopped, or playing as it was) */
