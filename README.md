@@ -27,7 +27,7 @@ Most drones stay where they are put. Penumbra is a place, and it moves:
 
 The silence between the notes is part of it.
 
-Version 1.5 · identity `FM-1_73010500` · GPL-3.0
+Version 1.6 · identity `FM-1_73010600` · GPL-3.0
 
 **[Play it in the browser](https://madmooneyham.github.io/Penumbra/emu/)** (the same code the FM-1 runs) ·
 **[Cheat sheet](https://madmooneyham.github.io/Penumbra/cheatsheet/)** (one printable page)
@@ -85,7 +85,7 @@ Penumbra is slow, and much of what it does best unfolds over a few minutes.
 - **The easy way:** install it in one click from [The Firmware Hub](https://thefirmwarehub.com/).
 - **In the browser:** the [web installer](https://madmooneyham.github.io/Penumbra/install/) writes it over USB
   (Chrome or Edge).
-- **By hand:** download `penumbra-1.5.fwsc` from this repository's
+- **By hand:** download `penumbra-1.6.fwsc` from this repository's
   [Releases](https://github.com/MadMooneyham/Penumbra/releases), and write it with an FM-1 firmware installer.
 
 Penumbra carries the update loader, so you can always go back to another firmware or to M-VAVE's own. If an
