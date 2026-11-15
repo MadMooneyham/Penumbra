@@ -29,7 +29,7 @@ expect bloom2 2
 tapkey b6
 wait 12000
 tap ENV
-expect page 5
+expect page 6
 tap SEL
 tap SEL
 wait 100

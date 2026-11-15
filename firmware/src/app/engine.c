@@ -360,17 +360,32 @@ static void js_drone_swell(void *x, int v)
 enum { OWN_HANDS, OWN_SING, OWN_LOOP };          /* (the loop's: OWN_LOOP + its layer) */
 static int vox_on(int midi, int vel, int snd, int owner);
 volatile uint8_t eng_sung;                       /* (tests) the sounds that have sung a note (bit s) */
+static uint8_t sing_note[JR_VSOUNDS];             /* each sound's note singing (its octave in it) */
 static void js_sing(void *x, int midi, int vel, int snd)   /* VOX singing by itself: not the looper's, not MIDI's */
 {
     (void)x;
     if (testing)
         return;
     if (vel)
-        eng_sung |= (uint8_t)(1u << (snd & 7)), vox_on(midi, vel, snd, OWN_SING);
+    {
+        const int oct = eng_jr.sing[JR_SG_OCT][snd % JR_VSOUNDS], m = midi + 12 * (oct - 1);
+        eng_sung |= (uint8_t)(1u << (snd & 7));
+        sing_note[snd % JR_VSOUNDS] = (uint8_t)(m < 0 ? m + 12 : m > 127 ? m - 12 : m);
+        vox_on(sing_note[snd % JR_VSOUNDS], vel, snd, OWN_SING);
+    }
     else
-        vox_note_off_o(&vox, midi, snd, OWN_SING);
+        vox_note_off_o(&vox, sing_note[snd % JR_VSOUNDS], snd, OWN_SING);
 }
-static const jr_sink_t JSINK = {0, js_drone_note, js_drone_latch, js_drone_release, js_drone_swell, js_sing};
+volatile uint32_t eng_blooms;                    /* (tests) BLOOM by itself, so far */
+static void js_bloom(void *x)                    /* BLOOM by itself: not the looper's */
+{
+    (void)x;
+    if (testing)
+        return;
+    eng_blooms++;
+    hit(PULSE_BLOOM, 0.6f);
+}
+static const jr_sink_t JSINK = {0, js_drone_note, js_drone_latch, js_drone_release, js_drone_swell, js_sing, js_bloom};
 
 /* VOX's notes, the hands' (keys, MIDI) and the looper's: counted for the tests and the screen's stars.
  * The looper keeps a note as its degree in the scene (jr_note_code), and plays it in the scene playing
@@ -403,7 +418,19 @@ static void layer_mod(int y, vox_mod_t *m)
     m->atk_off = (int)ly->swell - 64;
     m->rel_off = ((int)ly->swell - 64) * 4 / 5;
 }
-static void layers_apply(void)                   /* each block: what each layer's notes are now (a drift moves) */
+/* a sound singing: its place, drifting round it on the tide (each sound an eighth of a tide off the layers'
+ * and a quarter behind the one before), its own sound's filter and envelope */
+static void sing_mod(int s, vox_mod_t *m)
+{
+    const int drift = eng_jr.sing[JR_SG_DRIFT][s % JR_VSOUNDS];
+    m->pan = (float)eng_jr.sing[JR_SG_PLACE][s % JR_VSOUNDS];
+    if (drift)
+        m->pan += tide_ago((float)(s % JR_VSOUNDS) * 0.25f + 0.125f) * (float)drift * (63.0f / 127.0f);
+    m->fc_oct = m->reso_add = 0.0f;
+    m->atk_off = m->rel_off = 0;
+}
+static void layers_apply(void)                   /* each block: what each layer's notes are now (a drift moves),
+                                                  * and each sound singing */
 {
     vox_mod_t m;
     int i;
@@ -411,7 +438,16 @@ static void layers_apply(void)                   /* each block: what each layer'
         if (voice_layer[i]) {
             layer_mod(voice_layer[i] - 1, &m);
             vox_voice_mod(&vox, i, &m);
+        } else if (vox.v[i].owner == OWN_SING && vox.v[i].note >= 0) {
+            sing_mod(vox.v[i].snd, &m);
+            vox_voice_mod(&vox, i, &m);
         }
+}
+float engine_layer_place(int y)                  /* (main loop) a layer's place now, 0 .. 127 (its drift in it) */
+{
+    vox_mod_t m;
+    layer_mod(y, &m);
+    return m.pan < 0.0f ? 0.0f : m.pan > 127.0f ? 127.0f : m.pan;
 }
 int engine_vox_probe(int what)                   /* (tests) a looped note sounding: 0 its place, 1 its filter x100 */
 {
@@ -700,7 +736,7 @@ static void conduct_reset(void)
 }
 
 /* the load test: the heaviest the voices get. Every drone voice latched on its thickest stack
- * (Min9, four oscillators) with SWARM full, VOX's four voices held (a new chord every two seconds,
+ * (Min9, four oscillators) with SWARM full, all of VOX's eight voices held (a new chord every two seconds,
  * taking the sounding voices), PULSE on every 8th, the wind full, the reverb long and shimmering. Off, the scene
  * comes back and the drones are latched as they were */
 static uint8_t test_latched;                     /* the voices that were latched before the test */
@@ -746,7 +782,8 @@ static void test_set(int on)
 }
 static void test_tick(uint32_t n)                /* VOX's chords, PULSE's 8ths */
 {
-    static const uint8_t CHORD[2][4] = {{57, 60, 64, 67}, {53, 57, 60, 64}};   /* Am7, Fmaj7 */
+    static const uint8_t CHORD[2][VOX_VOICES] = {{45, 52, 57, 60, 64, 67, 71, 76},    /* Am9, Fmaj9: a voice each */
+                                                 {41, 48, 53, 57, 60, 64, 67, 72}};
     int k;
     if (!testing)
         return;
@@ -759,7 +796,7 @@ static void test_tick(uint32_t n)                /* VOX's chords, PULSE's 8ths *
         hit(PULSE_KICK, 1.0f);
     if ((test_i & 7u) == 0u) {
         vox_all_off(&vox);
-        for (k = 0; k < 4; k++)
+        for (k = 0; k < VOX_VOICES; k++)
             vox_note_on(&vox, CHORD[(test_i >> 3) & 1u][k], 1.0f);
     }
     test_i++;

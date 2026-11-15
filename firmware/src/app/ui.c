@@ -554,8 +554,8 @@ static const char *const VOICE_N[EV_N] = {"DRONE", "VOX", "PULSE", "TEXTURE"};
 /* SHAPE's pages: each voice's sound (VOX: three, of the sound of its four playing), the drone's own
  * movement, TIDES, PAN and PAN 2 (ENV, SELECT: the next). ALGO: the voice's level (TIDES: its SHAPE; PAN: the
  * sway's RATE; PAN 2: its OFFSET) */
-enum { PG_DRONE, PG_DRONE2, PG_VOX, PG_VOX2, PG_VOX3, PG_PULSE, PG_TEX, PG_TIDES, PG_PAN, PG_PAN2, NPG };
-enum { PK_SHAPE, PK_VSOUND, PK_DMOTION, PK_TIDE, PK_PAN, PK_PAN2 };   /* where a page's knobs are */
+enum { PG_DRONE, PG_DRONE2, PG_VOX, PG_VOX2, PG_VOX3, PG_SING, PG_PULSE, PG_TEX, PG_TIDES, PG_PAN, PG_PAN2, NPG };
+enum { PK_SHAPE, PK_VSOUND, PK_VSING, PK_DMOTION, PK_TIDE, PK_PAN, PK_PAN2 };   /* where a page's knobs are */
 typedef struct {
     uint8_t voice, kind;
     const char *name;
@@ -569,6 +569,8 @@ static const spage_t PAGE[NPG] = {
     {EV_VOX, PK_VSOUND, "VOX", {"BRIGHT", "ATTACK", "RELEASE", "SHIMMER"}, {VS_BRIGHT, VS_ATTACK, VS_RELEASE, VS_SHIMMER}, 0x9},
     {EV_VOX, PK_VSOUND, "VOX 2", {"WAVE", "FILTER", "RESO", "GLIDE"}, {VS_WAVE, VS_FILTER, VS_RESO, VS_GLIDE}, 0},
     {EV_VOX, PK_VSOUND, "VOX 3", {"DETUNE", "B OCT", "B MIX", "ENV"}, {VS_DETUNE, VS_BOCT, VS_BMIX, VS_ENV}, 0},
+    {EV_VOX, PK_VSING, "VOX SINGS", {"SINGS", "PLACE", "DRIFT", "OCTAVE"},
+     {JR_SG_HOW, JR_SG_PLACE, JR_SG_DRIFT, JR_SG_OCT}, 0x2},
     {EV_PULSE, PK_SHAPE, "PULSE", {"DROP", "DECAY", "CLICK", "SPACE"}, {SH_K1, SH_K2, SH_K3, SH_K4}, 0x8},
     {EV_TEX, PK_SHAPE, "TEXTURE", {"COLOUR", "SWEEP", "RATE", "WIDTH"}, {SH_K1, SH_K2, SH_K3, SH_K4}, 0x1},
     {EV_N, PK_TIDE, "TIDES", {"RATE", "DRONE", "SPACE", "VOX"}, {TD_RATE, TD_DRONE, TD_SPACE, TD_VOX}, 0},
@@ -584,6 +586,7 @@ static uint8_t *pg_ptr(int pg, int k)             /* k: a knob, or -1 ALGO's (th
     const spage_t *p = &PAGE[pg % NPG];
     switch (p->kind) {
     case PK_VSOUND: return &vsound()[k < 0 ? VS_LEVEL : p->f[k]];
+    case PK_VSING: return k < 0 ? &vsound()[VS_LEVEL] : &eng_jr.sing[p->f[k]][eng_jr.vcur % JR_VSOUNDS];
     case PK_DMOTION: return k < 0 ? &eng_jr.shape[EV_DRONE][SH_LEVEL] : &eng_jr.dmotion[p->f[k]];
     case PK_TIDE: return &eng_jr.tide[k < 0 ? TD_SHAPE : p->f[k]];
     case PK_PAN: return k < 0 ? &eng_jr.sway_rate : &eng_jr.pan[p->f[k]];
@@ -607,7 +610,18 @@ static char *put_pan(char *b, int x, int brief)   /* "MIDDLE", "LEFT 50%", "RIGH
     b = put_s(b, x < 64 ? (brief ? "L " : "LEFT ") : (brief ? "R " : "RIGHT "));
     return put_s(put_i(b, x < 64 ? (64 - x) * 100 / 64 : (x - 64) * 100 / 63), "%");
 }
-static int pg_octave(int pg, int k) { return k >= 0 && PAGE[pg % NPG].kind == PK_VSOUND && PAGE[pg % NPG].f[k] == VS_BOCT; }
+static int pg_octave(int pg, int k)               /* an octave: down, as is, up */
+{
+    const spage_t *p = &PAGE[pg % NPG];
+    return k >= 0 && ((p->kind == PK_VSOUND && p->f[k] == VS_BOCT) || (p->kind == PK_VSING && p->f[k] == JR_SG_OCT));
+}
+static int pg_steps(int pg, int k)                /* a knob of a few steps (else 0 .. 127): its top */
+{
+    if (pg_octave(pg, k))
+        return 2;
+    return k >= 0 && PAGE[pg % NPG].kind == PK_VSING && PAGE[pg % NPG].f[k] == JR_SG_HOW ? JR_SING_N - 1 : 0;
+}
+static const char *const SING_SHORT[JR_SING_N] = {"NOT", "RARELY", "AT TIMES", "OFTEN"};
 static char *put_secs(char *b, float s)           /* "14 S", "2M 10" */
 {
     int n = (int)(s + 0.5f);
@@ -621,6 +635,12 @@ static void shape_text(int pg, int k, char *b)
     int x = *pg_ptr(pg, k);
     if (pg_octave(pg, k))
         put_s(b, x == 0 ? "-1" : x == 2 ? "+1" : "0");
+    else if (p->kind == PK_VSING && k == 0)       /* how often it sings */
+        put_s(b, SING_SHORT[x % JR_SING_N]);
+    else if (p->kind == PK_VSING && k == 1)       /* its place */
+        put_pan(b, x, 1);
+    else if (p->kind == PK_VSING && k == 2 && !x)
+        put_s(b, "STILL");
     else if (p->kind == PK_TIDE && k == 0)        /* a tide's length */
         put_secs(b, 8.0f * fm_exp2f((float)x * (5.0f / 127.0f)));
     else if (p->kind == PK_TIDE && k < 0)         /* SHAPE: how even it is */
@@ -656,7 +676,7 @@ static void shape_turn(int k, int e)
 {
     char t[40], b[12];
     uint8_t *p = pg_ptr(ui.vsel, k);
-    *p = (uint8_t)(pg_octave(ui.vsel, k) ? clamp_i(*p + (e > 0 ? 1 : -1), 0, 2) : clamp_i(*p + 2 * e, 0, 127));
+    *p = (uint8_t)(pg_steps(ui.vsel, k) ? clamp_i(*p + (e > 0 ? 1 : -1), 0, pg_steps(ui.vsel, k)) : clamp_i(*p + 2 * e, 0, 127));
     changed_jr();
     shape_text(ui.vsel, k, b);
     put_s(put_s(put_s(put_s(put_s(t, PAGE[ui.vsel].name), " "), k < 0 ? pg_algo(ui.vsel) : PAGE[ui.vsel].k[k]), " "), b);
@@ -779,10 +799,18 @@ static void vsing_knob(int e)                     /* (each sound its own: the ot
 {
     char t[40];
     const int s = eng_jr.vcur % JR_VSOUNDS, lv = clamp_i(JR_SING(&eng_jr, s) + (e > 0 ? 1 : -1), 0, JR_SING_N - 1);
-    eng_jr.sing = (uint8_t)((eng_jr.sing & ~(3u << (2 * s))) | (unsigned)lv << (2 * s));
+    eng_jr.sing[JR_SG_HOW][s] = (uint8_t)lv;
     changed_jr();
     put_s(put_s(put_s(t, jr_vsound_name(s)), " "), SING_N[lv]);
     say(t, 0);
+}
+/* ALGO, BLOOM's key held: BLOOM by itself, now and then (right: more often; left: less, then not) */
+static const char *const BLOOM_AUTO_N[JR_SING_N] = {"BY HAND", "RARELY", "NOW AND THEN", "OFTEN"};
+static void bloom_auto_knob(int e)
+{
+    eng_jr.bloom_auto = (uint8_t)clamp_i(eng_jr.bloom_auto + (e > 0 ? 1 : -1), 0, JR_SING_N - 1);
+    changed_jr();
+    say(eng_jr.bloom_auto ? "BLOOM BY ITSELF, " : "BLOOM ", BLOOM_AUTO_N[eng_jr.bloom_auto]);
 }
 static void drone_mode(int e)                     /* ALGO, a drone key held: HELD (left) or SWELL, comes and goes (right) */
 {
@@ -1081,12 +1109,15 @@ static void reset_now(int what)
             for (k = 0; k < DV_N; k++)
                 eng_jr.dvoice[v][k] = d.dvoice[v][k];
     for (v = 0; v < JR_VSOUNDS; v++)
-        if (all || (voice == EV_VOX && v == eng_jr.vcur))
+        if (all || (voice == EV_VOX && kind == PK_VSOUND && v == eng_jr.vcur))
             for (k = 0; k < JR_VS; k++)
                 eng_jr.vsound[v][k] = d.vsound[v][k];
+    if (kind == PK_VSING)                         /* VOX SINGS: the sound playing quiet, in the middle, as is */
+        for (k = 0; k < 4; k++)
+            eng_jr.sing[k][eng_jr.vcur % JR_VSOUNDS] = (uint8_t)(k == JR_SG_PLACE ? 64 : k == JR_SG_OCT ? 1 : 0);
     if (all) {
         eng_jr.dswell = d.dswell;
-        eng_jr.sing = 0;
+        jr_sing_default(&eng_jr);
         for (k = 0; k < NMACROS; k++)
             eng_jr.macro[k] = 64;
         settings_fx_default();
@@ -1102,7 +1133,7 @@ static void reset_now(int what)
     if (all)
         say("SOUND RESET", 0);
     else
-        say(kind == PK_VSOUND ? jr_vsound_name(eng_jr.vcur) : PAGE[(what - 1) % NPG].name, " RESET");
+        say(kind == PK_VSOUND ? jr_vsound_name(eng_jr.vcur) : PAGE[(what - 1) % NPG].name, " RESET");   /* (VOX SINGS too) */
 }
 static void reset_ask(int what)                   /* SEL: once asks, twice does */
 {
@@ -1328,7 +1359,9 @@ static void loop_row_text(int y, char *b)
     if (l->lay[y].drift)
         q = put_s(q, "~");
     if (l->lay[y].tone != 64 || l->lay[y].swell != 64)
-        put_s(q, "  *");
+        q = put_s(q, "  *");
+    if (l->lay[y].beats && l->lay[y].beats != l->len / LP_BEAT)
+        put_s(q, "  ~/");                       /* (a length of its own) */
 }
 static void loop_knob_text(int y, int k, char *b)   /* k: 0 .. 7, the two pages' */
 {
@@ -1384,6 +1417,25 @@ static void loop_layer_knob(int k, int e)
     default: put_spct(b, v - 64); break;
     }
     put_s(put_s(put_s(put_s(put_i(put_s(t, "LAYER "), y + 1), " "), k == 3 ? "" : LK_N[k]), k == 3 ? "" : " "), b);
+    say(t, 0);
+}
+/* a layer's length: the loop's, or its own in beats (ALGO, 1 .. 64): shorter cuts its end, longer leaves a
+ * rest, so it comes round against the others */
+static int loop_beats(void) { return (int)(engine_looper_state()->len / LP_BEAT); }
+static char *put_len(char *b, int beats)
+{
+    if (!beats || beats == loop_beats())
+        return put_s(b, "AS THE LOOP");
+    return put_s(put_i(b, beats), beats == 1 ? " BEAT" : " BEATS");
+}
+static void loop_len_knob(int e)
+{
+    const looper_t *l = engine_looper_state();
+    char t[40];
+    int y = loop_row(), cur = l->lay[y].beats ? l->lay[y].beats : loop_beats(), v = clamp_i(cur + e, 1, 64);
+    ui.ldel = 0;
+    engine_loop_layer(y, LL_BEATS, v == loop_beats() ? 0 : v);
+    put_len(put_s(put_i(put_s(t, "LAYER "), y + 1), " LENGTH "), v);
     say(t, 0);
 }
 static void loop_layer_out(void)                  /* SEL: once asks, again (within RESET_MS) takes the layer out */
@@ -1775,12 +1827,16 @@ static void input(void)
             drone_mode(e);
         } else if (layer() == L_VSOUND) {
             vsing_knob(e);
+        } else if (layer() == L_BLOOM) {
+            bloom_auto_knob(e);
         } else if (layer() == L_THROW) {
             warp_knob(e);
         } else if (layer() == L_BEND) {
             pitch_knob(e);
         } else if (ui.view == V_SHAPE) {
             shape_turn(-1, e);
+        } else if (ui.view == V_LOOP && loop_layers()) {
+            loop_len_knob(e);
         } else {
             int bpm = clamp_i(cfg.bpm_x10 / 10 + e, 20, 300);
             cfg.bpm_x10 = (uint16_t)(bpm * 10);
@@ -2144,6 +2200,7 @@ static float ec_phase(int *dir)                   /* travelling or MORPHing: how
     return 0.5f - 0.5f * fm_cosf(FM_TWO_PI * fm_clampf(t, 0.0f, 1.0f));   /* off most at the middle, where the key turns */
 }
 
+static void loop_layer_info(int y, int *notes, int *hits, int *snd);   /* (LOOP's, below) */
 static void ec_orbit(void)                        /* the looper: a satellite round the corona, once a loop */
 {
     const looper_t *l = engine_looper_state();
@@ -2161,15 +2218,38 @@ static void ec_orbit(void)                        /* the looper: a satellite rou
         if (ox * ox + oy * oy > (float)((EC_RS + EC_CW) * (EC_RS + EC_CW)))
             cv_pset(EC_CX + (int)ox, EC_CY + (int)oy, blend(C_BG, C_GRAY, 6 + (l->layers > 8 ? 8 : l->layers) / 2));
     }
-    {   /* behind it: a trail, red while it records; else a bead for each layer */
-        const int n = rec ? 20 : (l->layers > LP_LAYERS ? LP_LAYERS : l->layers);
-        const float gap = rec ? 0.012f : 0.035f;
-        for (i = n; i >= 1; i--) {
-            float a = t - (float)i * gap;
+    if (rec) {   /* recording: a red trail behind it */
+        for (i = 20; i >= 1; i--) {
+            float a = t - (float)i * 0.012f;
             if (l->state == LS_REC && a < 0.0f && !l->len)
                 continue;                         /* (the first recording: from where it began) */
-            disc((float)EC_CX + fm_sin_turns(a) * RX, (float)EC_CY - fm_sin_turns(a + 0.25f) * RY, rec ? 1.2f : 1.4f,
-                 blend(C_BG, rec ? C_RED : C_AMB, rec ? 12 - i / 2 : 14 - i));
+            disc((float)EC_CX + fm_sin_turns(a) * RX, (float)EC_CY - fm_sin_turns(a + 0.25f) * RY, 1.2f,
+                 blend(C_BG, C_RED, 12 - i / 2));
+        }
+    }
+    if (l->state != LS_REC) {   /* a bead for each layer, on the orbit's lower arc at its place in the field (left
+                                 * to right, drifting as it drifts), in its sound's colour, lit while it sounds */
+        static const uint16_t SND_C[JR_VSOUNDS] = {RGB(214, 226, 246), C_AMB, RGB(140, 186, 255), RGB(214, 112, 86)};
+        const int n = l->layers > LP_LAYERS ? LP_LAYERS : l->layers;
+        for (i = 0; i < n; i++) {
+            int notes, hits, snd, on = 0, k;
+            float a;
+            uint16_t col;
+            loop_layer_info(i, &notes, &hits, &snd);
+            if (l->lay[i].snd)
+                snd = l->lay[i].snd - 1;
+            for (k = 0; k < 8; k++)
+                on |= l->sounding[i][k] != 0;
+            col = snd >= 0 ? SND_C[snd % JR_VSOUNDS] : snd == -2 ? SND_C[eng_jr.vcur % JR_VSOUNDS] : C_GRAY;
+            a = 0.5f - (engine_layer_place(i) - 64.0f) * (0.25f / 64.0f) + ((float)i - (float)(n - 1) * 0.5f) * 0.02f;
+            if (l->lay[i].mute) {
+                disc((float)EC_CX + fm_sin_turns(a) * RX, (float)EC_CY - fm_sin_turns(a + 0.25f) * RY, 1.2f, dim(col, 3));
+                continue;
+            }
+            if (on)
+                disc((float)EC_CX + fm_sin_turns(a) * RX, (float)EC_CY - fm_sin_turns(a + 0.25f) * RY, 3.6f, blend(C_BG, col, 4));
+            disc((float)EC_CX + fm_sin_turns(a) * RX, (float)EC_CY - fm_sin_turns(a + 0.25f) * RY, on ? 2.0f : 1.5f,
+                 on ? col : dim(col, 9));
         }
     }
     {   /* the satellite, in its own glow */
@@ -2426,8 +2506,8 @@ static void draw_shape(void)
     }
     for (k = 0; k < 4; k++) {
         int cx = 30 + k * 60, x = *pg_ptr(ui.vsel, k), top = 28, h = 66, fill;
-        if (pg_octave(ui.vsel, k))
-            x = x * 127 / 2;
+        if (pg_steps(ui.vsel, k))
+            x = x * 127 / pg_steps(ui.vsel, k);
         fill = x * h / 127;
         cv_rect(cx - 3, top, 6, h, C_LINE);
         if (pg->sgn >> k & 1u) {                  /* from the middle, up or down */
@@ -2450,7 +2530,7 @@ static void draw_shape(void)
         cv_rect(x - 2, 119, 5, 6, C_AMB);
         return;
     }
-    if (pg->kind == PK_VSOUND)                    /* (the sound of the four these pages shape) */
+    if (pg->kind == PK_VSOUND || pg->kind == PK_VSING)   /* (the sound of the four these pages shape) */
         put_s(put_s(b, jr_vsound_name(eng_jr.vcur)), " LEVEL");
     else
         put_s(b, "LEVEL");
@@ -2636,7 +2716,7 @@ static void draw_knobs(void)
             bloom_text(k, a);
             cell(k, BLM_N[k], a, C_AMB);
         }
-        hint("BLOOM", "IT STAYS");
+        hint("BLOOM", eng_jr.bloom_auto ? "ALGO: BY ITSELF" : "ALGO: BY ITSELF?");
         cv_commit(2, 0, KNOB_Y);
         return;
     case L_VSOUND:
@@ -2753,8 +2833,9 @@ static void draw_knobs(void)
             loop_knob_text(loop_row(), k + (ui.lpage ? 4 : 0), a);
             cell(k, LK_N[k + (ui.lpage ? 4 : 0)], a, C_HI);
         }
-        put_s(put_i(put_s(b, "LAYER "), loop_row() + 1), ui.lpage ? "   ENV: LEVEL.." : "   ENV: PAN..");
-        hint(b, "SEL TWICE: OUT");
+        put_s(put_i(put_s(b, "LAYER "), loop_row() + 1), ui.lpage ? "  ENV: LEVEL.." : "  ENV: PAN..");
+        put_len(put_s(c, "ALGO: "), engine_looper_state()->lay[loop_row()].beats);
+        hint(b, c);
         break;
     case V_SYSTEM:
         text_c(120, 30, &FONT_XS, "SELECT: ROW    KNOB OR SEL: CHANGE", C_DIM);

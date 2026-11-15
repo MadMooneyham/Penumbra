@@ -98,8 +98,21 @@ static const character_t CHARACTER[JR_PRESETS] = {
 static const character_t TOTALITY_B =
     {{96, 70, 112, 80}, {60, 70, 100, 60}, {30, 90, 70, 70, 100}, {64, 52, 64, 76}, 30, {40, 80, 60, 90}, 64, 0x18, 2};
 /* what each plays by itself: VOX singing (how often, with which sound), travelling on (JR_TRAVEL_BARS) */
-static const struct { uint8_t vsing, vsing_snd, travel; } AUTO[JR_PRESETS] = {
-    {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {2, 2, 2}};
+static const struct { uint8_t vsing, vsing_snd, travel, bloom, drift; } AUTO[JR_PRESETS] = {
+    {0, 0, 0, 0, 0}, {0, 0, 0, 0, 0}, {0, 0, 0, 0, 0}, {0, 0, 0, 0, 0}, {0, 0, 0, 0, 0}, {0, 0, 0, 0, 0},
+    {2, 2, 2, 1, 80}};                           /* (TOTALITY: HALO now and then, wandering; BLOOM rarely) */
+
+void jr_sing_default(journey_t *j)
+{
+    int s;
+    for (s = 0; s < JR_VSOUNDS; s++) {
+        j->sing[JR_SG_HOW][s] = 0;
+        j->sing[JR_SG_PLACE][s] = 64;
+        j->sing[JR_SG_DRIFT][s] = 0;
+        j->sing[JR_SG_OCT][s] = 1;
+    }
+    j->bloom_auto = 0;
+}
 
 static void character(journey_t *j, const character_t *c)
 {
@@ -123,7 +136,10 @@ static void jr_character(journey_t *j, int i)
 {
     i = (int)((unsigned)i % JR_PRESETS);
     character(j, &CHARACTER[i]);
-    j->sing = (uint8_t)(AUTO[i].vsing << (2 * AUTO[i].vsing_snd));
+    jr_sing_default(j);
+    j->sing[JR_SG_HOW][AUTO[i].vsing_snd] = AUTO[i].vsing;
+    j->sing[JR_SG_DRIFT][AUTO[i].vsing_snd] = AUTO[i].drift;
+    j->bloom_auto = AUTO[i].bloom;
     j->travel = AUTO[i].travel;
 }
 
@@ -488,6 +504,7 @@ void jr_start(jrun_t *r, const jr_sink_t *o)
         for (s = 0; s < JR_VSOUNDS; s++)
             r->sing_wait[s] = (uint8_t)(3 + 3 * s), r->sing_left[s] = r->sing_hold[s] = 0;
     }
+    r->bloom_wait = (uint8_t)(2 + rndn(&r->srng, 4));
     r->bars_here = 0;
     r->playing = 1;
     jr_tick(r, 0, o);
@@ -679,6 +696,13 @@ void jr_step(jrun_t *r, uint32_t n, const jr_sink_t *o)
             sing_beat(r, v, o);
     if (!r->playing || (n & 15u))
         return;
+    if (r->j->bloom_auto && r->j->bloom_auto < JR_SING_N) {   /* BLOOM by itself: every so many bars */
+        static const uint8_t LO[JR_SING_N] = {0, 16, 8, 3}, N[JR_SING_N] = {1, 16, 8, 4};
+        if (r->bloom_wait)
+            r->bloom_wait--;
+        else
+            o->bloom(o->ctx), r->bloom_wait = (uint8_t)(LO[r->j->bloom_auto] + rndn(&r->srng, N[r->j->bloom_auto]));
+    }
     if (r->j->travel && r->j->travel < JR_TRAVEL_N && !r->travelling && r->mamt <= 0.0f && r->j->nscenes > 1 &&
         ++r->bars_here >= JR_TRAVEL_BARS[r->j->travel])   /* it travels by itself: on to the next scene */
         jr_travel(r, (r->cur + 1) % r->j->nscenes);

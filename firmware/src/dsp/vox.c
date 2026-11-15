@@ -5,7 +5,7 @@
 
 #define SR 44100.0f
 #define INV_SR (1.0f / 44100.0f)
-#define VOX_SCALE 0.22f                   /* a voice's loudness: four held under the drones' level */
+#define VOX_SCALE 0.22f                   /* a voice's loudness (as with four: a few held under the drones' level) */
 
 static const char *const OCTB_N[3] = {"-12", "0", "+12"};
 static const param_t VOX_P[VX_NPARAMS] = {
@@ -30,7 +30,7 @@ static float pot_exp(int p, float lo, float octaves) { return lo * fm_exp2f(octa
  * one side of it */
 static void voice_pan(vox_t *x, int i)
 {
-    static const float AT[VOX_VOICES] = {-1.0f, 0.333f, -0.333f, 1.0f};
+    static const float AT[VOX_VOICES] = {-1.0f, 0.43f, -0.43f, 1.0f, -0.71f, 0.14f, -0.14f, 0.71f};   /* (neighbours apart) */
     vox_voice_t *v = &x->v[i];
     float pot = v->pan_pot < 0.0f ? 64.0f + AT[i] * x->spread * 63.0f : v->pan_pot + AT[i] * x->spread * 19.0f;
     pan_gains_f(pot < 0.0f ? 0.0f : pot > 127.0f ? 127.0f : pot, &v->pan_l, &v->pan_r);
@@ -93,8 +93,9 @@ void vox_init(vox_t *x)
     for (k = 0; k < VOX_VOICES; k++) {
         x->v[k].note = -1;
         x->v[k].stage = 2;
-        x->v[k].ph[0] = 0.13f * (float)k;           /* (the voices' saws start apart) */
-        x->v[k].ph[1] = 0.61f + 0.07f * (float)k;
+        x->v[k].ph[0] = 0.13f * (float)k;           /* (the voices start apart; a voice's two saws close, so
+                                                     * with no DETUNE they never cancel its fundamental) */
+        x->v[k].ph[1] = x->v[k].ph[0] + 0.07f + 0.02f * (float)k;
         x->v[k].pan_pot = -1.0f;
         x->v[k].fc_mul = 1.0f;
     }

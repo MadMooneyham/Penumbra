@@ -20,8 +20,15 @@ static void layer_default(lp_layer_t *y)
     y->oct = 1;
     y->mute = 0;
     y->pan = y->tone = y->swell = 64;
-    y->drift = 0;
+    y->drift = y->beats = 0;
+    y->rsv[0] = y->rsv[1] = y->rsv[2] = 0;
 }
+static uint32_t layer_len(const looper_t *l, int y)   /* its own length, else the loop's */
+{
+    const uint32_t b = l->lay[y % LP_LAYERS].beats;
+    return b ? b * LP_BEAT : l->len;
+}
+static int own_len(const looper_t *l, int y) { return l->lay[y % LP_LAYERS].beats && layer_len(l, y) != l->len; }
 
 void looper_init(looper_t *l)
 {
@@ -100,12 +107,17 @@ static void close_dub(looper_t *l)
     l->edits++;
 }
 
-static void fire(looper_t *l, uint32_t from, uint32_t to, int incl_from, const lp_sink_t *o)
+/* the events in (from, to] (and at from, incl_from) of layer only (-1: the layers of the loop's own length) */
+static void fire(looper_t *l, uint32_t from, uint32_t to, int incl_from, const lp_sink_t *o, int only)
 {
     uint32_t i;
     for (i = 0; i < l->n; i++) {
         const lp_ev_t *e = &l->ev[i];
         const int y = e->layer % LP_LAYERS;
+        if (only < 0 ? own_len(l, y) : y != only)
+            continue;
+        if (e->t >= layer_len(l, y))
+            continue;                            /* (a layer made shorter: its end cut) */
         const lp_layer_t *ly = &l->lay[y];
         uint32_t *on = l->sounding[y];
         int vel;
@@ -132,9 +144,15 @@ static void fire(looper_t *l, uint32_t from, uint32_t to, int incl_from, const l
 
 static void from_start(looper_t *l, const lp_sink_t *o)
 {
+    int y;
     l->pos = 0;
     l->frac = 0;
-    fire(l, 0, 0, 1, o);
+    fire(l, 0, 0, 1, o, -1);
+    for (y = 0; y < LP_LAYERS; y++) {
+        l->lpos[y] = 0;
+        if (y < (int)l->layers && own_len(l, y))
+            fire(l, 0, 0, 1, o, y);
+    }
 }
 
 void looper_restart(looper_t *l, const lp_sink_t *o)
@@ -156,7 +174,15 @@ void looper_seek(looper_t *l, uint32_t ticks, const lp_sink_t *o)
         ticks >>= 1;
     l->pos = ticks % l->len;
     l->frac = 0;
-    fire(l, l->pos, l->pos, 1, o);               /* (what starts there, plays) */
+    fire(l, l->pos, l->pos, 1, o, -1);           /* (what starts there, plays) */
+    {
+        int y;
+        for (y = 0; y < (int)l->layers && y < LP_LAYERS; y++)
+            if (own_len(l, y)) {
+                l->lpos[y] = ticks % layer_len(l, y);
+                fire(l, l->lpos[y], l->lpos[y], 1, o, y);
+            }
+    }
 }
 
 void looper_rec(looper_t *l, const lp_sink_t *o)
@@ -250,6 +276,11 @@ void looper_layer_set(looper_t *l, int y, int field, int value, const lp_sink_t 
     case LL_DRIFT:
     case LL_TONE:
     case LL_SWELL: (&ly->pan)[field - LL_PAN] = (uint8_t)(value < 0 ? 0 : value > 127 ? 127 : value); break;
+    case LL_BEATS:                               /* its own length: from where the loop is, in it */
+        ly->beats = (uint8_t)(value < 0 ? 0 : value > 64 ? 64 : value);
+        quiet_layer(l, y, o);
+        l->lpos[y] = l->pos % layer_len(l, y);
+        break;
     case LL_MUTE:
         ly->mute = (uint8_t)(value != 0);
         if (ly->mute)
@@ -281,7 +312,7 @@ void looper_layer_delete(looper_t *l, int y, const lp_sink_t *o)
     l->n = (uint16_t)k;
     l->full = 0;
     for (j = y; j < LP_LAYERS - 1; j++)
-        l->lay[j] = l->lay[j + 1];
+        l->lay[j] = l->lay[j + 1], l->lpos[j] = l->lpos[j + 1];
     layer_default(&l->lay[LP_LAYERS - 1]);
     l->layers--;
     l->edits++;
@@ -341,13 +372,34 @@ void looper_advance(looper_t *l, uint32_t ticks, const lp_sink_t *o)
         ticks = l->len;
     to = l->pos + ticks;
     if (to < l->len) {
-        fire(l, l->pos, to, 0, o);
+        fire(l, l->pos, to, 0, o, -1);
         l->pos = to;
     } else {                                     /* round the end, to the start */
-        fire(l, l->pos, l->len - 1u, 0, o);
+        fire(l, l->pos, l->len - 1u, 0, o, -1);
         to -= l->len;
-        fire(l, 0, to, 1, o);
+        fire(l, 0, to, 1, o, -1);
         l->pos = to;
+    }
+    {   /* the layers of their own length: each round in its own time; what one has on is let go at its end */
+        int y;
+        for (y = 0; y < (int)l->layers && y < LP_LAYERS; y++) {
+            uint32_t yl, p, t2;
+            if (!own_len(l, y))
+                continue;
+            yl = layer_len(l, y);
+            p = l->lpos[y] % yl;
+            t2 = p + ticks;
+            if (t2 < yl) {
+                fire(l, p, t2, 0, o, y);
+                l->lpos[y] = t2;
+            } else {
+                fire(l, p, yl - 1u, 0, o, y);
+                quiet_layer(l, y, o);
+                t2 = (t2 - yl) % yl;
+                fire(l, 0, t2, 1, o, y);
+                l->lpos[y] = t2;
+            }
+        }
     }
 }
 
@@ -362,7 +414,7 @@ typedef struct {
     uint32_t len;
     uint8_t layers, state, speed, rsv2;
 } lp_hdr_t;
-_Static_assert(sizeof(lp_hdr_t) == LP_HDR && sizeof(lp_ev_t) == 8u && sizeof(lp_layer_t) == 8u &&
+_Static_assert(sizeof(lp_hdr_t) == LP_HDR && sizeof(lp_ev_t) == 8u && sizeof(lp_layer_t) == 12u &&
                LP_SAVE_HDR == LP_HDR + sizeof(((looper_t *)0)->lay), "the saved loop's layout");
 
 uint32_t looper_save(const looper_t *l, void *dst, uint32_t max)
@@ -426,6 +478,7 @@ int looper_load(looper_t *l, const void *src, uint32_t n)
             y->drift &= 0x7Fu;
             y->tone &= 0x7Fu;
             y->swell &= 0x7Fu;
+            y->beats = (uint8_t)(y->beats > 64 ? 0 : y->beats);
         }
     }
     d = (uint8_t *)l->ev;

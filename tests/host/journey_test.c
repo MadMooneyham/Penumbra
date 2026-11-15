@@ -62,7 +62,9 @@ static void d_sing(void *x, int m, int vel, int snd)
         S.sung_on[snd] = 0;
     }
 }
-static const jr_sink_t SINK = {0, d_note, d_latch, d_rel, d_swell, d_sing};
+static uint32_t blooms;
+static void d_bloom(void *x) { (void)x; blooms++; }
+static const jr_sink_t SINK = {0, d_note, d_latch, d_rel, d_swell, d_sing, d_bloom};
 
 #define STEP_FRAMES 7350u                          /* a 16th at 90 BPM */
 #define PER_MIN (60u * 6u)                         /* 16ths a minute at 90 BPM */
@@ -184,7 +186,8 @@ int main(void)
         play_steps(10u * PER_MIN);
         CHECK(S.sung == 0, "as made, VOX does not sing");
         start(2);
-        J.sing = 1u << 4;                           /* (HALO rarely) */
+        jr_sing_default(&J);
+        J.sing[JR_SG_HOW][2] = 1;                   /* (HALO rarely) */
         play_steps(20u * PER_MIN);
         rare = S.sung;
         CHECK(rare >= 20u && rare <= 140u && S.sung_out == 0 && S.sung_bad == 0 && S.sung_snd == 1u << 2,
@@ -193,7 +196,7 @@ int main(void)
         play_steps(10u * PER_MIN);
         CHECK(S.sung_out == 0, "after a move to another scene: in that key");
         start(2);
-        J.sing = 3u << 4;
+        J.sing[JR_SG_HOW][2] = 3;
         play_steps(20u * PER_MIN);
         often = S.sung;
         printf("  sing: %u notes in 20 minutes rarely, %u often\n", rare, often);
@@ -201,11 +204,31 @@ int main(void)
         jr_stop(&R, &SINK);
         CHECK(!S.sung_on[0] && !S.sung_on[1] && !S.sung_on[2] && !S.sung_on[3], "the clock stopped: its note let go");
         start(2);
-        J.sing = 2u << 0 | 2u << 2 | 1u << 6;       /* GLASS and REED now and then, LOW rarely, HALO not */
+        jr_sing_default(&J);
+        J.sing[JR_SG_HOW][0] = J.sing[JR_SG_HOW][1] = 2;   /* GLASS and REED now and then, LOW rarely, HALO not */
+        J.sing[JR_SG_HOW][3] = 1;
         play_steps(20u * PER_MIN);
         CHECK(S.sung_snd == (1u | 2u | 8u) && S.sung_out == 0 && S.sung_bad == 0,
               "several sounds sing together, each its own phrases, in the key; one not set stays quiet");
-        J.sing = 0;
+        jr_sing_default(&J);
+    }
+    {   /* BLOOM by itself: none by hand; set, every so many bars, more often the higher it is set */
+        uint32_t rare, often;
+        start(0);
+        blooms = 0;
+        play_steps(10u * PER_MIN);
+        CHECK(blooms == 0, "BLOOM: by hand, none by itself");
+        blooms = 0;
+        J.bloom_auto = 1;
+        play_steps(20u * PER_MIN);
+        rare = blooms;
+        blooms = 0;
+        J.bloom_auto = 3;
+        play_steps(20u * PER_MIN);
+        often = blooms;
+        printf("  bloom: %u in 20 minutes rarely, %u often\n", rare, often);
+        CHECK(rare >= 10u && rare <= 40u && often > 3u * rare, "BLOOM by itself: rarely, a few a minute often");
+        J.bloom_auto = 0;
     }
     {   /* travelling by itself: TOTALITY as made, on every 16 bars (and the 12 s there), round all six and on;
          * by hand (0), it stays; a preset names its two sounds, the others none */

@@ -18,7 +18,7 @@
 #include <stdint.h>
 #include "param.h"
 
-#define VOX_VOICES 4
+#define VOX_VOICES 8
 #define VOX_SOUNDS 4
 #define VOX_CTRL 16                      /* control rate: every 16 samples */
 #define VOX_MAX_BLOCK 256

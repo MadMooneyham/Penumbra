@@ -550,8 +550,17 @@ static int expect(const char *what, const char *val)
         got = eng_jr.vsound[(what[2] - '1') % JR_VSOUNDS][atoi(what + 4) % JR_VS];
     else if (!strcmp(what, "vox_sounds"))           /* the VOX sounds with a note held now (bit 0 GLASS .. 3 LOW) */
         got = engine_vox_sounds();
-    else if (!strcmp(what, "vsing"))                /* every sound's singing, packed (0: none sings) */
-        got = eng_jr.sing;
+    else if (!strcmp(what, "vsing"))                /* every sound's singing, packed two bits each (0: none sings) */
+        got = JR_SING(&eng_jr, 0) | JR_SING(&eng_jr, 1) << 2 | JR_SING(&eng_jr, 2) << 4 | JR_SING(&eng_jr, 3) << 6;
+    else if (!strncmp(what, "sgF", 3) && what[3] >= '0' && what[3] <= '3' && what[4] >= '1' && what[4] <= '4')
+        got = eng_jr.sing[what[3] - '0'][what[4] - '1'];   /* sgF S: a sound's singing (F 0 how, 1 place, 2 drift,
+                                                            * 3 octave; S 1 GLASS .. 4 LOW), e.g. sgF12 */
+    else if (!strcmp(what, "bloom_auto"))           /* BLOOM by itself: 0 by hand .. 3 often; blooms: how many so far */
+        got = eng_jr.bloom_auto;
+    else if (!strcmp(what, "blooms")) {
+        extern volatile uint32_t eng_blooms;
+        got = (int)eng_blooms;
+    }
     else if (!strncmp(what, "vsing", 5) && what[5] >= '1' && what[5] <= '4')   /* vsingS: sound S's (1 GLASS .. 4 LOW),
                                                                                 * 0 not .. 3 often */
         got = JR_SING(&eng_jr, what[5] - '1');

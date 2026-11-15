@@ -3,7 +3,7 @@
 # read as they are would put every voice hard left.
 legacy11
 wait 500
-expect jr_format 9
+expect jr_format 10
 expect journey 3
 expect tide0 30
 expect pan0 64

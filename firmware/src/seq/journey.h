@@ -25,7 +25,8 @@
 #define JR_USER 8
 #define JR_DRONES 5
 #define JR_MAGIC 0x314A4E50u                    /* "PNJ1" */
-#define JR_FORMAT 9u                            /* 8 (1.2's second and third betas): one SWAY for all and PAN 2's
+#define JR_FORMAT 10u                           /* 9 (1.2 .. 1.5): no singers' places, nor BLOOM by itself; 8 (1.2's
+                                                 * second and third betas): one SWAY for all and PAN 2's
                                                  * switches, no RATE; 7 (its first): no PAN 2; 6 (1.1): nor PAN or
                                                  * SWAY; 5 (1.0): nor ROOM, HALO, drone motion or TIDES (settings.c
                                                  * converts them all); the betas' 1 .. 4 do not load */
@@ -78,7 +79,12 @@ typedef struct {
     uint8_t sway_rate;                          /* PAN's ALGO: 0 the sway on the tide, else its own cycle (60 s .. 0.5 s) */
     uint8_t sway[JR_PAN];                       /* PAN 2: how far each part sways, as pan[] (0 still; VOX: its echoes half) */
     uint8_t sway_off;                           /* PAN 2's ALGO: 0 all in sync .. 127 each half a cycle behind the one before */
-    uint8_t rsv2[40 - JR_DMOTION - JR_TIDE - 2 * JR_PAN - 2];   /* (0.15's two captured loops: spare) */
+    uint8_t sing[4][JR_VSOUNDS];                /* each VOX sound singing by itself (SHAPE's VOX SINGS): JR_SG_*,
+                                                 * [JR_SG_HOW] 0 not, 1 rarely, 2 now and then, 3 often; [PLACE] its
+                                                 * place (64 the middle, over VOX's); [DRIFT] 0 still .. 127 how far
+                                                 * it sways round it on the tide; [OCT] 0 down, 1 as is, 2 up */
+    uint8_t bloom_auto;                         /* BLOOM by itself, now and then: 0 not, 1 rarely .. 3 often */
+    uint8_t rsv2[40 - JR_DMOTION - JR_TIDE - 2 * JR_PAN - 2 - 4 * JR_VSOUNDS - 1];   /* (spare) */
     /* the sound (0..127; nothing here reads it but dswell: the engine does) */
     uint8_t shape[JR_VOICES][JR_SHAPE];
     uint8_t dvoice[JR_DRONES][JR_DVOICE];
@@ -90,11 +96,10 @@ typedef struct {
     uint8_t vcur;                               /* the one playing */
     uint8_t vsing, vsing_snd;                   /* (1.5's: one sound singing, at that level; settings.c moves it
                                                  * into sing, and they stay 0) */
-    uint8_t sing;                               /* each VOX sound singing by itself, two bits each (sound s: bits
-                                                 * 2s, 2s + 1): 0 not, 1 rarely, 2 now and then, 3 often; a few
-                                                 * soft, slow notes in the scene's key, each sound its own phrases */
+    uint8_t rsv3[1];
 } journey_t;
-#define JR_SING(j, s) ((int)((j)->sing >> (2 * ((s) % JR_VSOUNDS)) & 3u))
+enum { JR_SG_HOW, JR_SG_PLACE, JR_SG_DRIFT, JR_SG_OCT };
+#define JR_SING(j, s) ((int)(j)->sing[JR_SG_HOW][(s) % JR_VSOUNDS])
 
 /* a journey's sound alone, without its scenes: what SHAPE, the holds and TIDES set (A/B and the sound
  * library keep these). All bytes, laid out as in journey_t */
@@ -122,6 +127,7 @@ typedef struct {
     void (*drone_release)(void *ctx);                     /* every voice falls away */
     void (*drone_swell)(void *ctx, int voice);            /* a voice that comes and goes: in, then out */
     void (*sing)(void *ctx, int midi, int vel, int snd);  /* VOX singing by itself: a note on (vel 0: off) */
+    void (*bloom)(void *ctx);                             /* BLOOM by itself */
 } jr_sink_t;
 
 /* the scene as it sounds now, gliding while it travels (0..127) */
@@ -145,6 +151,7 @@ typedef struct {
      * left (0: none on), that note, the white key (degree) it is on */
     uint8_t sing_wait[JR_VSOUNDS], sing_left[JR_VSOUNDS], sing_hold[JR_VSOUNDS], sing_note[JR_VSOUNDS],
         sing_w[JR_VSOUNDS];
+    uint8_t bloom_wait;                         /* BLOOM by itself: bars to the next */
     uint16_t bars_here;                         /* bars in this scene (it travels by itself: on at JR_TRAVEL_BARS) */
     uint32_t srng;
     float macro_s[NMACROS];
@@ -163,6 +170,7 @@ int jr_preset_ab(int i, jr_sound_t *a, jr_sound_t *b);
 extern const uint8_t JR_TRAVEL_BARS[JR_TRAVEL_N];
 const char *jr_preset_name(int i);
 void jr_sound_default(journey_t *j);             /* the sound as made (a preset's, an old journey's) */
+void jr_sing_default(journey_t *j);              /* no sound singing, each in the middle, still, as is; no BLOOM by itself */
 void jr_vsound_default(journey_t *j);            /* VOX's four sounds as made */
 void jr_bloom_default(journey_t *j);             /* BLOOM as made */
 void jr_motion_default(journey_t *j);            /* the drone's movement and TIDES as made */

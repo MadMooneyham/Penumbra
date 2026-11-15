@@ -63,14 +63,20 @@ int main(int argc, char **argv)
         printf("  chord peak L %.3f R %.3f\n", pl, pr);
         CHECK(pl > 0.05 && pr > 0.05 && pl < 1.0 && pr < 1.0, "a four-note chord sounds in both channels, under full scale");
     }
-    vox_note_off(&x, 60);                            /* let go of one: the fifth note takes that voice */
+    {   /* the rest of the voices held too */
+        static const int MORE[VOX_VOICES - 4] = {71, 74, 76, 79};
+        int k;
+        for (k = 0; k < VOX_VOICES - 4; k++)
+            vox_note_on(&x, MORE[k], 1.0f);
+    }
+    vox_note_off(&x, 60);                            /* let go of one: the next note takes that voice */
     run(0.3f);
     t = at;
     vox_note_on(&x, 69, 1.0f);
     CHECK(vox_held(&x, 57) && vox_held(&x, 64) && vox_held(&x, 67) && vox_held(&x, 69) && !vox_held(&x, 60),
-          "a fifth note takes the voice let go");
-    vox_note_on(&x, 72, 1.0f);                       /* all held: the oldest (57) goes */
-    CHECK(!vox_held(&x, 57) && vox_held(&x, 72), "all held: the oldest held is taken");
+          "a note more than the voices takes the voice let go");
+    vox_note_on(&x, 81, 1.0f);                       /* all held: the oldest (57) goes */
+    CHECK(!vox_held(&x, 57) && vox_held(&x, 81), "all held: the oldest held is taken");
     run(1.0f);
     {
         double before = step(t - 22050u, t), after = step(t, t + 4410u);

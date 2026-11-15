@@ -241,9 +241,9 @@ int main(void)
             memcpy(two, buf, 16);
             two[0] = 'P', two[1] = 'N', two[2] = 'L', two[3] = '2';
             for (j = 0; j < LP_LAYERS; j++)
-                memcpy(two + 16 + 4 * j, buf + 16 + 8 * j, 4);
+                memcpy(two + 16 + 4 * j, buf + 16 + sizeof(lp_layer_t) * j, 4);
             memcpy(two + 16 + 4 * LP_LAYERS, buf + LP_SAVE_HDR, n - LP_SAVE_HDR);
-            n2 = n - 4u * LP_LAYERS;
+            n2 = n - (LP_SAVE_HDR - (16u + 4u * LP_LAYERS));
             looper_clear(&L, &O);
             CHECK(looper_load(&L, two, n2) == 0 && L.layers == 2 && L.lay[1].level == 100 && L.lay[1].oct == 1 &&
                       L.lay[1].pan == 64 && L.lay[1].drift == 0 && L.lay[1].tone == 64,

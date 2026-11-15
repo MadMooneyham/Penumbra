@@ -129,8 +129,18 @@ static void journey_sane(journey_t *j)          /* a loaded one: every field in 
             j->dvoice[i][DV_OCT] = 1;
     j->dswell &= (1u << ENG_DRONES) - 1u;
     if (j->vsing && j->vsing < JR_SING_N)        /* (1.5's one sound singing: into sing) */
-        j->sing |= (uint8_t)(j->vsing << (2 * (j->vsing_snd % JR_VSOUNDS)));
+        j->sing[JR_SG_HOW][j->vsing_snd % JR_VSOUNDS] = j->vsing;
     j->vsing = j->vsing_snd = 0;
+    for (i = 0; i < JR_VSOUNDS; i++) {
+        if (j->sing[JR_SG_HOW][i] >= JR_SING_N)
+            j->sing[JR_SG_HOW][i] = 0;
+        j->sing[JR_SG_PLACE][i] &= 0x7Fu;
+        j->sing[JR_SG_DRIFT][i] &= 0x7Fu;
+        if (j->sing[JR_SG_OCT][i] > 2)
+            j->sing[JR_SG_OCT][i] = 1;
+    }
+    if (j->bloom_auto >= JR_SING_N)
+        j->bloom_auto = 0;
     if (j->travel >= JR_TRAVEL_N)
         j->travel = 0;
     for (i = 0; i < JR_SCENES; i++)
@@ -170,6 +180,7 @@ static void journey_upgrade(journey_t *j)
     }
     for (k = 0; k < (int)sizeof j->rsv2; k++)
         j->rsv2[k] = 0;
+    jr_sing_default(j);                          /* (9 and before: the singers' places in the middle, as is) */
     j->format = JR_FORMAT;
 }
 
