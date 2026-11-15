@@ -1348,8 +1348,9 @@ static void loop_row_text(int y, char *b)
     }
     loop_layer_info(y, &notes, &hits, &snd);
     q = put_s(b, loop_sound_name(y));
-    if (notes)
-        q = put_s(put_i(put_s(q, "  "), notes), notes == 1 ? " NOTE" : " NOTES");
+    if (notes && l->lay[y].oct == 1 && l->lay[y].level == 100 && l->lay[y].pan == 64 && !l->lay[y].drift &&
+        l->lay[y].tone == 64 && l->lay[y].swell == 64 && (!l->lay[y].beats || l->lay[y].beats == l->len / LP_BEAT))
+        q = put_s(put_i(put_s(q, "  "), notes), notes == 1 ? " NOTE" : " NOTES");   /* (nothing set: its notes) */
     if (l->lay[y].oct != 1)
         q = put_s(q, l->lay[y].oct ? "  +1" : "  -1");
     if (l->lay[y].level != 100)
@@ -1361,7 +1362,7 @@ static void loop_row_text(int y, char *b)
     if (l->lay[y].tone != 64 || l->lay[y].swell != 64)
         q = put_s(q, "  *");
     if (l->lay[y].beats && l->lay[y].beats != l->len / LP_BEAT)
-        put_s(q, "  ~/");                       /* (a length of its own) */
+        put_s(put_i(put_s(q, "  "), l->lay[y].beats), "B");   /* (a length of its own, in beats) */
 }
 static void loop_knob_text(int y, int k, char *b)   /* k: 0 .. 7, the two pages' */
 {
@@ -2243,13 +2244,13 @@ static void ec_orbit(void)                        /* the looper: a satellite rou
             col = snd >= 0 ? SND_C[snd % JR_VSOUNDS] : snd == -2 ? SND_C[eng_jr.vcur % JR_VSOUNDS] : C_GRAY;
             a = 0.5f - (engine_layer_place(i) - 64.0f) * (0.25f / 64.0f) + ((float)i - (float)(n - 1) * 0.5f) * 0.02f;
             if (l->lay[i].mute) {
-                disc((float)EC_CX + fm_sin_turns(a) * RX, (float)EC_CY - fm_sin_turns(a + 0.25f) * RY, 1.2f, dim(col, 3));
+                disc((float)EC_CX + fm_sin_turns(a) * RX, (float)EC_CY - fm_sin_turns(a + 0.25f) * RY, 1.4f, dim(col, 4));
                 continue;
             }
             if (on)
-                disc((float)EC_CX + fm_sin_turns(a) * RX, (float)EC_CY - fm_sin_turns(a + 0.25f) * RY, 3.6f, blend(C_BG, col, 4));
-            disc((float)EC_CX + fm_sin_turns(a) * RX, (float)EC_CY - fm_sin_turns(a + 0.25f) * RY, on ? 2.0f : 1.5f,
-                 on ? col : dim(col, 9));
+                disc((float)EC_CX + fm_sin_turns(a) * RX, (float)EC_CY - fm_sin_turns(a + 0.25f) * RY, 4.6f, blend(C_BG, col, 5));
+            disc((float)EC_CX + fm_sin_turns(a) * RX, (float)EC_CY - fm_sin_turns(a + 0.25f) * RY, on ? 2.6f : 2.0f,
+                 on ? col : dim(col, 11));
         }
     }
     {   /* the satellite, in its own glow */
@@ -2833,7 +2834,7 @@ static void draw_knobs(void)
             loop_knob_text(loop_row(), k + (ui.lpage ? 4 : 0), a);
             cell(k, LK_N[k + (ui.lpage ? 4 : 0)], a, C_HI);
         }
-        put_s(put_i(put_s(b, "LAYER "), loop_row() + 1), ui.lpage ? "  ENV: LEVEL.." : "  ENV: PAN..");
+        put_s(b, ui.lpage ? "ENV: LEVEL.." : "ENV: PAN..");
         put_len(put_s(c, "ALGO: "), engine_looper_state()->lay[loop_row()].beats);
         hint(b, c);
         break;

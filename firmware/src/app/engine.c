@@ -449,13 +449,23 @@ float engine_layer_place(int y)                  /* (main loop) a layer's place 
     layer_mod(y, &m);
     return m.pan < 0.0f ? 0.0f : m.pan > 127.0f ? 127.0f : m.pan;
 }
-int engine_vox_probe(int what)                   /* (tests) a looped note sounding: 0 its place, 1 its filter x100 */
+int engine_vox_probe(int what)                   /* (tests) a looped note sounding: 0 its place, 1 its filter x100;
+                                                  * a sound singing: 2 its place, 3 its note; 4 the voices held */
 {
-    int i;
-    for (i = 0; i < VOX_VOICES; i++)
-        if (voice_layer[i] && vox.v[i].gate)
+    int i, n = 0;
+    for (i = 0; i < VOX_VOICES; i++) {
+        if (what == 4) {
+            n += vox.v[i].gate != 0;
+            continue;
+        }
+        if (!vox.v[i].gate)
+            continue;
+        if (what < 2 && voice_layer[i])
             return what ? (int)(vox.v[i].fc_mul * 100.0f + 0.5f) : (int)(vox.v[i].pan_pot + 0.5f);
-    return -1;
+        if (what >= 2 && vox.v[i].owner == OWN_SING)
+            return what == 3 ? (int)vox.v[i].note : (int)(vox.v[i].pan_pot + 0.5f);
+    }
+    return what == 4 ? n : -1;
 }
 static void ls_on(void *x, int code, int vel, int tag, int layer)
 {

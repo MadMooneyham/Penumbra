@@ -612,6 +612,12 @@ static int expect(const char *what, const char *val)
         got = engine_vox_probe(0);
     else if (!strcmp(what, "vtone"))
         got = engine_vox_probe(1);
+    else if (!strcmp(what, "span"))                 /* a sound singing now: its place (-1: none); snote: its note */
+        got = engine_vox_probe(2);
+    else if (!strcmp(what, "snote"))
+        got = engine_vox_probe(3);
+    else if (!strcmp(what, "voices_on"))            /* VOX's voices holding a note */
+        got = engine_vox_probe(4);
     else if (!strcmp(what, "lpage"))                /* LOOP's knob page: 0 LEVEL.., 1 PAN.. */
         got = ui.lpage;
     else if (!strcmp(what, "lrow"))                 /* LOOP's layer shown, 1 .. */

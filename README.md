@@ -62,12 +62,15 @@ Penumbra is slow, and much of what it does best unfolds over a few minutes.
   pressed again. In the other journeys most voices start held.
 - **Voices that sing:** holding one of VOX's sound keys (black 8-11) and turning **ALGO** right sets that
   sound singing by itself, rarely or often. Each sound has its own setting, so several can sing at once
-  while the white keys play another.
+  while the white keys play another, each with its own place, drift and octave on SHAPE's VOX SINGS page.
+- **BLOOM by itself:** holding BLOOM's key (black 7) and turning **ALGO** right sets it swelling in now and
+  then on its own.
 - **Layers of instruments:** each looped note keeps the VOX sound it was played with, so a layer of GLASS,
   one of REED and one of HALO play together.
 - **The loop's layers:** **SEL** pressed on HOME opens LOOP, where each layer has its own level, sound,
   octave and mute, and (**ENV** there) its own place in the field, a drift round it on the tide, a tone
-  and a swell. Any layer can be taken out.
+  and a swell. **ALGO** gives a layer its own length, so layers drift out of step like tape loops. Any
+  layer can be taken out, and on HOME each layer is a bead on the orbit at its place.
 - **Colour:** black key 7 is BLOOM, a slow swell; black keys 8-11 are VOX's four sounds.
 - **Other journeys:** **LFO** opens JOURNEY, **SELECT** moves through it, and **SEL** opens one. Each brings
   its own sound, gliding in: FAR SIDE is vast, PERIGEE close and quick, TRANQUILITY still. A knob turned

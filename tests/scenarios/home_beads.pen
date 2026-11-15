@@ -1,0 +1,35 @@
+# HOME: a bead for each loop layer on the satellite's orbit, at its place in the field (left, right), in its
+# sound's colour, lit while it sounds. (A look: home_beads.png.)
+wait 1000
+tap REC
+key w2 down
+wait 2600
+tap REC
+wait 100
+key w2 up
+tapkey b8
+tap REC
+key w5 down
+wait 2500
+key w5 up
+wait 300
+tap REC
+wait 100
+tapkey b9
+tap REC
+key w4 down
+wait 2500
+key w4 up
+wait 300
+tap REC
+wait 100
+expect layers 3
+tap SEL
+tap ENV
+turn K1 -30
+turn SELECT 1
+turn K1 30
+tap HOME
+wait 1200
+shot home_beads.png
+expect clips 0

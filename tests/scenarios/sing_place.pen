@@ -1,0 +1,45 @@
+# SHAPE's VOX SINGS (after VOX 3): for the VOX sound playing, how often it SINGS, its PLACE in the field,
+# how far it DRIFTs round it on the tide, and its OCTAVE. Heard on its notes: an octave up, at its place,
+# moving as the tide does. SEL twice puts the page back: quiet, in the middle, still, as is.
+wait 1000
+tap ENV
+turn SELECT 5
+wait 100
+expect page 5
+expect vcur 1
+turn K1 3
+turn K2 -20
+turn K3 30
+turn K4 1
+wait 100
+expect sgF01 3
+expect sgF11 24
+expect sgF21 60
+expect sgF31 2
+expect set_bpm 90
+shot sing_page.png
+tap HOME
+wait 1000
+expect sung <99
+wait 40000
+expect sung 1
+wait 2000
+tapkey w1
+wait 100
+tapkey w1
+wait 6000
+expect span <99
+tap ENV
+turn SELECT -10
+turn SELECT 5
+wait 100
+expect page 5
+tap SEL
+wait 100
+tap SEL
+wait 100
+expect sgF01 0
+expect sgF11 64
+expect sgF21 0
+expect sgF31 1
+expect clips 0

@@ -1,0 +1,22 @@
+# BLOOM by itself: BLOOM's key (black 7: b6 here) held and ALGO turned right, it swells in now and then by itself
+# (rarely, now and then, often), not into the loop; left, by hand again. The tempo is not turned by it.
+wait 1000
+expect bloom_auto 0
+expect blooms 0
+key b6 down
+wait 100
+turn ALGO 3
+wait 100
+key b6 up
+expect bloom_auto 3
+expect set_bpm 90
+wait 60000
+expect blooms >3
+expect looper 0
+key b6 down
+wait 100
+turn ALGO -3
+wait 100
+key b6 up
+expect bloom_auto 0
+expect clips 0

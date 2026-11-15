@@ -1,0 +1,51 @@
+# A loop layer of its own length (LOOP's ALGO): a layer of one note in a four-beat loop comes round every
+# six beats when set to six (a rest after it), every two when set to two (its end cut), as the loop again
+# when set back. Eight voices: eight keys held, eight notes.
+wait 1000
+tap REC
+tapkey w2
+wait 2600
+tap REC
+wait 100
+expect looper 2
+tap SEL
+wait 100
+turn ALGO 2
+wait 100
+expect lay18 6
+expect set_bpm 90
+shot loop_len.png
+wait 2000
+expect vox_notes <99
+wait 16000
+expect vox_notes 4
+turn ALGO -4
+wait 100
+expect lay18 2
+wait 2000
+expect vox_notes <99
+wait 16000
+expect vox_notes 12
+turn ALGO 2
+wait 100
+expect lay18 0
+tap HOME
+key w1 down
+key w2 down
+key w3 down
+key w4 down
+key w5 down
+key w6 down
+key w7 down
+key w8 down
+wait 200
+expect voices_on 8
+key w1 up
+key w2 up
+key w3 up
+key w4 up
+key w5 up
+key w6 up
+key w7 up
+key w8 up
+expect clips 0

@@ -65,8 +65,9 @@ as loud as that voice is. It shows what you hear:
 - **While a scene travels to the next** (or you MORPH there), the moon slides off the sun and back. The
   corona fades, a diamond ring flashes as the sun comes out, a crescent grows, and at the middle, where the
   key changes, the sun shows most. Going to the next scene the moon goes left; to the one before, right.
-- **The looper is a satellite** circling the corona once a loop. It trails red while it records, and a
-  bead for each layer while it plays.
+- **The looper is a satellite** circling the corona once a loop, trailing red while it records. Each layer
+  has a bead on the orbit's lower arc at its place in the field, left to right, moving as it drifts, in its
+  sound's colour (GLASS pale, REED amber, HALO blue, LOW red), and lit while it sounds.
 
 Under the corona:
 
@@ -94,7 +95,7 @@ saved yet.
 
 ### White keys: VOX
 
-The white keys play VOX in the scene's key and scale, so you cannot play a wrong note. VOX has four voices.
+The white keys play VOX in the scene's key and scale, so you cannot play a wrong note. VOX has eight voices.
 **OCT-** and **OCT+** move the keys' octave, two octaves either way.
 
 VOX also plays notes from MIDI, on SYSTEM's MIDI channel (1 by default). It takes pitch bend too. For
@@ -127,6 +128,10 @@ A deep, slow swell in the drone's key. Two sine tones a few cents apart beat aga
 fifth above them. It swells in over about two seconds, then fades into the reverb. Press it again while it
 sounds and it grows from where it is.
 
+**BLOOM by itself.** With BLOOM's key held, turning **ALGO** right sets it swelling in by itself, every so
+many bars: RARELY, NOW AND THEN or OFTEN; back left, BY HAND again. It plays only while the clock runs, is
+not recorded by the looper, and is saved with the journey. TOTALITY blooms rarely as made.
+
 ### Black keys 8-11: VOX's four sounds
 
 Each key picks one of VOX's sounds, even mid-phrase. A note keeps the sound it began with, so notes
@@ -145,7 +150,8 @@ The key of the sound playing is lit. Each journey keeps its own four sounds.
 soft, slow notes in the scene's key, a phrase now and then, with long rests between. Further right it sings
 more often (RARELY, NOW AND THEN, OFTEN); back left, less, then not at all. Each of the four sounds has its own
 setting, so several can sing at once, each with its own phrases, and the white keys can play another over
-them. It sings only while the
+them. SHAPE's **VOX SINGS** page sets the rest for the sound playing: how often it SINGS, its PLACE in the
+field, how far it DRIFTs round that place on the tide, and its OCTAVE (one down, as is, one up). It sings only while the
 clock runs, its notes are not recorded by the looper, and it is saved with the journey. As made, nothing
 sings.
 
@@ -159,7 +165,7 @@ sound is shaped.
 | --- | --- | --- | --- | --- | --- |
 | A drone key (black 1-5) | LEVEL | TONE | DETUNE | OCTAVE | ALGO: HELD or SWELL |
 | A VOX sound key (black 8-11) | BRIGHT | WAVE | FILTER | RELEASE | ALGO: it sings |
-| BLOOM's key (black 7) | LEVEL | LENGTH | HEIGHT | FIFTH | |
+| BLOOM's key (black 7) | LEVEL | LENGTH | HEIGHT | FIFTH | ALGO: by itself |
 | **FX** | SHIMMER | FEEDBACK | FREEZE | DIP | Throws; ALGO: WARP |
 | A white key | BRIGHT | VIBRATO | SHIMMER | RELEASE | Bends; ALGO: PITCH |
 | **ENV** | | | | | A/B: OCT- keeps A, OCT+ keeps B, SELECT blends |
@@ -230,7 +236,12 @@ are that layer's, on two pages. **ENV** there turns from one page to the other.
 | K3 | OCTAVE: one down, as played, or one up | TONE: the layer's filter, darker to the left, brighter to the right (with a little resonance); 0% as its sound |
 | K4 | MUTE: right, the layer is silent and stays in the loop; left, it plays again | SWELL: the layer's envelope, shorter and plucked to the left, slower in and longer out to the right; 0% as its sound |
 
-A row shows a layer's place (L or R), a ~ when it drifts, and a * when its TONE or SWELL is changed.
+**ALGO** sets the layer's LENGTH: AS THE LOOP, or its own, from 1 to 64 beats. Shorter, it comes round
+before its end and the rest is cut; longer, a rest follows it. Either way it drifts against the other
+layers and lines up differently each time round, like tape loops of unequal length.
+
+A row shows a layer's place (L or R), a ~ when it drifts, a * when its TONE or SWELL is changed, and its
+length in beats (6B) when it has its own.
 
 **SEL** twice takes the layer shown out of the loop; the layers over it move down, keeping their settings.
 Taking out the only layer clears the loop. The layers sound apart, so the same phrase recorded twice, one
@@ -242,8 +253,8 @@ to another scene, or MORPH, and the same tune plays on in the new key.
 
 **Each note keeps its sound.** A note loops with the VOX sound it was played with, whichever sound is in
 hand later. A layer of GLASS, then one of REED over it, then HALO played by hand: three instruments. Shaping
-a sound still changes it everywhere it plays, the loop included. VOX has four voices in all, shared by the
-hands, the loop and a sound that sings: the oldest note gives way when a fifth begins. (A loop recorded
+a sound still changes it everywhere it plays, the loop included. VOX has eight voices in all, shared by
+the hands, the loop and the sounds that sing: the oldest note gives way when a ninth begins. (A loop recorded
 before 1.5 plays with the sound in hand, as it did.)
 
 **The loop is kept.** It is saved with the journey playing, so it comes back after a power cut, and it plays
@@ -369,6 +380,7 @@ a LEVEL as 100% as made (up to 127%). Times, octaves and note lengths keep their
 | VOX | BRIGHT | ATTACK | RELEASE | SHIMMER (how far into the reverb) |
 | VOX 2 | WAVE (saw, square, narrow pulse) | FILTER (low-pass to band-pass) | RESO | GLIDE |
 | VOX 3 | DETUNE | B OCT (the second oscillator: -1, 0, +1) | B MIX | ENV (how far the envelope opens the filter) |
+| VOX SINGS | SINGS (NOT, RARELY, AT TIMES, OFTEN) | PLACE (in the field) | DRIFT (round it, on the tide) | OCTAVE (-1, 0, +1) |
 | PULSE | DROP (the kick's fall in pitch) | DECAY | CLICK | SPACE |
 | TEXTURE | COLOUR | SWEEP | RATE | WIDTH |
 | TIDES | RATE (8 s to 4 min a tide) | DRONE (how far it moves the drone's filter) | SPACE (the sends) | VOX (its brightness) |
