@@ -218,6 +218,25 @@ static int ann_wire_send(const uint8_t *p, uint32_t n)
 }
 #include "../firmware/src/app/settings.c"
 #include "../firmware/src/app/ui.c"
+/* backups (backup.c): what it answers goes to the page (the browser build) or is kept for 'backup' / 'restore';
+ * its restart is a boot after the millisecond it asked in */
+static uint8_t bk_heard[8192];
+static uint32_t bk_heard_n;
+static int bk_boot_due;
+static int bk_wire_send(const uint8_t *p, uint32_t n)
+{
+#ifdef PEN_WEB
+    web_said(p, n);
+    return 0;
+#endif
+    if (bk_heard_n + n <= sizeof bk_heard) {
+        memcpy(bk_heard + bk_heard_n, p, n);
+        bk_heard_n += n;
+    }
+    return 0;
+}
+static void bk_restart(void) { bk_boot_due = 1; }
+#include "../firmware/src/app/backup.c"
 
 /* ---------------------------------------------------------- outputs --- */
 static void png_write(const char *path)
@@ -416,6 +435,11 @@ static void run_ms(uint32_t ms)
             ui_frame();
         } else {
             ui_input_only();
+        }
+        if (bk_boot_due) {                            /* a restore: the unit starts again with it */
+            bk_boot_due = 0;
+            held_btn = held_keys = 0;
+            boot();
         }
     }
 }

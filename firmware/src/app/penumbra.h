@@ -73,6 +73,13 @@ int journey_slot_open(int slot);         /* the slot's journey plays; 0 = done *
 void journey_open_preset(int i);          /* the preset plays, all of it: its scenes and its own sound */
 extern uint8_t journey_first;            /* the preset a new unit plays */
 
+/* backups (backup.c: the site's Backup page, over SysEx) */
+int store_check(uint32_t obj, const void *src, uint32_t n);   /* 0: a part this firmware takes */
+int bk_frame(const uint8_t *p, uint32_t n);      /* a SysEx (between F0 and F7): 1 = a backup's, answered */
+void bk_tick(uint32_t now);                      /* (each UI frame) */
+int bk_holding(void);                            /* 1: a restore is coming in: nothing saved over it */
+void ui_flush(void);                             /* what changed, saved now */
+
 void ui_init(void);
 void ui_start(void);                     /* once, after boot: PLAY AT POWER-ON */
 void ui_frame(void);

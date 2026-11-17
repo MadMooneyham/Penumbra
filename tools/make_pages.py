@@ -8,6 +8,7 @@
   firmware/penumbra-VERSION.fwsc the package the installer writes; also the download
   words/                         the screen reader's words files (fm1-reader), every one ever made
   cheatsheet/                    one printable page (web/cheatsheet), with its PDF
+  backup/                        what the FM-1 keeps, to a file and back (web/backup; Chrome or Edge, Web MIDI)
   emu/                           Penumbra in the browser, when build/emu exists (web/emu/build.sh, first)
 
   tools/make_pages.py build/penumbra-0.7-beta.fwsc 0.7-beta OUT_DIR
@@ -60,7 +61,7 @@ LANDING = """<!doctype html>
 and holds that let you play the sound itself: throws, bends, freeze, morph. Switch it on and the drone
 swells in; you play over it.</p>
 <p><a class="go" href="emu/">Play it in the browser</a> &nbsp; <a class="go" href="install/">Install __VERSION__</a></p>
-<p><a href="cheatsheet/">Cheat sheet</a> &nbsp;·&nbsp; <a href="https://github.com/MadMooneyham/Penumbra/blob/main/MANUAL.md">Manual</a>
+<p><a href="cheatsheet/">Cheat sheet</a> &nbsp;·&nbsp; <a href="backup/">Backup</a> &nbsp;·&nbsp; <a href="https://github.com/MadMooneyham/Penumbra/blob/main/MANUAL.md">Manual</a>
 &nbsp;·&nbsp; <a href="firmware/__PKG__">Download the package</a> &nbsp;·&nbsp; <a href="https://github.com/MadMooneyham/Penumbra">Source</a></p>
 <p class="small">To go back to the official firmware, the installer can write it, or use M-VAVE's updater, M-UPGRADE,
 from <a href="https://www.m-vave.com/download">m-vave.com/download</a>. M-VAVE and FM-1 are trademarks of their owners.</p>
@@ -96,13 +97,14 @@ def main(pkg, version, out):
                                     encoding="utf-8")
     shutil.copytree(SRC / "web" / "words", out / "words")
     shutil.copytree(SRC / "web" / "cheatsheet", out / "cheatsheet")
+    shutil.copytree(SRC / "web" / "backup", out / "backup")
     emu = SRC / "build" / "emu"
     if (emu / "penumbra.wasm").is_file():
         shutil.copytree(emu, out / "emu")
     else:
         print("note: no build/emu/penumbra.wasm (web/emu/build.sh, needs emcc): the site has no emulator")
     (out / ".nojekyll").write_text("")
-    print(f"site: {out}: index.html, install/ ({product}), firmware/{name} ({len(raw)} B), words/, cheatsheet/"
+    print(f"site: {out}: index.html, install/ ({product}), firmware/{name} ({len(raw)} B), words/, cheatsheet/, backup/"
           + (", emu/" if (out / "emu").is_dir() else ""))
 
 

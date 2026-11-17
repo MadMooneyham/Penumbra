@@ -1,0 +1,232 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only
+     Penumbra's Backup page: what the FM-1 keeps, to a file and back (Web MIDI with SysEx: Chrome or Edge).
+     The protocol and the file are backup.js's; the FM-1's side is firmware/src/app/backup.c. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Penumbra Backup</title>
+<meta name="description" content="Back up Penumbra's user journeys, sounds, loop and settings from the M-VAVE FM-1 to a file, and put a backup back.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
+<style>
+:root { --ground: #07080f; --ink: #ecebf6; --muted: #8a8fae; --rule: #23263a; --accent: #ff9646; --card: #10121e; --on: #1d0e03; color-scheme: dark; }
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) { --ground: #f3f2f8; --ink: #15162a; --muted: #555a78; --rule: #d6d6e4; --accent: #b0520c; --card: #fff; --on: #fff; color-scheme: light; }
+}
+:root[data-theme="light"] { --ground: #f3f2f8; --ink: #15162a; --muted: #555a78; --rule: #d6d6e4; --accent: #b0520c; --card: #fff; --on: #fff; color-scheme: light; }
+:root[data-theme="dark"] { --ground: #07080f; --ink: #ecebf6; --muted: #8a8fae; --rule: #23263a; --accent: #ff9646; --card: #10121e; --on: #1d0e03; color-scheme: dark; }
+body { background: var(--ground); color: var(--ink); margin: 0; padding: 28px 16px 48px;
+       font: 400 16px/1.55 "Barlow", "Helvetica Neue", Arial, sans-serif; }
+main { max-width: 40rem; margin: 0 auto; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: .4rem 1.2rem; margin: 0 0 1.2rem; }
+h1 { font: 700 2rem/1.1 "Barlow Semi Condensed", "Barlow", sans-serif; margin: 0; letter-spacing: .02em; }
+h1 a { color: inherit; text-decoration: none; }
+header p { margin: 0; color: var(--muted); }
+header nav { margin-left: auto; display: flex; flex-wrap: wrap; gap: .3rem 1rem; }
+h2 { font: 600 1.15rem "Barlow Semi Condensed", "Barlow", sans-serif; margin: 0 0 .5rem; }
+a { color: var(--accent); }
+p { margin: 0 0 .8rem; }
+.muted { color: var(--muted); }
+.card { margin: 1.4rem 0 0; padding: 1rem 1.2rem; border: 1px solid var(--rule); border-radius: 10px; background: var(--card); }
+button { font: 600 1rem "Barlow Semi Condensed", "Barlow", sans-serif; letter-spacing: .03em; padding: .55em 1.3em;
+         border-radius: 999px; border: 0; background: var(--accent); color: var(--on); cursor: pointer; }
+button.quiet { background: transparent; color: var(--ink); border: 1px solid var(--rule); }
+button:disabled { opacity: .45; cursor: default; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+input[type="checkbox"] { accent-color: var(--accent); width: 1.05rem; height: 1.05rem; margin: .2rem 0 0; flex: none; }
+input[type="file"] { font: inherit; font-size: .92rem; color: var(--muted); max-width: 100%; }
+.parts { list-style: none; padding: 0; margin: .8rem 0; }
+.parts li { display: flex; gap: .6rem; align-items: flex-start; padding: .35rem 0; border-top: 1px solid var(--rule); }
+.parts li:first-child { border-top: 0; }
+.parts label { display: flex; gap: .6rem; align-items: flex-start; cursor: pointer; flex: 1; }
+.parts .what { color: var(--muted); font-size: .92rem; }
+.parts .size { margin-left: auto; color: var(--muted); font-size: .85rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+progress { width: 100%; height: 6px; margin: .8rem 0 0; accent-color: var(--accent); }
+progress[hidden] { display: none; }
+.status { min-height: 1.55em; margin: .6rem 0 0; }
+.alert { font-weight: 600; margin: .6rem 0 0; }
+.alert:empty { display: none; }
+.row { display: flex; flex-wrap: wrap; gap: .6rem 1rem; align-items: center; }
+.small { color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1><a href="../" title="Penumbra home">Penumbra</a></h1>
+  <p>backup</p>
+  <nav aria-label="Penumbra pages"><a href="../emu/">Play</a><a href="../install/">Install</a><a href="../cheatsheet/">Cheat sheet</a><a href="https://github.com/MadMooneyham/Penumbra/blob/main/MANUAL.md">Manual</a></nav>
+</header>
+
+<p>Everything Penumbra keeps on the FM-1, as one file on this computer: the eight user journeys, the sound
+  library, the journey playing with its A and B, the loop and its layers, and the settings. The same file
+  puts any of them back, onto this FM-1 or another.</p>
+<p class="muted">This page talks to the FM-1 over USB-MIDI, in Chrome or Edge (Web MIDI), with Penumbra 1.7 or later
+  on it. Nothing leaves this computer.</p>
+
+<section class="card" aria-labelledby="save-h">
+  <h2 id="save-h">Save a backup</h2>
+  <p class="muted">What has changed is saved on the FM-1 first, then copied here as
+    <span id="fname">penumbra-backup-YYYY-MM-DD.penumbra</span>.</p>
+  <div class="row"><button id="save" type="button">Save a backup</button></div>
+  <ul class="parts" id="saved" hidden></ul>
+</section>
+
+<section class="card" aria-labelledby="restore-h">
+  <h2 id="restore-h">Restore a backup</h2>
+  <p class="muted">Each part ticked replaces what the FM-1 has; the rest stays as it is. Penumbra then starts again,
+    with what was restored.</p>
+  <p><label for="file">A backup file:</label><br><input type="file" id="file" accept=".penumbra,application/json"></p>
+  <div id="contents" hidden>
+    <p id="about"></p>
+    <ul class="parts" id="pick"></ul>
+    <div class="row">
+      <button id="restore" type="button">Restore</button>
+      <button id="cancel" type="button" class="quiet" hidden>Not now</button>
+    </div>
+  </div>
+</section>
+
+<progress id="bar" max="1" value="0" hidden aria-label="How far it has got"></progress>
+<p class="status" id="status" role="status"></p>
+<p class="alert" id="alert" role="alert"></p>
+
+<section class="card small" aria-labelledby="know-h">
+  <h2 id="know-h">Good to know</h2>
+  <p>The file is plain text (JSON): each part named, its bytes in base64. A backup from an older Penumbra comes
+    over as that version's journeys did, upgraded; one from a newer Penumbra than the FM-1's is not taken, part by
+    part, and the FM-1 keeps what it had.</p>
+  <p>The panel's calibration is the unit's own and is never in a backup. The emulator
+    (<a href="../emu/">Play</a>) saves and restores the same file, so a journey made in the browser can go onto
+    the FM-1, and back.</p>
+</section>
+</main>
+
+<script type="module">
+import * as B from "./backup.js";
+const $ = (id) => document.getElementById(id);
+const status = (t) => { $("status").textContent = t; };
+const alert = (t) => { $("alert").textContent = t; };
+const bar = (v) => { $("bar").hidden = v === null; if (v !== null) $("bar").value = v; };
+const kb = (n) => n < 1024 ? `${n} B` : `${(n / 1024).toFixed(1)} KB`;
+const and = (a) => a.length < 2 ? a.join("") : `${a.slice(0, -1).join(", ")} and ${a[a.length - 1]}`;
+$("fname").textContent = B.fileName();
+let busy = false, chosen = null, armed = false;
+
+const denied = "MIDI with SysEx was not allowed. The site's settings, by the address bar, can allow it.";
+const noMidi = "This browser has no Web MIDI with SysEx. Chrome and Edge do.";
+const notFound = "No FM-1 with Penumbra 1.7 or later answered. It shows up here when it is connected by USB "
+  + "(a data cable, straight to the computer) and no other app has its MIDI port open.";
+
+async function connect() {
+  if (!navigator.requestMIDIAccess) throw Object.assign(new Error(noMidi), { code: "nomidi" });
+  let access;
+  try { access = await navigator.requestMIDIAccess({ sysex: true }); }
+  catch { throw Object.assign(new Error(denied), { code: "denied" }); }
+  const dev = await B.findFM1(access);
+  if (!dev) throw Object.assign(new Error(notFound), { code: "notfound" });
+  return dev;
+}
+function lock(on) {
+  busy = on;
+  $("save").disabled = $("restore").disabled = $("file").disabled = on;
+}
+function listParts(ul, parts, ticks) {
+  ul.replaceChildren();
+  for (const p of B.PARTS) {
+    if (!parts[p.obj]) continue;
+    const li = document.createElement("li");
+    const text = `<span><b>${p.name}</b><br><span class="what">${p.what}</span></span><span class="size">${kb(parts[p.obj].length)}</span>`;
+    if (ticks) {
+      li.innerHTML = `<label><input type="checkbox" checked data-obj="${p.obj}">${text}</label>`;
+    } else li.innerHTML = text;
+    ul.append(li);
+  }
+  ul.hidden = false;
+}
+
+$("save").addEventListener("click", async () => {
+  if (busy) return;
+  lock(true); alert(""); $("saved").hidden = true;
+  let dev = null;
+  try {
+    status("Looking for the FM-1...");
+    dev = await connect();
+    status(`Reading Penumbra ${dev.hello.version}...`);
+    bar(0);
+    const got = await B.readAll(dev.link, bar);
+    const name = B.fileName();
+    const url = URL.createObjectURL(new Blob([B.toFile(got.hello, got.parts)], { type: "application/json" }));
+    const a = Object.assign(document.createElement("a"), { href: url, download: name });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    listParts($("saved"), got.parts, false);
+    status(`Saved as ${name}, from Penumbra ${got.hello.version}.`);
+  } catch (e) {
+    status(""); alert(e.message || String(e));
+  } finally {
+    bar(null);
+    if (dev && dev.link.close) dev.link.close();
+    lock(false);
+  }
+});
+
+function disarm() { armed = false; $("restore").textContent = "Restore"; $("cancel").hidden = true; }
+$("file").addEventListener("change", async () => {
+  alert(""); status(""); disarm();
+  $("contents").hidden = true;
+  const f = $("file").files[0];
+  if (!f) return;
+  try {
+    chosen = B.fromFile(await f.text());
+    const when = chosen.saved && !isNaN(chosen.saved) ? chosen.saved.toLocaleString(undefined, { dateStyle: "long", timeStyle: "short" }) : "an unknown date";
+    $("about").textContent = `From Penumbra ${chosen.firmware}, saved ${when}:`;
+    listParts($("pick"), chosen.parts, true);
+    $("contents").hidden = false;
+    if (!Object.keys(chosen.parts).length) alert("This backup has nothing in it.");
+  } catch (e) {
+    chosen = null; alert(e.message || String(e));
+  }
+});
+$("cancel").addEventListener("click", () => { disarm(); status(""); });
+$("restore").addEventListener("click", async () => {
+  if (busy || !chosen) return;
+  const picked = {};
+  for (const c of $("pick").querySelectorAll("input[type=checkbox]")) if (c.checked) picked[c.dataset.obj] = chosen.parts[c.dataset.obj];
+  const names = B.PARTS.filter((p) => picked[p.obj]).map((p) => p.name.replace(/^The /, "the "));
+  if (!names.length) { alert("Nothing is ticked."); return; }
+  if (!armed) {
+    armed = true;
+    $("restore").textContent = "Replace them on the FM-1";
+    $("cancel").hidden = false;
+    alert("");
+    status(`This replaces ${and(names)} on the FM-1, and Penumbra starts again.`);
+    return;
+  }
+  disarm();
+  lock(true); alert("");
+  let dev = null;
+  try {
+    status("Looking for the FM-1...");
+    dev = await connect();
+    status(`Restoring onto Penumbra ${dev.hello.version}...`);
+    bar(0);
+    const r = await B.writeAll(dev.link, picked, bar);
+    const took = B.PARTS.filter((p) => r[p.obj] === 0).map((p) => p.name);
+    const not = B.PARTS.filter((p) => p.obj in r && r[p.obj] !== 0).map((p) => `${p.name} (${B.STATUS[r[p.obj]] || r[p.obj]})`);
+    status(took.length ? `Restored: ${and(took)}. Penumbra is starting again with them.` : "Nothing was restored.");
+    if (not.length) alert(`Not taken, and kept as it was on the FM-1: ${and(not)}.`);
+  } catch (e) {
+    status(""); alert(e.message || String(e));
+  } finally {
+    bar(null);
+    if (dev && dev.link.close) dev.link.close();
+    lock(false);
+  }
+});
+</script>
+</body>
+</html>

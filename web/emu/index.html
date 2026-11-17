@@ -111,6 +111,9 @@ kbd { font: 600 .85em ui-monospace, Menlo, monospace; background: var(--card); b
   <span id="alert" role="alert"></span>
   <button id="mute" type="button" aria-pressed="false">Mute</button>
   <span class="cpu" id="cpu"></span>
+  <button id="bksave" type="button" disabled title="Everything this emulator keeps, as a backup file (the same file as the FM-1's, ../backup/)">Save a backup</button>
+  <button id="bkload" type="button" disabled title="A backup file's parts into this emulator: it starts again with them">Restore a backup</button>
+  <input type="file" id="bkfile" accept=".penumbra,application/json" hidden>
   <button id="reset" type="button" title="Forget the saved journey, loop and sound, and start again as made">Factory reset</button>
 </div>
 
@@ -187,7 +190,8 @@ kbd { font: 600 .85em ui-monospace, Menlo, monospace; background: var(--card); b
   <div>
     <h2>Saving</h2>
     <p>Penumbra keeps the journey playing, its loop and its sound in this browser, as the FM-1 keeps them in its memory.
-      Factory reset forgets them. It is the firmware, not a recording: what you hear is Penumbra running, at the FM-1's
+      Factory reset forgets them. A backup file holds all of it, and is the same file as the FM-1's
+      (<a href="../backup/">Backup</a>), so what is made here can go onto the FM-1, and back. It is the firmware, not a recording: what you hear is Penumbra running, at the FM-1's
       44.1 kHz. The emulator is X0X's (<a href="https://github.com/charlesvestal/fm1-x0x">Charles Vestal</a>), whose idea
       came from <a href="https://www.groove-os.com/">Groove OS</a>'s.</p>
   </div>
@@ -198,6 +202,7 @@ kbd { font: 600 .85em ui-monospace, Menlo, monospace; background: var(--card); b
 // The screen reader's words: words.js is fm1-reader's (web/emu/words.js, a copy), the words file Penumbra's own
 // (../words/, the one its HELLO names).
 import { spoken, wordsOf } from "./words.js";
+import * as BK from "./backup.js";
 
 const NS = "http://www.w3.org/2000/svg";
 const BTN = { FX: 0, SEL: 1, ENV: 2, LFO: 3, EDIT: 4, GLO: 5, HOME: 6, SAVE: 7, ARP: 8, SEQ: 9, PLAY: 10, REC: 11, "OCT-": 12, "OCT+": 13 };
@@ -732,7 +737,7 @@ async function switchOn() {
       node.port.onmessage = (e) => {
         const m = e.data;
         if (m.type === "ready") res();
-        else if (m.type === "said") heard(m.bytes);
+        else if (m.type === "said") { heard(m.bytes); bkLink.heard(m.bytes); }
         else if (m.type === "frame") {
           if (m.fb) drawScreen(m.fb);
           drawLights(m.buttons, m.keys, m.dim);
@@ -751,6 +756,7 @@ async function switchOn() {
     status.textContent = ac.sampleRate === 44100 ? "On." : `On (the browser runs audio at ${ac.sampleRate} Hz).`;
     syncButtons(); syncKeys();
     readerOn();
+    $("bksave").disabled = $("bkload").disabled = false;
   } catch (err) {
     go.disabled = false;
     go.textContent = "Switch on";
@@ -759,6 +765,55 @@ async function switchOn() {
 }
 $("go").addEventListener("click", switchOn);
 addEventListener("pagehide", () => { if (node && rmode() !== "off") sendReader(R_BYE); });
+// ---------------------------------------------------------------- backups (../backup/: the FM-1's own, the same file)
+const bkLink = new BK.Link((f) => { if (!node) return false; send({ type: "sysex", bytes: f.slice(1, -1) }); return true; });
+let bkBusy = false, bkChosen = null;
+const bkSay = (t) => { status.textContent = t; };
+$("bksave").addEventListener("click", async () => {
+  if (bkBusy || !node) return;
+  bkBusy = true; $("alert").textContent = "";
+  try {
+    bkSay("Saving a backup...");
+    const got = await BK.readAll(bkLink);
+    const name = BK.fileName();
+    const url = URL.createObjectURL(new Blob([BK.toFile(got.hello, got.parts)], { type: "application/json" }));
+    const a = Object.assign(document.createElement("a"), { href: url, download: name });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    bkSay(`Saved as ${name}.`);
+  } catch (e) { $("alert").textContent = "Not saved: " + (e.message || e); }
+  bkBusy = false;
+});
+function bkDisarm() { bkChosen = null; $("bkload").textContent = "Restore a backup"; }
+$("bkload").addEventListener("click", async () => {
+  if (bkBusy || !node) return;
+  if (!bkChosen) { $("bkfile").value = ""; $("bkfile").click(); return; }
+  const parts = bkChosen.parts;
+  bkDisarm();
+  bkBusy = true; $("alert").textContent = "";
+  try {
+    bkSay("Restoring...");
+    const r = await BK.writeAll(bkLink, parts);
+    const not = BK.PARTS.filter((p) => p.obj in r && r[p.obj] !== 0).map((p) => p.name);
+    bkSay(Object.values(r).some((s) => s === 0) ? "Restored: Penumbra starts again with it." : "Nothing was restored.");
+    if (not.length) $("alert").textContent = `Not taken (kept as it was): ${not.join(", ")}.`;
+  } catch (e) { $("alert").textContent = "Not restored: " + (e.message || e); }
+  bkBusy = false;
+});
+$("bkfile").addEventListener("change", async () => {
+  const f = $("bkfile").files[0];
+  if (!f) return;
+  try {
+    const b = BK.fromFile(await f.text());
+    const names = BK.PARTS.filter((p) => b.parts[p.obj]).map((p) => p.name.replace(/^The /, "the "));
+    if (!names.length) throw new Error("this backup has nothing in it");
+    bkChosen = b;
+    $("bkload").textContent = "Replace them here";
+    const list = names.length < 2 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+    bkSay(`From Penumbra ${b.firmware}: ${list}. Replace them here replaces what this emulator has.`);
+    $("bkload").focus();
+  } catch (e) { bkDisarm(); $("alert").textContent = "Not a backup: " + (e.message || e); }
+});
 $("reset").addEventListener("click", () => {
   if ($("reset").dataset.armed) {
     try { localStorage.removeItem(STORE_KEY); } catch {}

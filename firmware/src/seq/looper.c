@@ -446,20 +446,38 @@ uint32_t looper_save(const looper_t *l, void *dst, uint32_t max)
     return bytes;
 }
 
-int looper_load(looper_t *l, const void *src, uint32_t n)
+static int lp_head(const void *src, uint32_t n, lp_hdr_t *h, uint32_t *hdr)   /* 0: a saved loop's head, whole */
 {
     const uint8_t *s = (const uint8_t *)src;
-    lp_hdr_t h;
-    uint8_t *d = (uint8_t *)&h;
-    uint32_t k, hdr;
+    uint8_t *d = (uint8_t *)h;
+    uint32_t k;
     if (n < LP_HDR)
         return -1;
     for (k = 0; k < LP_HDR; k++)
         d[k] = s[k];
-    hdr = h.magic == LP_MAGIC ? LP_SAVE_HDR : h.magic == LP_MAGIC2 ? LP_HDR + LP_LAYERS * 4u
-                                                               : LP_HDR;   /* (1.4's: its layers as played) */
-    if ((h.magic != LP_MAGIC && h.magic != LP_MAGIC2 && h.magic != LP_MAGIC1) || h.n > LP_EVENTS ||
-        n != hdr + (uint32_t)h.n * sizeof(lp_ev_t) || h.len > LP_MAX_LEN || h.layers > LP_LAYERS || h.speed > LP_DOUBLE)
+    *hdr = h->magic == LP_MAGIC ? LP_SAVE_HDR : h->magic == LP_MAGIC2 ? LP_HDR + LP_LAYERS * 4u
+                                                                  : LP_HDR;   /* (1.4's: its layers as played) */
+    if ((h->magic != LP_MAGIC && h->magic != LP_MAGIC2 && h->magic != LP_MAGIC1) || h->n > LP_EVENTS ||
+        n != *hdr + (uint32_t)h->n * sizeof(lp_ev_t) || h->len > LP_MAX_LEN || h->layers > LP_LAYERS ||
+        h->speed > LP_DOUBLE)
+        return -1;
+    return 0;
+}
+
+int looper_check(const void *src, uint32_t n)
+{
+    lp_hdr_t h;
+    uint32_t hdr;
+    return lp_head(src, n, &h, &hdr);
+}
+
+int looper_load(looper_t *l, const void *src, uint32_t n)
+{
+    const uint8_t *s = (const uint8_t *)src;
+    lp_hdr_t h;
+    uint8_t *d;
+    uint32_t k, hdr;
+    if (lp_head(src, n, &h, &hdr))
         return -1;
     looper_init(l);
     if (!h.n || !h.len || (h.state != LS_PLAY && h.state != LS_STOP))

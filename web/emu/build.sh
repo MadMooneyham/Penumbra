@@ -22,5 +22,5 @@ emcc -O2 -ffp-contract=off -std=gnu99 -Wall -Wno-unused-function -Wno-unused-par
     -DPEN_HOST -DPEN_WEB $V -Ifirmware/src -Ifirmware/src/dsp -Ibuild/gen \
     --no-entry -sSTANDALONE_WASM -sSTACK_SIZE=1048576 -sINITIAL_MEMORY=33554432 -sFILESYSTEM=0 \
     -o "$OUT/penumbra.wasm" web/emu/penumbra_web.c $U
-cp web/emu/index.html web/emu/worklet.js web/emu/words.js "$OUT/"
+cp web/emu/index.html web/emu/worklet.js web/emu/words.js web/backup/backup.js "$OUT/"
 echo "emu: $OUT ($(wc -c < "$OUT/penumbra.wasm") B wasm)"

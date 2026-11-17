@@ -97,7 +97,11 @@ PEN_VERSION=1.6 sh web/emu/build.sh               # -> build/emu/penumbra.wasm a
 python3 tools/make_pages.py build/penumbra-1.6.fwsc 1.6 build/pages
 ```
 
-`tests/run_tests.sh` checks the wasm against the simulator, sample for sample, when `emcc` and `node` are there.
+`tests/run_tests.sh` checks the wasm against the simulator, sample for sample, when `emcc` and `node` are there,
+and runs the Backup page's own code (`web/backup/backup.js`) against it: a backup read, a new unit restored from
+it byte for byte, wrong parts refused (`tests/host/backup_test.mjs`). The FM-1's side is
+`firmware/src/app/backup.c`, SysEx in Felucca's update framing; its commands are listed at its top. The site puts
+`web/backup` in `backup/`.
 The cheat sheet is `web/cheatsheet/index.html`; its PDF is printed from that page in Chrome or Edge (landscape,
 no headers) and kept beside it. The card picture is `tools/gen_card.py`.
 

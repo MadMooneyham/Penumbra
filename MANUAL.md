@@ -479,6 +479,14 @@ runs a load test that sets every voice at its heaviest.
 after you STOP. SAVE saves at once. Everything is kept: the journey playing, its sound, its loop and the
 settings.
 
+**Backups.** The [Backup page](https://madmooneyham.github.io/Penumbra/backup/) (Chrome or Edge, the FM-1
+connected by USB) copies everything Penumbra keeps to one file on the computer: the eight user journeys, the
+sound library, the journey playing with its A and B, the loop and its layers, and the settings. The same file
+puts any of them back, part by part, onto this FM-1 or another; Penumbra then starts again with them. A backup
+from an older Penumbra comes over upgraded, as its journeys would; a part from a newer one is not taken, and the
+FM-1 keeps what it had. The panel's calibration stays the unit's own. The emulator saves and restores the same
+file, so a journey made in the browser can go onto the FM-1, and back.
+
 **Leaving Penumbra.** Install another firmware the usual way; Penumbra carries the update loader. If the FM-1
 ever won't take an install, hold **OCT-** and **OCT+** together for five seconds to put it in update mode.
 

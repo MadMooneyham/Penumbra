@@ -366,7 +366,8 @@ static void fm1_main(void)
         {   /* a screen reader's SysEx (announce.c), before the editor and the updater look */
             const uint8_t *p;
             uint32_t n;
-            if (ota_frame_get(&p, &n) && ann_frame(p, n, fm1_ms))
+            if (ota_frame_get(&p, &n) && (ann_frame(p, n, fm1_ms) || bk_frame(p, n)))   /* (backup.c: the site's
+                                                                                        * Backup page) */
                 ota_frame_done();
         }
         ota_service();                              /* M-UPGRADE handshake */

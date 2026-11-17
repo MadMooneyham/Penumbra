@@ -99,3 +99,4 @@ void looper_layer_delete(looper_t *l, int layer, const lp_sink_t *o);
 #define LP_SAVE_MAX (LP_SAVE_HDR + LP_EVENTS * 8u)
 uint32_t looper_save(const looper_t *l, void *dst, uint32_t max);
 int looper_load(looper_t *l, const void *src, uint32_t n);    /* 0: loaded (stopped, or playing as it was) */
+int looper_check(const void *src, uint32_t n);                /* 0: a saved loop looper_load takes (a backup's) */

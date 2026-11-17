@@ -137,4 +137,15 @@ static int ann_wire_send(const uint8_t *p, uint32_t n)   /* never waits: no room
 #include "app/plat_fm1.c"
 #include "app/settings.c"
 #include "app/ui.c"
+static int bk_wire_send(const uint8_t *p, uint32_t n) { return usb.config && !usb.suspended ? ota_wire_send(p, n) : -1; }
+static void bk_restart(void)                     /* a restore saved: Penumbra starts again with it */
+{
+    fm1_audio_stop();
+    fm1_delay_ms(20);
+    usb_detach();
+    fm1_delay_ms(30);
+    bootguard.pending = 0;                       /* intentional reset: not a failed boot */
+    fm1_reboot();
+}
+#include "app/backup.c"
 #include "app/main_fm1.c"

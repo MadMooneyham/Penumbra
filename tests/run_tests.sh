@@ -68,6 +68,7 @@ if command -v emcc >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
     run emu-build sh web/emu/build.sh
     run emu-host build/host/penumbra_host tests/emu/emu.pen build/scenarios/emu
     run emu node tests/host/emu_test.mjs build/emu/penumbra.wasm build/scenarios/emu/emu.wav
+    run backup node tests/host/backup_test.mjs build/emu/penumbra.wasm
 else
     echo "  skip emu (needs emcc and node: the Emscripten SDK)"
 fi

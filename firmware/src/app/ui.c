@@ -310,6 +310,8 @@ static void row_set(int r, int v)
 static void save_now(void)                        /* what changed (SAVE with nothing changed: both) */
 {
     int what = ui.dirty ? ui.dirty : D_SET | D_JR | D_LOOP, bad = 0;
+    if (bk_holding())
+        return;                                   /* (a restore coming in: the unit starts again with it) */
     if (what & D_LOOP) {                          /* (recording: it waits for the next) */
         int r = loop_save_work();
         if (r == 0)
@@ -3066,6 +3068,7 @@ void ui_frame(void)
     for (; ui.stars; ui.stars--)
         ec_star_new();
     autosave();
+    bk_tick(plat_ms());
     {
         uint32_t s = engine_bench(&bench);
         if (s)
@@ -3082,4 +3085,9 @@ void ui_frame(void)
 }
 
 void ui_input_only(void) { input(); }
+void ui_flush(void)
+{
+    if (ui.dirty)
+        save_now();
+}
 void ui_say(const char *a, const char *b) { say(a, b); }

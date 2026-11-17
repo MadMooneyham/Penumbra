@@ -91,6 +91,10 @@ Penumbra is slow, and much of what it does best unfolds over a few minutes.
 Penumbra carries the update loader, so you can always go back to another firmware or to M-VAVE's own. If an
 install ever won't start, hold **OCT-** and **OCT+** for five seconds to put the FM-1 in update mode.
 
+**Backups:** the [Backup page](https://madmooneyham.github.io/Penumbra/backup/) (Chrome or Edge) copies the user
+journeys, the sound library, the journey playing, the loop and the settings to one file, and puts any of them
+back, onto this FM-1 or another. The emulator reads and writes the same file.
+
 ## The manual
 
 Everything else, from the drone voices to the looper, holds, scenes and sound pages, is in the
@@ -99,7 +103,7 @@ Everything else, from the drone voices to the looper, holds, scenes and sound pa
 ## What's in it
 
 - **DRONE**: five voices on black keys 1-5, each held or coming and going, with a SWARM that thickens them.
-- **VOX**: a four-voice synth on the white keys. It has four sounds (GLASS, REED, HALO, LOW), a wave from saw
+- **VOX**: an eight-voice synth on the white keys. It has four sounds (GLASS, REED, HALO, LOW), a wave from saw
   to a narrow pulse, a filter from low-pass to band-pass, and glide.
 - **PULSE**: a deep kick tuned to the key, and BLOOM.
 - **TEXTURE**: a bed of space wind, always under the rest.

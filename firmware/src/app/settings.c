@@ -352,6 +352,47 @@ int journey_slot_open(int slot)
     return 0;
 }
 
+/* a backup's part, before it is saved (backup.c): one this firmware loads as it is or upgrades, never one
+ * that would load as the defaults. The user slots may be empty; the journey playing may be 1.0's, alone */
+int store_check(uint32_t obj, const void *src, uint32_t n)
+{
+    const uint8_t *p = (const uint8_t *)src;
+    union { journey_t j; uint8_t b[sizeof(journey_t)]; } u;
+    uint32_t k, i, cnt;
+    if (obj == OBJ_SET) {
+        union { settings_t s; uint8_t b[sizeof(settings_t)]; } s;
+        if (n != sizeof s.b)
+            return -1;
+        for (k = 0; k < n; k++)
+            s.b[k] = p[k];
+        return s.s.magic == SET_MAGIC && (s.s.format == 3u || s.s.format == SET_FORMAT) ? 0 : -1;
+    }
+    if (obj == OBJ_LOOP)
+        return looper_check(src, n);
+    if (obj == OBJ_SOUNDS) {
+        uint32_t m = 0;
+        for (k = 0; k < 4u && n >= 4u; k++)
+            m |= (uint32_t)p[k] << (8u * k);
+        return n == sizeof(sound_lib_t) && m == SND_MAGIC ? 0 : -1;
+    }
+    if (obj == OBJ_WORK && (n == sizeof(journey_t) || n == sizeof(work_t)))
+        cnt = 1;
+    else if (obj == OBJ_USER && n == sizeof jslot)
+        cnt = JR_USER;
+    else
+        return -1;
+    for (i = 0; i < cnt; i++) {
+        for (k = 0; k < sizeof u.b; k++)
+            u.b[k] = p[i * sizeof u.b + k];
+        if (obj == OBJ_USER && u.j.magic != JR_MAGIC)
+            continue;                                /* (an empty slot) */
+        journey_upgrade(&u.j);
+        if (!jr_valid(&u.j))
+            return -1;
+    }
+    return 0;
+}
+
 /* a new unit's journey: TOTALITY, the one that plays itself (the tests set another) */
 uint8_t journey_first = JR_PRESETS - 1;
 

@@ -57,8 +57,8 @@ class Penumbra extends AudioWorkletProcessor {
       this.ex.web_enc(m.role, m.n | 0);
     } else if (m.type === "master") {
       this.ex.web_master(m.value | 0);
-    } else if (m.type === "sysex") {               // a reader's SysEx, the bytes between F0 and F7
-      const b = (m.bytes || []).slice(0, 64);
+    } else if (m.type === "sysex") {               // a reader's or a backup's SysEx, the bytes between F0 and F7
+      const b = (m.bytes || []).slice(0, 640);
       new Uint8Array(this.mem.buffer, this.ex.web_sysex_in(), b.length).set(b);
       this.ex.web_sysex(b.length);
     }
