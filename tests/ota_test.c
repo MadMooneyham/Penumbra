@@ -183,7 +183,8 @@ int main(int argc, char **argv)
     rc = ota_session();
     printf("  %u requests\n", requests);
     bad += check("session commits", rc == 0 && committed);
-    bad += check("headers + loader + confirm, no head reads", requests >= 10 && requests <= 30);
+    /* (the loader's own reads: ~28 for Penumbra's, with its install screen; the head would add 32 more) */
+    bad += check("headers + loader + confirm, no head reads", requests >= 10 && requests <= 48);
     {
         uint8_t *h = nor + 0xE0000, *p = committed_parm;
         bad += check("staged body == the package's loader", !memcmp(nor + 0xE0020, logical + ota_body_off(), 64));

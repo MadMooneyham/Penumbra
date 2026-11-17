@@ -1,0 +1,13 @@
+# The install screen (src/install_screen.c): Penumbra preparing an install, and its loader writing it
+# (screenshots in build/scenarios/install_screen/)
+wait 500
+install prep 3
+shot prep.png
+install write 0
+shot waiting.png
+install write 42
+shot writing.png
+install write 100
+shot done.png
+wait 100
+expect view 0

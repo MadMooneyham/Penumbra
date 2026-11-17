@@ -22,6 +22,26 @@
 #include "../src/libc.c"
 #include "../src/usb.c"
 
+/* the install screen (src/install_screen.c, as Penumbra draws it): what is being written, how far. The panel
+ * is set up again (a power cut may have restarted the loader); every wait on it is bounded (fm1_lcd_wait) */
+#include "fm1_lcd_hw.h"
+#define LCD_BAUD 1u                                 /* (half the app's: the SPL's clocks, whatever they are) */
+#include "../src/lcd.c"
+typedef struct {                                    /* (gfx.c's) */
+    uint8_t h, pad, first, last;
+    const uint8_t *adv, *bw;
+    const uint16_t *off;
+    const uint8_t *data;
+} felucca_font_t;
+#include "felucca_font.h"
+#include "logo.h"
+#define IS_FONT_TITLE FONT_S                        /* (one font: the staged loader must stay under 20 KB) */
+#define IS_FONT_NOTE FONT_S
+#include "../src/install_screen.c"
+#ifndef PEN_VERSION
+#define PEN_VERSION ""
+#endif
+
 static uint32_t ldr_ms(void)   /* monotonic ms; survives the TIMER4 wrap (178.9 s) */
 {
     static uint32_t last, acc, ms;
@@ -71,7 +91,11 @@ static void ldr_record_clear(void)
 {
     fm1_updata_parm_clear();                        /* CRC 0: the SPL ignores it on a warm reset */
 }
-static void ldr_progress(uint32_t done, uint32_t total) { (void)done; (void)total; ldr_poll(); }
+static void ldr_progress(uint32_t done, uint32_t total)
+{
+    is_bar(done, total);
+    ldr_poll();
+}
 #include "ldr_core.c"
 
 extern uint32_t _bss_start[], _bss_end[];
@@ -80,6 +104,11 @@ void ldr_main(void)
 {
     fm1_wdt_arm(0x0D);                              /* ~8 s, fed by ldr_poll */
     fm1_time_init();
+    lcd_init();
+    fm1_wdt_feed();
+    is_open(PEN_VERSION[0] ? "INSTALLING PENUMBRA " PEN_VERSION : "INSTALLING PENUMBRA");
+    is_step("WAITING FOR THE COMPUTER");
+    is_note("THE FM-1 STARTS AGAIN WHEN IT IS DONE");
     usb_start();
     for (;;) {
         ldr_poll();
@@ -92,7 +121,13 @@ void ldr_main(void)
         ota_service();                              /* handshake */
         if (usb.ota_req) {
             usb.ota_req = 0;
-            if (ldr_session() == 0) {
+            is_step("WRITING");
+            is_bar(0, 1);
+            if (ldr_session() != 0) {
+                is_step("STOPPED: THE COMPUTER CAN TRY AGAIN");
+            } else {
+                is_bar(1, 1);
+                is_step("DONE: STARTING AGAIN");
                 fm1_delay_ms(200);                  /* the "success" reply leaves */
                 usb_detach();
                 fm1_delay_ms(30);

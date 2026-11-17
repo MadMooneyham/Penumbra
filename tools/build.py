@@ -179,7 +179,9 @@ def ldr_wrap(image):
 def build_loader():
     LDR.mkdir(parents=True, exist_ok=True)
     src = FW / "loader"
-    flags = [*CFLAGS, "-Ifirmware/hal", "-Ifirmware/src"]
+    flags = [*CFLAGS, "-Ifirmware/hal", "-Ifirmware/src", "-Ibuild/gen"]   # (the install screen's font and mark)
+    if VERSION:
+        flags.append(f'-DPEN_VERSION="{VERSION}"')
     tc_all(("cc", "-c", src / "crt0_ldr.S", "-o", LDR / "crt0_ldr.o"),
            ("cc", *flags, "-c", src / "loader.c", "-o", LDR / "loader.o"))
     elf = LDR / "loader.elf"
@@ -198,6 +200,8 @@ def build_loader():
     if not image or len(image) > 0x14000:
         raise SystemExit("loader: image empty or too big")
     ota = ldr_wrap(image)
+    if len(ota) - 0x20 > 0x5000 - 0x200:   # ota.c ota_stage: what a running firmware stages (5 x 4 KiB, its head)
+        raise SystemExit(f"loader: ota.bin {len(ota)} B: too big to be staged (under {0x5000 - 0x200 + 0x20} B)")
     (LDR / "ota.bin").write_bytes(ota)
     bss = [int(ln.split()[0], 16) for ln in syms.splitlines() if ln.rstrip().endswith("_bss_end")]
     print(f"loader: image {len(image)} B at {LOADER_LOAD:#x}" + (f", bss end {bss[0]:#x}" if bss else ""))
@@ -374,10 +378,8 @@ def main():
         if hashlib.sha256(fm1pkg_make.sdk_file(rel)).hexdigest() != sha:
             print(f"warning: SDK {rel} differs from AC79NN_SDK_V1.2.1; the package will not match the reference")
     OUT.mkdir(parents=True, exist_ok=True)
-    with ThreadPoolExecutor(2) as ex:
-        gen, ldr = ex.submit(generate), ex.submit(build_loader)
-        gen.result()
-        ota = ldr.result()
+    generate()                                   # (first: the loader draws the install screen with its font)
+    ota = build_loader()
     img, syms, dis, rt = build_app()
     errors, notes = check(img, syms, dis, rt)
     hal_err = mmio_check()

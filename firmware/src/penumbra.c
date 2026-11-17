@@ -102,17 +102,26 @@ static int ota_prog(uint32_t off, const void *p, uint32_t n)
     return fl_write(off, p, n);
 }
 static int ota_fread(uint32_t off, void *p, uint32_t n) { return st_read(off, p, n); }
-static void ota_show(uint32_t step, int32_t code)
+#include "install_screen.c"                       /* (the update loader draws the same screen, writing the package) */
+static void ota_show(uint32_t step, int32_t code) /* an install's first part: Penumbra reads the package and stages
+                                                   * its installer (the update loader), then starts it */
 {
-    static const char *const STEP[] = {"", "PACKAGE", "CHECK HEAD", "LOADER", "CONFIRM", "RESTART"};
-    lcd_fill(0, 0, 240, 240, C_BLACK);
-    draw_text_box(0, 92, 240, &FONT_S, "UPDATE", C_WHITE, 1);
+    static const char *const STEP[] = {"", "READING THE PACKAGE", "CHECKING IT", "COPYING ITS INSTALLER",
+                                       "WAITING FOR THE COMPUTER", "STARTING ITS INSTALLER"};
+    if (step == 1u || is_shown < 0) {
+        audio_silence();
+        is_open("PREPARING THE INSTALL");
+        is_note("NOTHING CHANGES UNTIL IT IS ALL HERE");
+    }
     if (step < 9u) {
-        draw_text_box(0, 124, 240, &FONT_S, STEP[step < 6u ? step : 0], C_HI, 1);
+        is_step(STEP[step < 6u ? step : 0]);
+        is_bar(step, 5);
         return;
     }
-    draw_text_box(0, 124, 240, &FONT_S, code == 1 ? "DRY RUN OK" : "FAILED", C_HI, 1);
+    is_step(code == 1 ? "DRY RUN OK" : "NOT INSTALLED");
+    is_note("NOTHING CHANGED: PENUMBRA CARRIES ON");
     fm1_delay_ms(1500);
+    is_shown = -1;
 }
 static void ota_commit(const uint8_t *parm)
 {
