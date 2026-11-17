@@ -47,7 +47,12 @@ __attribute__((used, visibility("default"))) void web_render(uint32_t n)
     }
 }
 
-__attribute__((used, visibility("default"))) void web_boot(void) { boot(); }
+extern uint8_t knobs_exact;
+__attribute__((used, visibility("default"))) void web_boot(void)
+{
+    knobs_exact = 2;                             /* (the page's knobs have no detents: their speed, not the snap) */
+    boot();
+}
 
 /* the screen reader (announce.c): the page hands the device a reader's SysEx (between F0 and F7) and takes
  * what it says back, whole F0..F7 frames, from web_said_buf (web_said_len bytes; web_said_clear when read) */

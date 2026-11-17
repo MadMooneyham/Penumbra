@@ -151,7 +151,7 @@ void jr_sound_default(journey_t *j)
         {100, 75, 45, 80, 44, 0},                /* DRONE: FILTER, BODY, SWARM, WAVE */
         {100, 64, 80, 90, 64, 20},               /* VOX: BRIGHT, ATTACK, RELEASE, SHIMMER; VIBRATO */
         {80, 50, 80, 30, 64, 90},                /* PULSE: DROP, DECAY, CLICK, SPACE (2 dB down); BLOOM's level */
-        {100, 64, 70, 40, 90, 0}};               /* TEXTURE: COLOUR, SWEEP, RATE, WIDTH */
+        {55, 64, 70, 40, 90, 0}};                /* TEXTURE: COLOUR, SWEEP, RATE, WIDTH (its level 55%: under the rest) */
     static const uint8_t DVOICE[JR_DVOICE] = {106, 75, 64, 1};
     int v, f;
     for (v = 0; v < JR_VOICES; v++)

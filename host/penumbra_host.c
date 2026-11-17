@@ -679,6 +679,7 @@ static int expect(const char *what, const char *val)
 }
 
 #ifndef PEN_WEB
+extern uint8_t knobs_exact;
 int main(int argc, char **argv)
 {
     FILE *sc;
@@ -698,6 +699,7 @@ int main(int argc, char **argv)
     midi_log = fopen(out, "w");
     plat_cpu2_set(1);
     journey_first = 0;                           /* (the scenarios play ECLIPSE; 'fresh N' another, as a new unit) */
+    knobs_exact = 1;                             /* (the knobs exact: 'knobs real' for the detents' and speed's way) */
     boot();
     while (fgets(line, sizeof line, sc)) {
         char cmd[32] = {0}, a[256] = {0}, b[64] = {0}, c[64] = {0};
@@ -796,6 +798,10 @@ int main(int argc, char **argv)
             journey_first = (uint8_t)(atoi(a) % JR_PRESETS);
             held_btn = held_keys = 0;
             boot();
+        } else if (!strcmp(cmd, "knobs")) {           /* knobs real: as on the FM-1 (a click from rest wakes the knob, a
+                                                       * snap back is not taken, a fast turn goes further); exact: a click
+                                                       * a step */
+            knobs_exact = strcmp(a, "real") != 0;
         } else if (!strcmp(cmd, "dswell")) {          /* dswell N: the drone voices that come and go (bit v); 0 all held,
                                                        * for scenarios about held voices (ECLIPSE's all come and go) */
             eng_jr.dswell = (uint8_t)(atoi(a) & 0x1F);

@@ -1,0 +1,35 @@
+# The knobs as on the FM-1 (their detents): from rest the first click only wakes a knob, so a detent that
+# snaps on by itself changes nothing; a click straight back within a quarter second is the snap, not taken;
+# turning, every click counts, and a fast turn goes further (two steps a click under 90 ms, four under 40 ms)
+# on a knob that sets an amount. Choosing (SELECT's rows) is a step a click.
+knobs real
+autoplay 0
+wait 300
+expect macro1 64
+turn K1 1
+wait 800
+expect macro1 64
+turn K1 3 200
+wait 800
+expect macro1 68
+turn K1 1 100
+turn K1 -1 100
+wait 800
+expect macro1 68
+turn K1 -1 1000
+turn K1 -1 1000
+wait 800
+expect macro1 68
+turn K1 5 200
+wait 50
+expect macro1 76
+wait 800
+turn K1 6 60
+expect macro1 96
+wait 800
+turn K1 -6 20
+expect macro1 56
+wait 800
+tap GLO
+turn SELECT 6 30
+expect row 5

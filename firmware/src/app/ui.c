@@ -78,6 +78,9 @@ typedef struct {
     uint8_t dirty;                     /* the settings or the journey changed since they were saved */
     uint32_t act_t;                    /* the last change (a save waits for quiet) */
     uint32_t touch_t;                  /* the last touch (pages go home when idle) */
+    uint32_t enc_t[8];                 /* each knob's last click (EN_*): a fast turn goes further */
+    int8_t enc_dir[8];                 /* and which way it went (a click straight back: the detent's snap) */
+    uint8_t mult;                      /* the knob being handled now: 1, 2 or 4 a click (amounts only) */
     uint8_t stars;                     /* notes played since the last frame: a star each */
     /* the holds */
     uint8_t dheld, dturned;            /* drone keys held (bit v); a knob moved while they were */
@@ -402,7 +405,7 @@ static void sf_turn(int f, int e)
     case SF_VOICING: *p = (uint8_t)wrap_i(*p + e, NVOICINGS); break;
     case SF_REG: *p = (uint8_t)clamp_i(*p + e, 2, 6); break;
     case SF_TRAVEL: *p = (uint8_t)clamp_i(*p + (e > 0 ? 1 : -1), 0, JR_TRAVEL_N - 1); break;
-    default: *p = (uint8_t)clamp_i(*p + 2 * e, 0, 127); break;
+    default: *p = (uint8_t)clamp_i(*p + 2 * e * ui.mult, 0, 127); break;
     }
     changed_jr();
     sf_text(s, f, b);
@@ -676,7 +679,7 @@ static void shape_turn(int k, int e)
 {
     char t[40], b[12];
     uint8_t *p = pg_ptr(ui.vsel, k);
-    *p = (uint8_t)(pg_steps(ui.vsel, k) ? clamp_i(*p + (e > 0 ? 1 : -1), 0, pg_steps(ui.vsel, k)) : clamp_i(*p + 2 * e, 0, 127));
+    *p = (uint8_t)(pg_steps(ui.vsel, k) ? clamp_i(*p + (e > 0 ? 1 : -1), 0, pg_steps(ui.vsel, k)) : clamp_i(*p + 2 * e * ui.mult, 0, 127));
     changed_jr();
     shape_text(ui.vsel, k, b);
     put_s(put_s(put_s(put_s(put_s(t, PAGE[ui.vsel].name), " "), k < 0 ? pg_algo(ui.vsel) : PAGE[ui.vsel].k[k]), " "), b);
@@ -743,7 +746,7 @@ static void drone_knob(int k, int e)              /* the drone voices held, each
     for (v = 0; v < ENG_DRONES; v++)
         if (ui.dheld >> v & 1u) {
             uint8_t *p = &eng_jr.dvoice[v][k];
-            *p = (uint8_t)(k == DV_OCT ? clamp_i(*p + (e > 0 ? 1 : -1), 0, 2) : clamp_i(*p + 2 * e, 0, 127));
+            *p = (uint8_t)(k == DV_OCT ? clamp_i(*p + (e > 0 ? 1 : -1), 0, 2) : clamp_i(*p + 2 * e * ui.mult, 0, 127));
         }
     ui.dturned |= ui.dheld;
     ui.vsel = PG_DRONE;                           /* (ENV next: the page of what the hands last shaped) */
@@ -767,7 +770,7 @@ static void bloom_knob(int k, int e)
 {
     char t[40], b[12];
     uint8_t *p = bloom_ptr(k);
-    *p = (uint8_t)(k == 2 ? clamp_i(*p + (e > 0 ? 1 : -1), 0, 2) : clamp_i(*p + 2 * e, 0, 127));
+    *p = (uint8_t)(k == 2 ? clamp_i(*p + (e > 0 ? 1 : -1), 0, 2) : clamp_i(*p + 2 * e * ui.mult, 0, 127));
     ui.vsel = PG_PULSE;
     changed_jr();
     bloom_text(k, b);
@@ -786,7 +789,7 @@ static void vsound_knob(int k, int e)             /* a VOX sound key held: that 
 {
     char t[40], b[12];
     uint8_t *p = &vsound()[VSH_F[k]];
-    *p = (uint8_t)clamp_i(*p + 2 * e, 0, 127);
+    *p = (uint8_t)clamp_i(*p + 2 * e * ui.mult, 0, 127);
     ui.vsel = PG_VOX;
     changed_jr();
     vsh_text(k, b);
@@ -839,7 +842,7 @@ static void thr_text(int k, char *b)              /* DIP: left a low-pass, right
 static void throw_knob(int k, int e)
 {
     char t[40], b[12];
-    ui.thr[k] = fm_clampf(ui.thr[k] + 4.0f * (float)e, k == 3 ? -127.0f : 0.0f, 127.0f);
+    ui.thr[k] = fm_clampf(ui.thr[k] + 4.0f * (float)e * (float)ui.mult, k == 3 ? -127.0f : 0.0f, 127.0f);
     ui.thr_kept = ui.thr_back = 0;               /* (a new throw: all of them drift back at the end, unless kept) */
     ui.used |= 1u << B_FX;
     thr_text(k, b);
@@ -857,7 +860,7 @@ static void warp_text(char *b)                    /* WARP: the delay slower (-) 
 static void warp_knob(int e)                      /* ALGO, FX held: the delay's time bent; let go, it springs back */
 {
     char t[24], b[12];
-    ui.warp = fm_clampf(ui.warp + 6.0f * (float)e, -127.0f, 127.0f);
+    ui.warp = fm_clampf(ui.warp + 6.0f * (float)e * (float)ui.mult, -127.0f, 127.0f);
     ui.thr_kept = ui.thr_back = 0;
     ui.used |= 1u << B_FX;
     warp_text(b);
@@ -868,7 +871,7 @@ static void bend_text(int k, char *b) { put_spct(b, round_i(ui.bend[k])); }
 static void bend_knob(int k, int e)
 {
     char t[40], b[12];
-    ui.bend[k] = fm_clampf(ui.bend[k] + 2.0f * (float)e, -64.0f, 64.0f);
+    ui.bend[k] = fm_clampf(ui.bend[k] + 2.0f * (float)e * (float)ui.mult, -64.0f, 64.0f);
     ui.bend_back = 0;
     ui.vsel = PG_VOX;
     bend_text(k, b);
@@ -883,7 +886,7 @@ static void pitch_text(char *b)                   /* "+1.5" semitones */
 static void pitch_knob(int e)                     /* ALGO, a white key held: every VOX note up or down */
 {
     char t[24], b[12];
-    ui.pitch = fm_clampf(ui.pitch + 8.0f * (float)e, -127.0f, 127.0f);
+    ui.pitch = fm_clampf(ui.pitch + 8.0f * (float)e * (float)ui.mult, -127.0f, 127.0f);
     ui.pitch_back = ui.pitch_kept = 0;
     pitch_text(b);
     put_s(put_s(t, "PITCH "), b);
@@ -1217,6 +1220,38 @@ static const char *const HELP[NB] = {
     [B_OCTDN] = "WHITE KEYS DOWN",  [B_OCTUP] = "WHITE KEYS UP"};   /* (PLAY held: the undo) */
 
 static void loop_layer_out(void);                 /* (LOOP's SEL: below, with the page) */
+/* a knob's speed: clicks less than KNOB_FAST_MS apart go four steps a click, less than KNOB_QUICK_MS two;
+ * slower, one. Only amounts use it (a level, a filter, a place): choosing (a scene, a key, a row, a page)
+ * is always a step a click */
+#define KNOB_FAST_MS 40u
+#define KNOB_QUICK_MS 90u
+/* the detents: a knob let go can snap on to the next detent, or back. From rest (no click for KNOB_REST_MS)
+ * the first click only wakes the knob; a click straight back within KNOB_BACK_MS of the last is the snap,
+ * and is not taken. Turning, every click counts. knobs_exact: 1 a click a step (the simulator's scenarios,
+ * unless one asks otherwise), 2 no detents but the speed (the browser's knobs) */
+#define KNOB_REST_MS 600u
+#define KNOB_BACK_MS 250u
+uint8_t knobs_exact;
+static int knob_take(int role, int e, uint32_t now)   /* the clicks the knob's handler gets (0: none) */
+{
+    const int r = role & 7, dir = e > 0 ? 1 : -1;
+    const uint32_t dt = now - ui.enc_t[r];
+    if (knobs_exact) {
+        ui.mult = 1;
+        return e;
+    }
+    const int rest = knobs_exact != 2 && (dt >= KNOB_REST_MS || !ui.enc_t[r]);   /* (never turned yet: at rest) */
+    ui.enc_t[r] = now ? now : 1u;
+    if (rest) {
+        ui.enc_dir[r] = (int8_t)dir;
+        e -= dir;                                  /* (from rest: the first wakes it) */
+    } else if (knobs_exact != 2 && dir != ui.enc_dir[r] && dt < KNOB_BACK_MS) {
+        return 0;                                  /* (straight back: the snap) */
+    }
+    ui.enc_dir[r] = (int8_t)dir;
+    ui.mult = (uint8_t)(dt < KNOB_FAST_MS ? 4 : dt < KNOB_QUICK_MS ? 2 : 1);
+    return e;
+}
 static void button(int i)
 {
     switch (i) {
@@ -1396,11 +1431,11 @@ static void loop_layer_knob(int k, int e)
     ui.ldel = 0;
     k += ui.lpage ? 4 : 0;                        /* (LL_LEVEL .. LL_SWELL: the knobs' order, page by page) */
     switch (k) {
-    case 0: v = clamp_i(ly->level + 2 * e, 0, 127); break;
+    case 0: v = clamp_i(ly->level + 2 * e * ui.mult, 0, 127); break;
     case 1: v = clamp_i(ly->snd + (e > 0 ? 1 : -1), 0, JR_VSOUNDS); break;
     case 2: v = clamp_i(ly->oct + (e > 0 ? 1 : -1), 0, 2); break;
     case 3: v = e > 0; break;
-    default: v = clamp_i((&ly->pan)[k - 4] + 2 * e, 0, 127); break;
+    default: v = clamp_i((&ly->pan)[k - 4] + 2 * e * ui.mult, 0, 127); break;
     }
     engine_loop_layer(y, k, v);
     switch (k) {                                  /* said as it will be (the engine takes it at its next block) */
@@ -1549,7 +1584,7 @@ static void knob_turn(int k, int e)
     case V_SYSTEM: row_set(ui.row, row_get(ui.row) + (e > 0 ? 1 : -1)); break;
     case V_HOME: {
         uint8_t *m = &eng_jr.macro[k];
-        *m = (uint8_t)clamp_i(*m + 2 * e, 0, 127);
+        *m = (uint8_t)clamp_i(*m + 2 * e * ui.mult, 0, 127);
         changed_jr();
         put_spct(v, *m - 64);
         put_s(put_s(put_s(t, MACRO_N[k]), " "), v);
@@ -1574,7 +1609,7 @@ static void knob_turn(int k, int e)
         break;
     case V_FX: {
         int i = fx_of(ui.fxrow, k), step = engine_fx_max(i) < 127 ? 1 : 2;
-        cfg.fx[i] = (uint8_t)clamp_i(cfg.fx[i] + (engine_fx_max(i) <= 2 ? (e > 0 ? 1 : -1) : step * e), 0,
+        cfg.fx[i] = (uint8_t)clamp_i(cfg.fx[i] + (engine_fx_max(i) <= 2 ? (e > 0 ? 1 : -1) : step * e * ui.mult), 0,
                                      engine_fx_max(i));   /* (a switch: one step a turn) */
         engine_fx(i, cfg.fx[i]);
         changed();
@@ -1805,14 +1840,14 @@ static void input(void)
             ui.used &= ~bit;
         }
     }
-    if ((e = plat_enc(EN_SELECT)) != 0) {
+    if ((e = plat_enc(EN_SELECT)) != 0 && (e = knob_take(EN_SELECT, e, now)) != 0) {
         ui.touch_t = now;
         if (layer() == L_SOUND)
             ab_turn(e);                           /* ENV held: A to B */
         else
             select_turn(e);
     }
-    if ((e = plat_enc(EN_ALGO)) != 0) {           /* the tempo, wherever you are (SHAPE: the voice's level) */
+    if ((e = plat_enc(EN_ALGO)) != 0 && (e = knob_take(EN_ALGO, e, now)) != 0) {           /* the tempo, wherever you are (SHAPE: the voice's level) */
         ui.touch_t = now;
         if (ui.btn >> B_PLAY & 1u) {              /* PLAY held: the loop's speed */
             const looper_t *l = engine_looper_state();
@@ -1839,14 +1874,14 @@ static void input(void)
         } else if (ui.view == V_LOOP && loop_layers()) {
             loop_len_knob(e);
         } else {
-            int bpm = clamp_i(cfg.bpm_x10 / 10 + e, 20, 300);
+            int bpm = clamp_i(cfg.bpm_x10 / 10 + e * ui.mult, 20, 300);
             cfg.bpm_x10 = (uint16_t)(bpm * 10);
             settings_apply();
             changed();
             say_n("TEMPO ", bpm);
         }
     }
-    if ((e = plat_enc(EN_PRESET)) != 0) {         /* the scenes (on JOURNEY: the list) */
+    if ((e = plat_enc(EN_PRESET)) != 0 && (e = knob_take(EN_PRESET, e, now)) != 0) {         /* the scenes (on JOURNEY: the list) */
         char v[24];
         ui.touch_t = now;
         if (ui.view == V_JOURNEY) {
@@ -1860,7 +1895,7 @@ static void input(void)
         }
     }
     for (i = EN_K1; i <= EN_K4; i++)
-        if ((e = plat_enc(i)) != 0) {
+        if ((e = plat_enc(i)) != 0 && (e = knob_take(i, e, now)) != 0) {
             ui.touch_t = now;
             switch (layer()) {
             case L_DRONE: drone_knob(i - EN_K1, e); break;
