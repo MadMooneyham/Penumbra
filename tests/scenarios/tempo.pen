@@ -1,7 +1,8 @@
-# ALGO is the tempo; it is saved and the clock follows it. The save waits for the output to
+# ALGO is the tempo (on every page but HOME, SHAPE and LOOP: here FX); it is saved and the clock follows it. The save waits for the output to
 # fall quiet (PULSE's kicks ring a few seconds after STOP)
 autoplay 0
 wait 300
+tap FX
 turn ALGO 30
 expect set_bpm 120
 tap SEQ

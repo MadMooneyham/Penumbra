@@ -52,6 +52,8 @@ int settings_load(void)
     s.bend %= BEND_RANGES;
     s.midi_quiet &= 3u;
     s.sound_lock &= 1u;
+    if (s.home_page > 4)
+        s.home_page = 0;
     for (i = 0; i < EF_N; i++)
         if (s.fx[i] > engine_fx_max(i))
             s.fx[i] = FX_DEF[i];

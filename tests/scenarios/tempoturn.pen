@@ -2,6 +2,7 @@
 # to it, never bending (or clicking) at each detent. Slowly, then a quick spin, then back down; then an
 # external clock, whose measured tempo wanders, under the same echoes. Audio in tempoturn.wav.
 wait 500
+tap FX
 wav tempoturn.wav
 tapkey w2
 wait 300

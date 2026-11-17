@@ -652,6 +652,10 @@ static int expect(const char *what, const char *val)
         got = ui.lpage;
     else if (!strcmp(what, "lrow"))                 /* LOOP's layer shown, 1 .. */
         got = ui.lrow + 1;
+    else if (!strcmp(what, "hpage"))                /* HOME's knob page (ALGO there): 0 MIX, 1 SPACE, 2 MOTION, 3 ALIVE, 4 TONE */
+        got = cfg.home_page;
+    else if (!strcmp(what, "travel"))
+        got = eng_jr.travel;
     else if (!strcmp(what, "sound_lock"))           /* JOURNEY's lock: 1 the sound playing stays when a journey opens */
         got = cfg.sound_lock;
     else if (!strcmp(what, "jtravel"))              /* the journey travels by itself: 0 not, 1 .. 4 every 8 .. 64 bars */

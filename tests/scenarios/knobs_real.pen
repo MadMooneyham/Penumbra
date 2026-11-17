@@ -1,10 +1,12 @@
 # The knobs as on the FM-1 (their detents): from rest the first click only wakes a knob, so a detent that
 # snaps on by itself changes nothing; a click straight back within a quarter second is the snap, not taken;
-# turning, every click counts, and a fast turn goes further (two steps a click under 90 ms, four under 40 ms)
-# on a knob that sets an amount. Choosing (SELECT's rows) is a step a click.
-knobs real
+# turning, every click counts, a step a click. Only a knob that keeps spinning fast goes further: four quick
+# clicks in a row (under 70 ms apart) two steps a click, ten three. Choosing (SELECT's rows) is a step a click.
+# (HOME's TONE page: the macros, two a step)
 autoplay 0
 wait 300
+turn ALGO -1
+knobs real
 expect macro1 64
 turn K1 1
 wait 800
@@ -24,11 +26,16 @@ turn K1 5 200
 wait 50
 expect macro1 76
 wait 800
+# fast, six clicks: the first wakes it, then 1 1 1 2 2 steps
 turn K1 6 60
-expect macro1 96
+expect macro1 90
 wait 800
 turn K1 -6 20
-expect macro1 56
+expect macro1 76
+wait 800
+# a long fast spin: 1 1 1, then 2 (six clicks), then 3
+turn K1 -14 20
+expect macro1 22
 wait 800
 tap GLO
 turn SELECT 6 30

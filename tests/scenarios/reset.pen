@@ -36,6 +36,7 @@ tap FX
 turn K1 -4
 expect fx0 83
 tap HOME
+turn ALGO -1
 turn K3 -5
 expect macro3 54
 press FX
@@ -44,9 +45,9 @@ tap SAVE
 release FX
 wait 100
 expect perf2 40
+tap GLO
 turn ALGO 5
 expect set_bpm 95
-tap GLO
 turn SELECT 12
 tap SEL
 wait 100

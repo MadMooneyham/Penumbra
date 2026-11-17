@@ -80,7 +80,8 @@ typedef struct {
     uint32_t touch_t;                  /* the last touch (pages go home when idle) */
     uint32_t enc_t[8];                 /* each knob's last click (EN_*): a fast turn goes further */
     int8_t enc_dir[8];                 /* and which way it went (a click straight back: the detent's snap) */
-    uint8_t mult;                      /* the knob being handled now: 1, 2 or 4 a click (amounts only) */
+    uint8_t enc_run[8];                /* its quick clicks in a row */
+    uint8_t mult;                      /* the knob being handled now: 1, 2 or 3 a click (amounts only) */
     uint8_t stars;                     /* notes played since the last frame: a star each */
     /* the holds */
     uint8_t dheld, dturned;            /* drone keys held (bit v); a knob moved while they were */
@@ -1222,11 +1223,13 @@ static const char *const HELP[NB] = {
     [B_OCTDN] = "WHITE KEYS DOWN",  [B_OCTUP] = "WHITE KEYS UP"};   /* (PLAY held: the undo) */
 
 static void loop_layer_out(void);                 /* (LOOP's SEL: below, with the page) */
-/* a knob's speed: clicks less than KNOB_FAST_MS apart go four steps a click, less than KNOB_QUICK_MS two;
- * slower, one. Only amounts use it (a level, a filter, a place): choosing (a scene, a key, a row, a page)
- * is always a step a click */
-#define KNOB_FAST_MS 40u
-#define KNOB_QUICK_MS 90u
+/* a knob's speed: a step a click, unless it keeps spinning fast. Clicks less than KNOB_QUICK_MS apart make a
+ * run; KNOB_RUN2 of them in a row go two steps a click, KNOB_RUN3 three. A slow click or a turn back starts
+ * again at one, so a quick nudge never jumps. Only amounts use it (a level, a filter, a place): choosing (a
+ * scene, a key, a row, a page) is always a step a click */
+#define KNOB_QUICK_MS 70u
+#define KNOB_RUN2 4u
+#define KNOB_RUN3 10u
 /* the detents: a knob let go can snap on to the next detent, or back. From rest (no click for KNOB_REST_MS)
  * the first click only wakes the knob; a click straight back within KNOB_BACK_MS of the last is the snap,
  * and is not taken. Turning, every click counts. knobs_exact: 1 a click a step (the simulator's scenarios,
@@ -1238,7 +1241,7 @@ static int knob_take(int role, int e, uint32_t now)   /* the clicks the knob's h
 {
     const int r = role & 7, dir = e > 0 ? 1 : -1;
     const uint32_t dt = now - ui.enc_t[r];
-    if (knobs_exact) {
+    if (knobs_exact == 1) {
         ui.mult = 1;
         return e;
     }
@@ -1246,12 +1249,17 @@ static int knob_take(int role, int e, uint32_t now)   /* the clicks the knob's h
     ui.enc_t[r] = now ? now : 1u;
     if (rest) {
         ui.enc_dir[r] = (int8_t)dir;
+        ui.enc_run[r] = 0;
         e -= dir;                                  /* (from rest: the first wakes it) */
     } else if (knobs_exact != 2 && dir != ui.enc_dir[r] && dt < KNOB_BACK_MS) {
         return 0;                                  /* (straight back: the snap) */
     }
+    if (dir != ui.enc_dir[r] || dt >= KNOB_QUICK_MS)
+        ui.enc_run[r] = 0;
+    else if (ui.enc_run[r] < 255u)
+        ui.enc_run[r]++;
     ui.enc_dir[r] = (int8_t)dir;
-    ui.mult = (uint8_t)(dt < KNOB_FAST_MS ? 4 : dt < KNOB_QUICK_MS ? 2 : 1);
+    ui.mult = (uint8_t)(ui.enc_run[r] >= KNOB_RUN3 ? 3 : ui.enc_run[r] >= KNOB_RUN2 ? 2 : 1);
     return e;
 }
 static void button(int i)
@@ -1579,20 +1587,14 @@ static void fx_text(int i, char *b)
         put_pct(b, cfg.fx[i]);
 }
 
+static void hk_turn(int k, int e);                /* (HOME's knob pages: below, with MIDI's controls) */
+static void home_page_turn(int e);
 static void knob_turn(int k, int e)
 {
     char t[40], v[16];
     switch (ui.view) {
     case V_SYSTEM: row_set(ui.row, row_get(ui.row) + (e > 0 ? 1 : -1)); break;
-    case V_HOME: {
-        uint8_t *m = &eng_jr.macro[k];
-        *m = (uint8_t)clamp_i(*m + 2 * e * ui.mult, 0, 127);
-        changed_jr();
-        put_spct(v, *m - 64);
-        put_s(put_s(put_s(t, MACRO_N[k]), " "), v);
-        say(t, 0);
-        break;
-    }
+    case V_HOME: hk_turn(k, e); break;            /* (the page ALGO chose) */
     case V_SHAPE: shape_turn(k, e); break;
     case V_LOOP: loop_layer_knob(k, e); break;
     case V_JOURNEY:                               /* any knob: the sound locked (right), or the journey's (left) */
@@ -1695,6 +1697,145 @@ static void cc_set(int c, int v)                  /* a CC came: the control ther
         break;
     }
     }
+}
+
+/* ------------------------------------------------------ HOME's knob pages --- */
+/* ALGO on HOME steps through five pages of what changes a performance most (the tempo is on MOTION, and ALGO
+ * on every other page): MIX each part's level; SPACE the reverb's and the delay's return, the reverb's
+ * decay and shimmer; MOTION the tempo, how far the tides reach, the drone's swarm and drift; ALIVE what
+ * plays by itself (the sound playing's singing, BLOOM, the drone voices that come and go, travelling);
+ * TONE the four macros. All but SPACE (the FX page's) are the journey's, saved with it */
+enum { HP_MIX, HP_SPACE, HP_MOTION, HP_ALIVE, HP_TONE, HP_N };
+static const char *const HP_NAME[HP_N] = {"MIX", "SPACE", "MOTION", "ALIVE", "TONE"};
+enum { HK_LEVEL, HK_FX, HK_TEMPO, HK_TIDES, HK_SWARM, HK_DRIFT, HK_SING, HK_BLOOM, HK_SWELLS, HK_TRAVEL, HK_MACRO };
+typedef struct { const char *name; uint8_t kind, i; } hknob_t;
+static const hknob_t HKNOB[HP_N][4] = {
+    {{"DRONE", HK_LEVEL, EV_DRONE}, {"VOX", HK_LEVEL, EV_VOX}, {"PULSE", HK_LEVEL, EV_PULSE}, {"TEXTURE", HK_LEVEL, EV_TEX}},
+    {{"REVERB", HK_FX, EF_RV_LEVEL}, {"DECAY", HK_FX, EF_RV_DECAY}, {"SHIMMER", HK_FX, EF_RV_SHIMMER}, {"DELAY", HK_FX, EF_DL_LEVEL}},
+    {{"TEMPO", HK_TEMPO, 0}, {"TIDES", HK_TIDES, 0}, {"SWARM", HK_SWARM, 0}, {"DRIFT", HK_DRIFT, 0}},
+    {{"SINGS", HK_SING, 0}, {"BLOOMS", HK_BLOOM, 0}, {"SWELLS", HK_SWELLS, 0}, {"TRAVELS", HK_TRAVEL, 0}},
+    {{"DRONE", HK_MACRO, MAC_DRONE}, {"VOX", HK_MACRO, MAC_VOX}, {"SPACE", HK_MACRO, MAC_SPACE}, {"TONE", HK_MACRO, MAC_TONE}}};
+static const char *const HK_OFTEN[JR_SING_N] = {"-", "RARE", "SOME", "OFTEN"};
+static const hknob_t *hknob(int k) { return &HKNOB[cfg.home_page % HP_N][k & 3]; }
+static int popc5(uint32_t m) { int n = 0; for (; m; m &= m - 1u) n++; return n; }
+
+static int hk_get(int k, int *max)                /* the knob's value now, 0 .. *max */
+{
+    const hknob_t *h = hknob(k);
+    *max = 127;
+    switch (h->kind) {
+    case HK_LEVEL: return h->i == EV_VOX ? vsound()[VS_LEVEL] : eng_jr.shape[h->i][SH_LEVEL];
+    case HK_FX: *max = engine_fx_max(h->i); return cfg.fx[h->i];
+    case HK_TEMPO: *max = 280; return cfg.bpm_x10 / 10 - 20;
+    case HK_TIDES: return (eng_jr.tide[TD_DRONE] + eng_jr.tide[TD_SPACE] + eng_jr.tide[TD_VOX] + 1) / 3;
+    case HK_SWARM: return eng_jr.shape[EV_DRONE][SH_K3];
+    case HK_DRIFT: return eng_jr.dmotion[DM_DRIFT];
+    case HK_SING: *max = JR_SING_N - 1; return JR_SING(&eng_jr, eng_jr.vcur % JR_VSOUNDS);
+    case HK_BLOOM: *max = JR_SING_N - 1; return eng_jr.bloom_auto;
+    case HK_SWELLS: *max = ENG_DRONES; return popc5(eng_jr.dswell);
+    case HK_TRAVEL: *max = JR_TRAVEL_N - 1; return eng_jr.travel;
+    default: return eng_jr.macro[h->i];
+    }
+}
+
+static void hk_text(int k, char *b)               /* short, for the knob */
+{
+    const hknob_t *h = hknob(k);
+    int mx, v = hk_get(k, &mx);
+    switch (h->kind) {
+    case HK_FX: fx_text(h->i, b); break;
+    case HK_TEMPO: put_i(b, v + 20); break;
+    case HK_SING:
+    case HK_BLOOM: put_s(b, HK_OFTEN[v % JR_SING_N]); break;
+    case HK_SWELLS: put_s(put_i(b, v), "/5"); break;
+    case HK_TRAVEL: if (v) put_i(b, JR_TRAVEL_BARS[v % JR_TRAVEL_N]); else put_s(b, "-"); break;
+    case HK_MACRO: put_spct(b, v - 64); break;
+    case HK_LEVEL: put_s(put_i(b, v), "%"); break;   /* (a level: its own number, 100% as made) */
+    default: put_pct(b, v); break;
+    }
+}
+
+static void hk_turn(int k, int e)
+{
+    const hknob_t *h = hknob(k);
+    const int step = e > 0 ? 1 : -1, amt = 2 * e * ui.mult;
+    char t[48], v[16];
+    int i;
+    switch (h->kind) {
+    case HK_LEVEL: {
+        uint8_t *p = h->i == EV_VOX ? &vsound()[VS_LEVEL] : &eng_jr.shape[h->i][SH_LEVEL];
+        *p = (uint8_t)clamp_i(*p + amt, 0, 127);
+        changed_jr();
+        break;
+    }
+    case HK_FX: {
+        const int mx = engine_fx_max(h->i);
+        cfg.fx[h->i] = (uint8_t)clamp_i(cfg.fx[h->i] + (mx < 127 ? step : amt), 0, mx);
+        engine_fx(h->i, cfg.fx[h->i]);
+        changed();
+        break;
+    }
+    case HK_TEMPO:
+        cfg.bpm_x10 = (uint16_t)(clamp_i(cfg.bpm_x10 / 10 + e * ui.mult, 20, 300) * 10);
+        settings_apply();
+        changed();
+        break;
+    case HK_TIDES:                                /* (all three reaches together, each from where it is) */
+        for (i = 0; i < 3; i++) {
+            static const uint8_t TD[3] = {TD_DRONE, TD_SPACE, TD_VOX};
+            eng_jr.tide[TD[i]] = (uint8_t)clamp_i(eng_jr.tide[TD[i]] + amt, 0, 127);
+        }
+        changed_jr();
+        break;
+    case HK_SWARM: eng_jr.shape[EV_DRONE][SH_K3] = (uint8_t)clamp_i(eng_jr.shape[EV_DRONE][SH_K3] + amt, 0, 127); changed_jr(); break;
+    case HK_DRIFT: eng_jr.dmotion[DM_DRIFT] = (uint8_t)clamp_i(eng_jr.dmotion[DM_DRIFT] + amt, 0, 127); changed_jr(); break;
+    case HK_SING: {
+        const int s = eng_jr.vcur % JR_VSOUNDS, lv = clamp_i(JR_SING(&eng_jr, s) + step, 0, JR_SING_N - 1);
+        eng_jr.sing[JR_SG_HOW][s] = (uint8_t)lv;
+        changed_jr();
+        put_s(put_s(put_s(t, jr_vsound_name(s)), " "), SING_N[lv]);
+        say(t, 0);
+        return;
+    }
+    case HK_BLOOM:
+        eng_jr.bloom_auto = (uint8_t)clamp_i(eng_jr.bloom_auto + step, 0, JR_SING_N - 1);
+        changed_jr();
+        say(eng_jr.bloom_auto ? "BLOOM BY ITSELF, " : "BLOOM ", BLOOM_AUTO_N[eng_jr.bloom_auto]);
+        return;
+    case HK_SWELLS: {                             /* how many of the drone's voices come and go: the top ones first */
+        const int n = clamp_i(popc5(eng_jr.dswell) + step, 0, ENG_DRONES);
+        eng_jr.dswell = (uint8_t)((((1u << n) - 1u) << (ENG_DRONES - n)) & ((1u << ENG_DRONES) - 1u));
+        changed_jr();
+        put_s(put_i(t, n), n == 1 ? " DRONE VOICE COMES AND GOES" : " DRONE VOICES COME AND GO");
+        say(t, 0);
+        return;
+    }
+    case HK_TRAVEL:
+        eng_jr.travel = (uint8_t)clamp_i(eng_jr.travel + step, 0, JR_TRAVEL_N - 1);
+        changed_jr();
+        if (eng_jr.travel)
+            put_s(put_i(put_s(t, "TRAVELS EVERY "), JR_TRAVEL_BARS[eng_jr.travel]), " BARS");
+        else
+            put_s(t, "TRAVELS BY HAND");
+        say(t, 0);
+        return;
+    default: eng_jr.macro[h->i] = (uint8_t)clamp_i(eng_jr.macro[h->i] + amt, 0, 127); changed_jr(); break;
+    }
+    hk_text(k, v);
+    put_s(put_s(put_s(t, h->name), " "), v);
+    say(t, 0);
+}
+
+static void home_page_turn(int e)                 /* ALGO on HOME: the next knob page (round and round) */
+{
+    char t[48], *q;
+    int k;
+    cfg.home_page = (uint8_t)wrap_i(cfg.home_page + (e > 0 ? 1 : -1), HP_N);
+    changed();
+    q = put_s(put_s(t, HP_NAME[cfg.home_page]), ":");
+    for (k = 0; k < 4; k++)
+        q = put_s(put_s(q, " "), HKNOB[cfg.home_page][k].name);
+    say(t, 0);
 }
 static void midi_take(void)                       /* what MIDI brought, applied as the hands would */
 {
@@ -1875,6 +2016,8 @@ static void input(void)
             shape_turn(-1, e);
         } else if (ui.view == V_LOOP && loop_layers()) {
             loop_len_knob(e);
+        } else if (ui.view == V_HOME) {
+            home_page_turn(e);                    /* HOME: the knobs' next page (the tempo: on MOTION) */
         } else {
             int bpm = clamp_i(cfg.bpm_x10 / 10 + e * ui.mult, 20, 300);
             cfg.bpm_x10 = (uint16_t)(bpm * 10);
@@ -2855,6 +2998,39 @@ static void cell(int i, const char *name, const char *val, uint16_t c)
     text_c(cx, 20, &FONT_XS, name, C_GRAY);
     text_c(cx, 38, &FONT_S, val, c);
 }
+/* a knob as a slice of the corona: its name above, a 270-degree arc open at the bottom filled to its value
+ * (an offset: from the top, either way), the value in the middle */
+#define ARC_R 16.0f
+#define ARC_CY 36
+static void cell_arc(int i, const char *name, const char *val, float frac, int from_mid, uint16_t c)
+{
+    const int cx = i * 60 + 30, x0 = cx - 19, y0 = ARC_CY - 19;
+    float lo = 0.0f, hi = fm_clampf(frac, 0.0f, 1.0f);
+    int x, y;
+    if (from_mid) {                               /* (an offset: from the top, the middle, to the value) */
+        lo = fm_minf(0.5f, hi);
+        hi = fm_maxf(0.5f, hi);
+    }
+    if (i)
+        cv_rect(i * 60, 24, 1, 28, C_LINE);
+    text_c(cx, 2, &FONT_XS, name, C_GRAY);
+    for (y = y0; y < y0 + 38; y++)
+        for (x = x0; x < x0 + 38; x++) {
+            const float dx = (float)x + 0.5f - (float)cx, dy = (float)y + 0.5f - (float)ARC_CY;
+            const float d = fm_sqrtf(dx * dx + dy * dy), cov = fm_clampf(1.7f - fm_fabsf(d - ARC_R), 0.0f, 1.0f);
+            float a;
+            if (cov <= 0.0f)
+                continue;
+            a = turns(dy, dx) - 0.375f;           /* (0: the bottom left, round over the top to 0.75) */
+            if (a < 0.0f)
+                a += 1.0f;
+            if (a > 0.75f)
+                continue;
+            a *= 1.0f / 0.75f;
+            px_blend(x, y, a >= lo && a <= hi && hi > lo ? c : C_LINE, (uint32_t)(cov * 16.0f + 0.5f));
+        }
+    text_c(cx, vc(&FONT_XS, ARC_CY - 7, 14), &FONT_XS, val, C_HI);
+}
 static void hint(const char *l, const char *r)
 {
     cv_text(6, 64, &FONT_XS, l, C_DIM);
@@ -2942,21 +3118,30 @@ static void draw_knobs(void)
     default: break;
     }
     switch (ui.view) {
-    case V_HOME:
-        for (k = 0; k < NMACROS; k++) {
-            put_spct(a, eng_jr.macro[k] - 64);    /* (each from as made, 0%) */
-            cell(k, MACRO_N[k], a, C_HI);
+    case V_HOME: {                                /* the page ALGO chose, its name and where it is of the five */
+        int x;
+        for (k = 0; k < 4; k++) {
+            int mx, v = hk_get(k, &mx);
+            hk_text(k, a);
+            cell_arc(k, hknob(k)->name, a, mx ? (float)v / (float)mx : 0.0f, hknob(k)->kind == HK_MACRO, C_AMB);
         }
+        x = cv_text(6, 64, &FONT_XS, "ALGO ", C_DIM);
+        x = cv_text(x, 64, &FONT_XS, HP_NAME[cfg.home_page % HP_N], C_AMB) + 6;
+        for (k = 0; k < HP_N; k++)
+            dot(x + k * 7, 71, 1, k == cfg.home_page ? C_AMB : C_DIM);
         put_sgn(put_s(a, "OCTAVE "), ui.oct);
-        hint("PRESET: SCENE  SELECT: MORPH", a);
+        text_r(234, 64, &FONT_XS, a, C_DIM);
         break;
+    }
     case V_SHAPE:
         for (k = 0; k < 4; k++) {
+            const int x = *pg_ptr(ui.vsel, k), st = pg_steps(ui.vsel, k);
             if (PAGE[ui.vsel].kind == PK_PAN)     /* (the cell's width) */
-                put_pan(a, *pg_ptr(ui.vsel, k), 1);
+                put_pan(a, x, 1);
             else
                 shape_text(ui.vsel, k, a);
-            cell(k, PAGE[ui.vsel].k[k], a, C_HI);
+            cell_arc(k, PAGE[ui.vsel].k[k], a, st ? (float)x / (float)st : (float)x / 127.0f,
+                     PAGE[ui.vsel].kind == PK_PAN || (PAGE[ui.vsel].sgn >> k & 1u), page_col());
         }
         shape_text(ui.vsel, -1, b);
         put_s(put_s(put_s(put_s(c, "ALGO: "), pg_algo(ui.vsel)), " "), b);
@@ -2976,8 +3161,9 @@ static void draw_knobs(void)
         break;
     case V_FX:
         for (k = 0; k < 4; k++) {
-            fx_text(fx_of(ui.fxrow, k), a);
-            cell(k, FX_N[fx_of(ui.fxrow, k)], a, C_HI);
+            const int f = fx_of(ui.fxrow, k), mx = engine_fx_max(f);
+            fx_text(f, a);
+            cell_arc(k, FX_N[f], a, mx ? (float)cfg.fx[f] / (float)mx : 0.0f, 0, page_col());
         }
         hint("SELECT: THE ROW", FXROW_N[ui.fxrow]);
         break;

@@ -46,7 +46,8 @@ silent instead.
 
 - **SEQ** starts and stops the clock. Starting it swells the scene's drones in. Stopping it lets everything
   fade away: the drone, the loop and the tails.
-- **ALGO** sets the tempo, which defaults to 90 BPM. The tempo sets the delay's time and the looper's beat.
+- **ALGO** on HOME steps through HOME's knob pages (section 2), the tempo among them on MOTION. On the other
+  pages ALGO sets the tempo, which defaults to 90 BPM. The tempo sets the delay's time and the looper's beat.
 - **HOME** always brings you back to the main screen. Any other page also returns to HOME after 30 seconds
   untouched, except BENCH.
 - **Hold any button** for a moment and it says what it does instead of doing it. FX takes a little longer,
@@ -90,14 +91,23 @@ same colour.
 **Installs** show how far they have got: Penumbra's screen while it reads the package and readies the
 installer, then the installer's own, with a bar, while it writes. The FM-1 starts again when it is done.
 
-**HOME's four knobs** are macros, each 0% as made:
+**HOME's four knobs** play one of five pages, and **ALGO** on HOME steps to the next, round and round. The
+knob strip shows the page's name, a dot for each of the five, and each knob as an arc of the corona filled
+to its value. The page stays chosen across a power-off.
 
-| Knob | Macro | What it does |
-| --- | --- | --- |
-| K1 | **DRONE** | Opens the drone's filter and body together |
-| K2 | **VOX** | VOX's brightness |
-| K3 | **SPACE** | The reverb and the delay together |
-| K4 | **TONE** | Everything brighter or darker |
+| Page | K1 | K2 | K3 | K4 |
+| --- | --- | --- | --- | --- |
+| **MIX** | DRONE level | VOX level (the sound playing) | PULSE level | TEXTURE level |
+| **SPACE** | REVERB (its return) | DECAY | SHIMMER | DELAY (its return) |
+| **MOTION** | TEMPO | TIDES (how far the tide reaches the drone, VOX and the space) | SWARM | DRIFT |
+| **ALIVE** | SINGS (the sound playing: how often) | BLOOMS (BLOOM by itself) | SWELLS (how many drone voices come and go, the top ones first) | TRAVELS (every 8 to 64 bars) |
+| **TONE** | DRONE (filter and body) | VOX (brightness) | SPACE (reverb and delay) | TONE (everything brighter or darker) |
+
+TONE's four are macros, each 0% as made and reaching much further than in 1.6. SPACE's knobs are the FX
+page's own settings; the rest are the journey's, saved with it. ALIVE's knobs move a step a click.
+
+**The knobs' speed.** Each click is one step. A knob that keeps spinning quickly goes further: after four
+quick clicks in a row, two steps a click; after ten, three. A slow click or a turn back is one step again.
 
 ## 3. The keys
 
@@ -557,10 +567,10 @@ TIME, INTERVAL, PING-PONG) spread their steps over 0 to 127.
 | Black 1-5 | Drone voices (held: shape; + ALGO: HELD or SWELL) |
 | Black 6 / 7 | Kick / BLOOM (held: shape) |
 | Black 8-11 | VOX sounds: GLASS, REED, HALO, LOW (held: shape) |
-| K1-K4 (HOME) | DRONE, VOX, SPACE, TONE |
+| K1-K4 (HOME) | The page's: MIX, SPACE, MOTION, ALIVE or TONE |
 | SELECT (HOME) | MORPH |
 | PRESET | Next or previous scene |
-| ALGO | Tempo (SHAPE: level; holds: see above) |
+| ALGO | HOME: the knobs' next page; elsewhere tempo (SHAPE: level; holds: see above) |
 | SEQ | Clock start / stop |
 | REC | Loop: record, play, overdub, keep |
 | PLAY | Loop: stop / play; held: undo; held + ALGO: speed |

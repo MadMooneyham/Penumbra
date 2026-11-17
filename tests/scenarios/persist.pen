@@ -1,6 +1,7 @@
 # A made journey survives a power cut: its macros, a stored scene, its sound, the scene it was in, saved
 # by SAVE (at once) and by itself once STOP's tails have gone.
 wait 1000
+turn ALGO -1
 turn K2 -10
 turn K4 6
 expect macro2 44

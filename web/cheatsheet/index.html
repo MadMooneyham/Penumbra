@@ -92,7 +92,7 @@ footer { margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--rule); 
 <div class="panelbox">
 <svg class="panel" viewBox="0 0 1000 508" role="img" aria-labelledby="panel-t panel-d">
   <title id="panel-t">The FM-1's panel, labelled for Penumbra</title>
-  <desc id="panel-d">MASTER is volume. SELECT morphs on HOME. PRESETS moves scene. ALGORITHM sets the tempo. Knobs 1 to 4 on HOME are DRONE, VOX, SPACE and TONE.
+  <desc id="panel-d">MASTER is volume. SELECT morphs on HOME. PRESETS moves scene. ALGORITHM on HOME steps the knobs' page, elsewhere sets the tempo. Knobs 1 to 4 on HOME play the page: MIX, SPACE, MOTION, ALIVE or TONE.
     OCT minus and plus move the white keys' octave. Buttons: FX the FX page, held for throws; SEL chooses; ENV SHAPE; LFO JOURNEY; EDIT SCENE; GLO SYSTEM;
     HOME; SAVE, which keeps a hold; ARP freezes; SEQ starts the clock; PLAY plays or stops the loop; REC records it.
     Black keys 1 to 5 are the drone voices, 6 the kick, 7 BLOOM, 8 to 11 VOX's sounds GLASS, REED, HALO and LOW. The white keys play VOX in the scene's key.</desc>
@@ -107,7 +107,7 @@ footer { margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--rule); 
     <circle class="p-ctl" cx="95" cy="176" r="20"/><text class="t-name" x="95" y="147" text-anchor="middle">PRESETS</text>
     <text class="t-does" x="95" y="212" text-anchor="middle">scene ‹ ›</text><text class="t-small" x="95" y="225" text-anchor="middle">glides 12 s</text>
     <circle class="p-ctl" cx="215" cy="176" r="20"/><text class="t-name" x="215" y="147" text-anchor="middle">ALGORITHM</text>
-    <text class="t-does" x="215" y="212" text-anchor="middle">tempo</text><text class="t-small" x="215" y="225" text-anchor="middle">SHAPE: level · holds: extra</text>
+    <text class="t-does" x="215" y="212" text-anchor="middle">HOME: knob page</text><text class="t-small" x="215" y="225" text-anchor="middle">pages: tempo · SHAPE: level</text>
   </g>
   <g>
     <rect class="p-ctl" x="52" y="244" width="78" height="28" rx="7"/><text class="t-name" x="91" y="263" text-anchor="middle">OCT−</text>
@@ -124,16 +124,17 @@ footer { margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--rule); 
   <g fill="#ff9646"><circle cx="386" cy="112" r="3"/><circle cx="402" cy="96" r="3"/><circle cx="436" cy="96" r="3"/><circle cx="451" cy="116" r="3"/><circle cx="445" cy="150" r="3"/></g>
   <text class="t-scr2" x="418" y="182" text-anchor="middle">a bead per drone voice</text>
   <text class="t-scr" x="418" y="204" text-anchor="middle">SCENE · KEY · LOOP</text>
-  <text class="t-scr2" x="418" y="236" text-anchor="middle">DRONE  VOX  SPACE  TONE</text>
+  <text class="t-scr2" x="418" y="236" text-anchor="middle">DRONE  VOX  PULSE  TEXTURE</text>
   <text class="t-small" x="418" y="282" text-anchor="middle">any page goes back to HOME after 30 s</text>
 
   <!-- the four knobs -->
   <g>
-    <text class="t-small" x="767" y="22" text-anchor="middle">on HOME · in a hold, what the hold plays</text>
+    <text class="t-small" x="767" y="22" text-anchor="middle">on HOME, the page ALGORITHM picks · in a hold, what the hold plays</text>
     <circle class="p-ctl" cx="610" cy="70" r="19"/><text class="t-name" x="610" y="44" text-anchor="middle">KNOB 1</text><text class="t-does" x="610" y="106" text-anchor="middle">DRONE</text>
     <circle class="p-ctl" cx="714" cy="70" r="19"/><text class="t-name" x="714" y="44" text-anchor="middle">KNOB 2</text><text class="t-does" x="714" y="106" text-anchor="middle">VOX</text>
-    <circle class="p-ctl" cx="818" cy="70" r="19"/><text class="t-name" x="818" y="44" text-anchor="middle">KNOB 3</text><text class="t-does" x="818" y="106" text-anchor="middle">SPACE</text>
-    <circle class="p-ctl" cx="922" cy="70" r="19"/><text class="t-name" x="922" y="44" text-anchor="middle">KNOB 4</text><text class="t-does" x="922" y="106" text-anchor="middle">TONE</text>
+    <circle class="p-ctl" cx="818" cy="70" r="19"/><text class="t-name" x="818" y="44" text-anchor="middle">KNOB 3</text><text class="t-does" x="818" y="106" text-anchor="middle">PULSE</text>
+    <circle class="p-ctl" cx="922" cy="70" r="19"/><text class="t-name" x="922" y="44" text-anchor="middle">KNOB 4</text><text class="t-does" x="922" y="106" text-anchor="middle">TEXTURE</text>
+    <text class="t-small" x="767" y="120" text-anchor="middle">pages: MIX · SPACE · MOTION (tempo) · ALIVE · TONE (the macros)</text>
   </g>
 
   <!-- the buttons: name, then what it does -->
@@ -226,7 +227,7 @@ footer { margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--rule); 
           <tr><td><b>LFO</b></td><td>JOURNEY: 7 presets (TOTALITY plays itself), 8 user slots · each brings its sound (a knob right: LOCKED) · SEL opens · SAVE stores · again: SOUNDS,
             8 sounds without scenes (SAVE stores the sound, SEL glides it in)</td></tr>
           <tr><td><b>GLO</b></td><td>SYSTEM: clock, MIDI, bend range, SLEEP, RESET SOUND · again: BENCH</td></tr>
-          <tr><td><b>HOME</b></td><td>the corona, the scene, the loop, the macros</td></tr>
+          <tr><td><b>HOME</b></td><td>the corona, the scene, the loop; knob pages on ALGO</td></tr>
         </tbody>
       </table>
     </section>

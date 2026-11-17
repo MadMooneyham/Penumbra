@@ -589,8 +589,9 @@ static void conduct(void)
 {
     const jr_out_t *o = &jr.out;
     const uint8_t (*sh)[SH_N] = eng_jr.shape;
-    const float tone = jr.macro_s[MAC_TONE] - 64.0f, freeze = (float)perf[PF_FREEZE] * (1.0f / 127.0f);
-    const float dmac = jr.macro_s[MAC_DRONE] - 64.0f, bright = o->bright + tone + (jr.macro_s[MAC_VOX] - 64.0f) * 0.9f;
+    /* the macros (HOME's TONE page): 2.5 times 1.6's reach, so each is heard all the way (the filters clamp) */
+    const float tone = (jr.macro_s[MAC_TONE] - 64.0f) * 2.5f, freeze = (float)perf[PF_FREEZE] * (1.0f / 127.0f);
+    const float dmac = (jr.macro_s[MAC_DRONE] - 64.0f) * 2.5f, bright = o->bright + tone + (jr.macro_s[MAC_VOX] - 64.0f) * 2.25f;
     const uint8_t *vs = eng_jr.vsound[eng_jr.vcur % JR_VSOUNDS];
     const uint8_t *td = eng_jr.tide, *dm = eng_jr.dmotion;
     /* the tide's reach: the drone's filter (pot steps), VOX's brightness, the sends (a share) */
