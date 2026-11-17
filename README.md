@@ -2,11 +2,11 @@
 
 ![Penumbra: the Lunar Eclipse Forge mark in an eclipse's corona](assets/card.png)
 
-**It plays itself until you do.** A space-drone instrument for the M-VAVE FM-1, by Lunar Eclipse Forge.
+**An ambient space-drone synth that plays itself until you do.** For the M-VAVE FM-1, by Lunar Eclipse Forge.
 
-An eclipse in six scenes, the drone gliding from one to the next, a far-off voice singing, the moon crossing
-the sun on screen. Any key joins in, always in tune, and looped layers follow each change of key. A thick,
-slow, cinematic drone, like the Solar 42.
+Drone voices drift in and out, a far-off voice sings, and the sound glides from scene to scene as an eclipse
+crosses the screen. Every key is in tune, and loops follow each key change. A thick, slow drone, like the
+Solar 42.
 
 Most drones stay where they are put. Penumbra is a place, and it moves:
 
