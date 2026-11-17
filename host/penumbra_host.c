@@ -58,6 +58,7 @@ static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint1
                 fb[(y + j) * 240u + x + i] = px[j * w + i];
 }
 #include "../firmware/src/gfx.c"
+#include "../firmware/src/install_screen.c"       /* (the install screen: 'install', for its screenshots) */
 
 /* ---------------------------------------------------------- platform --- */
 #include "../firmware/src/app/plat.h"
@@ -527,6 +528,11 @@ static int expect(const char *what, const char *val)
         got = (int)stops_out;
     else if (!strcmp(what, "store_writes"))
         got = (int)store_writes;
+    else if (!strcmp(what, "blits")) {              /* screen transfers since the last look (the horizon's motion: few) */
+        static uint32_t last;
+        got = (int)(blits - last);
+        last = blits;
+    }
     else if (!strcmp(what, "dirty"))
         got = ui.dirty;
     else if (!strcmp(what, "testing"))
@@ -822,6 +828,23 @@ int main(int argc, char **argv)
             journey_first = (uint8_t)(atoi(a) % JR_PRESETS);
             held_btn = held_keys = 0;
             boot();
+        } else if (!strcmp(cmd, "install")) {         /* install prep STEP | install write PERCENT: the install screen as
+                                                       * Penumbra (penumbra.c ota_show) or its loader (loader.c) draws it,
+                                                       * for a 'shot' straight after (the next ms of the UI draws over it) */
+            int n = atoi(b);
+            if (!strcmp(a, "prep")) {
+                static const char *const STEP[] = {"", "READING THE PACKAGE", "CHECKING IT", "COPYING ITS INSTALLER",
+                                                   "WAITING FOR THE COMPUTER", "STARTING ITS INSTALLER"};
+                is_open("PREPARING THE INSTALL");
+                is_note("NOTHING CHANGES UNTIL IT IS ALL HERE");
+                is_step(STEP[n >= 1 && n <= 5 ? n : 1]);
+                is_bar((uint32_t)n, 5);
+            } else {
+                is_open("INSTALLING PENUMBRA " PEN_VERSION);
+                is_note("THE FM-1 STARTS AGAIN WHEN IT IS DONE");
+                is_step(n ? "WRITING" : "WAITING FOR THE COMPUTER");
+                is_bar((uint32_t)n, 100);
+            }
         } else if (!strcmp(cmd, "knobs")) {           /* knobs real: as on the FM-1 (a click from rest wakes the knob, a
                                                        * snap back is not taken, a fast turn goes further); exact: a click
                                                        * a step */

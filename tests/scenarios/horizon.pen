@@ -1,0 +1,31 @@
+# The horizon behind every page but HOME: the eclipsed moon in the page's colour, the stars, the row
+# selected tinted (screenshots in build/scenarios/horizon/); HOME keeps its own corona
+wait 1500
+shot home.png
+tap FX
+expect view 3
+wait 300
+shot fx.png
+tap LFO
+expect view 4
+wait 300
+shot journey.png
+tap EDIT
+expect view 2
+wait 300
+shot scene.png
+tap ENV
+expect view 1
+wait 300
+shot shape.png
+tap GLO
+expect view 5
+wait 300
+shot system.png
+expect blits >-1
+wait 10000
+# ten seconds of a still page: the stars and the breath only (a header beat mark aside), a few transfers a second
+expect blits <200
+shot system_later.png
+tap HOME
+expect view 0

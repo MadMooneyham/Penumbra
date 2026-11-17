@@ -82,6 +82,14 @@ Under the corona:
 The header carries the journey's name and the tempo. A small dot in the header means something has not been
 saved yet.
 
+**Behind every other page** an eclipsed moon rises from the bottom-right corner under a sky of stars, its
+corona in the page's own colour: FX teal, JOURNEY violet, SCENE blue, SOUNDS pink, LOOP green, SHAPE amber.
+The corona breathes with the tide and a few stars twinkle, slowly. The row chosen on a page is tinted in the
+same colour.
+
+**Installs** show how far they have got: Penumbra's screen while it reads the package and readies the
+installer, then the installer's own, with a bar, while it writes. The FM-1 starts again when it is done.
+
 **HOME's four knobs** are macros, each 0% as made:
 
 | Knob | Macro | What it does |

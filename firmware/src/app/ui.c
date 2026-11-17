@@ -2082,6 +2082,134 @@ static void disc(float cx, float cy, float r, uint16_t c)
 }
 static void dot(int32_t x, int32_t y, int32_t r, uint16_t c) { disc((float)x + 0.5f, (float)y + 0.5f, (float)r + 0.3f, c); }
 
+/* ---- the horizon: behind every page but HOME, an eclipsed moon rising from the bottom-right corner, its
+ * corona in the page's colour and breathing with the tide, under a sky of stars, some twinkling. The
+ * corona is a table by squared distance (no square roots per pixel), rebuilt only when its brightness
+ * moves a step; the stars move on a slow tick, so the screen changes a few times a second at most. ---- */
+#define HZ_CX 250                                  /* the moon's centre and radius, on the screen */
+#define HZ_CY 300
+#define HZ_R 175
+#define HZ_REACH 60                                /* the corona's reach past the rim */
+#define HZ_D2_LO ((HZ_R - 2) * (HZ_R - 2))
+#define HZ_D2_HI ((HZ_R + HZ_REACH) * (HZ_R + HZ_REACH))
+#define HZ_SH 6
+#define HZ_N (((HZ_D2_HI - HZ_D2_LO) >> HZ_SH) + 1)
+#define HZ_LEVELS 24                               /* the breath's steps */
+#define HZ_NSTAR 56
+#define HZ_TICK_MS 400u                            /* (a still page: a few transfers a second, fewer than HOME's) */
+static const uint16_t HZ_FACE = RGB(2, 2, 6);
+static uint16_t hz_lut[2][HZ_N];                   /* the main area's, the knob strip's (dimmer) */
+static uint16_t hz_col;
+static int hz_level = -1;
+static struct { uint8_t x, y, lvl, tw, rate, ph, warm; } hz_star[HZ_NSTAR];
+
+static uint16_t page_col(void)                     /* each page's own colour: its corona and its selection */
+{
+    switch (ui.view) {
+    case V_SCENE: return RGB(120, 170, 255);
+    case V_FX: return RGB(63, 193, 201);
+    case V_JOURNEY: return RGB(169, 139, 255);
+    case V_SOUNDS: return RGB(230, 120, 190);
+    case V_LOOP: return RGB(120, 210, 140);
+    case V_SYSTEM:
+    case V_BENCH: return RGB(140, 152, 200);
+    default: return C_AMB;
+    }
+}
+
+static void hz_build(uint16_t col, int level)
+{
+    const float b = 0.6f + (float)level * (0.55f / (float)(HZ_LEVELS - 1));   /* the breath */
+    int i, k;
+    for (i = 0; i < HZ_N; i++) {
+        const float d = fm_sqrtf((float)(HZ_D2_LO + (i << HZ_SH))) - (float)HZ_R;   /* past the rim, pixels */
+        float a;
+        if (d < -1.0f)
+            a = -1.0f;                             /* (the face) */
+        else if (d < 1.0f)
+            a = 0.62f + 0.3f * b;                  /* the rim */
+        else if (d < 14.0f)
+            a = (0.55f + (0.18f - 0.55f) * (d / 14.0f)) * b;
+        else
+            a = 0.18f * b * (1.0f - (d - 14.0f) / (float)(HZ_REACH - 14));
+        for (k = 0; k < 2; k++) {
+            const float s = k ? 0.45f : 1.0f;     /* (the knob strip, under its words: dimmer) */
+            hz_lut[k][i] = a < 0.0f ? HZ_FACE : mix565(C_BG, col, (uint32_t)(fm_clampf(a * s, 0.0f, 1.0f) * 255.0f));
+        }
+    }
+    hz_col = col;
+    hz_level = level;
+}
+
+static void hz_paint(int y0, int h, int strip)     /* the canvas (240 wide) is screen rows y0 .. y0 + h */
+{
+    const uint16_t col = page_col();
+    const uint32_t now = plat_ms() / HZ_TICK_MS * HZ_TICK_MS;
+    const float tide = engine_tide();
+    int level = (int)((tide + 1.0f) * 0.5f * (float)(HZ_LEVELS - 1) + 0.5f), y, x, k;
+    level = level < 0 ? 0 : level >= HZ_LEVELS ? HZ_LEVELS - 1 : level;
+    if (!hz_star[0].lvl) {                         /* the sky: the same on every page */
+        uint32_t s = 0x9E3779B9u;
+        for (k = 0; k < HZ_NSTAR; k++) {
+            s ^= s << 13, s ^= s >> 17, s ^= s << 5;
+            hz_star[k].x = (uint8_t)(s % 240u);
+            hz_star[k].y = (uint8_t)(HDR_H + (s >> 8) % (240u - HDR_H));
+            hz_star[k].lvl = (uint8_t)(3 + (s >> 16) % 6u);   /* of 16 */
+            hz_star[k].tw = ((s >> 20) & 3u) == 0u;
+            hz_star[k].rate = (uint8_t)(1 + (s >> 22) % 4u);
+            hz_star[k].ph = (uint8_t)(s >> 24);
+            hz_star[k].warm = (uint8_t)((s >> 12) % 9u);
+            if ((s >> 27) == 0u)
+                hz_star[k].lvl = 14;               /* (a few bright ones) */
+        }
+    }
+    if (col != hz_col || level != hz_level)
+        hz_build(col, level);
+    for (y = 0; y < h && y < (int)cv_h; y++) {
+        const int32_t dy = y0 + y - HZ_CY, dy2 = dy * dy;
+        uint16_t *q = cv_px + (uint32_t)y * cv_w;
+        int32_t dxe = 239 - HZ_CX;
+        if (dxe * dxe + dy2 >= HZ_D2_HI)
+            continue;                              /* (the corona does not reach this row) */
+        for (x = 0; x < 240; x++) {
+            const int32_t dx = x - HZ_CX, d2 = dx * dx + dy2;
+            if (d2 >= HZ_D2_HI)
+                continue;
+            q[x] = swap16(d2 < HZ_D2_LO ? HZ_FACE : hz_lut[strip][(d2 - HZ_D2_LO) >> HZ_SH]);
+        }
+    }
+    for (k = 0; k < HZ_NSTAR; k++) {
+        const int sy = hz_star[k].y - y0, sx = hz_star[k].x, dx = sx - HZ_CX, dy = hz_star[k].y - HZ_CY;
+        int lvl = hz_star[k].lvl;
+        uint16_t c;
+        if (sy < 0 || sy >= h || dx * dx + dy * dy < HZ_D2_LO)
+            continue;                              /* (not in this band, or behind the moon) */
+        if (hz_star[k].tw) {                       /* twinkling: slowly, each its own rate */
+            const float t = (float)now * 0.00009f * (float)hz_star[k].rate + (float)hz_star[k].ph * (1.0f / 256.0f);
+            lvl = (int)((float)lvl * (0.3f + 0.7f * (0.5f + 0.5f * fm_sin_turns(t))) + 0.5f);
+        }
+        if (strip)
+            lvl = lvl * 2 / 3;
+        c = hz_star[k].warm == 0u ? RGB(255, 214, 170) : hz_star[k].warm == 1u ? RGB(170, 200, 255) : RGB(220, 222, 255);
+        px_blend(sx, sy, c, (uint32_t)lvl);
+        if (hz_star[k].lvl >= 14 && !strip) {      /* (a bright one: a little cross) */
+            px_blend(sx - 1, sy, c, (uint32_t)lvl / 4u);
+            px_blend(sx + 1, sy, c, (uint32_t)lvl / 4u);
+            px_blend(sx, sy - 1, c, (uint32_t)lvl / 4u);
+            px_blend(sx, sy + 1, c, (uint32_t)lvl / 4u);
+        }
+    }
+}
+
+static void sel_band(int32_t y, int32_t h)         /* the row selected: tinted in the page's colour, the sky through it */
+{
+    const uint16_t c = page_col();
+    int32_t yy, x;
+    for (yy = y; yy < y + h; yy++)
+        for (x = 0; x < 240; x++)
+            px_blend(x, yy, c, x < 3 ? 16u : 4u);
+}
+
 
 /* atan2 in turns, 0..1 from +x going clockwise on screen (y down) */
 static float turns(float y, float x)
@@ -2487,7 +2615,7 @@ static void list_row(int i, int sel, const char *name, const char *val, uint16_t
 {
     int y = 2 + i * ROW_H;
     if (sel)
-        cv_rect(0, y, 240, ROW_H - 2, dim(C_AMB, 3));
+        sel_band(y, ROW_H - 2);
     cv_text(10, vc(&FONT_S, y, ROW_H - 2), &FONT_S, name, sel ? C_HI : C_GRAY);
     text_r(230, vc(&FONT_S, y, ROW_H - 2), &FONT_S, val, sel ? C_AMB : vc_);
 }
@@ -2594,7 +2722,7 @@ static void draw_scene(void)
         int y = 16 + (f - top) * ROW_H, sel = f == ui.srow;
         sf_text(s, f, b);
         if (sel)
-            cv_rect(0, y, 240, ROW_H - 2, dim(C_AMB, 3));
+            sel_band(y, ROW_H - 2);
         cv_text(10, vc(&FONT_S, y, ROW_H - 2), &FONT_S, SF_N[f], sel ? C_HI : C_GRAY);
         text_r(230, vc(&FONT_S, y, ROW_H - 2), &FONT_S, b, sel ? C_AMB : C_HI);
     }
@@ -2607,8 +2735,8 @@ static void draw_fx(void)
     for (row = 0; row < NFXROWS; row++) {
         int y = 2 + row * 34, sel = row == ui.fxrow;
         if (sel)
-            cv_rect(0, y, 240, 32, dim(C_AMB, 3));
-        cv_text(8, y + 2, &FONT_XS, FXROW_N[row], sel ? C_HI : C_GRAY);
+            sel_band(y, 32);
+        cv_text(8, y + 2, &FONT_XS, FXROW_N[row], sel ? page_col() : C_GRAY);
         for (k = 0; k < 4; k++) {
             char b[12];
             fx_text(fx_of(row, k), b);
@@ -2702,6 +2830,8 @@ static void draw_bench(void)
 static void draw_main(void)
 {
     cv_begin(240, MAIN_H, C_BG);
+    if (ui.view != V_HOME)
+        hz_paint(MAIN_Y, MAIN_H, 0);
     switch (ui.view) {
     case V_HOME: draw_home(); break;
     case V_SHAPE: draw_shape(); break;
@@ -2736,6 +2866,8 @@ static void draw_knobs(void)
     char a[16], b[16], c[16], d[16];
     int k;
     cv_begin(240, KNOB_H, C_BG);
+    if (ui.view != V_HOME)
+        hz_paint(KNOB_Y, KNOB_H, 1);
     cv_rect(0, 0, 240, 1, C_LINE);
     switch (layer()) {                            /* a hold: its knobs (a key's: on any page but SHAPE) */
     case L_DRONE: {
