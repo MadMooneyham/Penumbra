@@ -133,6 +133,7 @@ shaped.
 | --- | --- | --- | --- | --- | --- |
 | **FX** | SHIMMER | FEEDBACK | FREEZE | DIP | Throws; ALGO: WARP |
 | A drone key (black 1-5) | LEVEL | TONE | DETUNE | OCTAVE | ALGO: HELD or SWELL |
+| The kick's key (black 6) | DROP | DECAY | CLICK | TUNE | ALGO: by itself |
 | A VOX sound key (black 8-11) | BRIGHT | WAVE | FILTER | RELEASE | ALGO: it sings |
 | BLOOM's key (black 7) | LEVEL | LENGTH | HEIGHT | FIFTH | ALGO: by itself |
 | A white key | BRIGHT | VIBRATO | SHIMMER | RELEASE | Bends; ALGO: PITCH |
@@ -152,6 +153,9 @@ The knob strip shows what the knobs are playing during a hold.
 - **A drone key** shapes that voice alone: its level and tone, how detuned it is, and its octave (one down, as
   it is, or one up). The change stays.
 - **A VOX sound key** shapes that sound. The change stays.
+- **The kick's key** shapes the kick: how far its pitch drops, how long it rings, its click, and its TUNE in
+  the scene's key (on the root, the fourth, the fifth, or an octave up). **ALGO** sets it playing by itself
+  (section 6). The change stays.
 - **BLOOM's key** sets its level, its length, its height (on the root, an octave above, or two) and how much
   fifth it has. The change stays.
 - **A white key** bends VOX for the note held: its brightness, vibrato, shimmer and release. **ALGO** bends
@@ -235,6 +239,7 @@ these writes to the FM-1's memory as it moves, so a journey can travel all night
 | WIND COLOUR | The wind's colour |
 | SOUND A-B | Where the sound sits between A and B in this scene (STAYS: the scene leaves the sound alone) |
 | TRAVELS | The whole journey's, not the scene's: BY HAND, or on to the next scene EVERY 8, 16, 32 or 64 BARS |
+| LANDS | The whole journey's too: QUIETLY, or A KICK as each new scene's key comes in |
 
 **JOURNEY (LFO)** lists the seven presets and eight user slots:
 
@@ -354,6 +359,22 @@ the top first and the bass last, three seconds apart, each sliding slowly into p
 ### Black key 6: the kick
 
 A deep kick, tuned to the key. It's at its best rare: a low thud under the drone, or a slow pulse in a loop.
+Held, its key puts the kick under the knobs (section 3). SHAPE's PULSE and PULSE 2 pages have all of it.
+
+- **TUNE** keeps it in the scene's key: on the root, the fourth, the fifth, or an octave up, following each
+  key change.
+- **DRIVE** (PULSE 2) takes it from a soft round thud to a heavier, grittier hit that cuts through a thick
+  drone.
+- **DUCK** (PULSE 2): each kick dips the drone, VOX and the wind for a moment, and they swell back over about
+  a third of a second. A little gives the drone a slow breath; a lot, a deep throb. The kick and BLOOM stay
+  whole.
+- **The kick by itself.** With its key held, **ALGO** sets it playing on the clock (also PULSE 2's BY
+  ITSELF): A HEARTBEAT (a soft double beat each bar), EVERY BAR, EVERY HALF BAR, or EVERY 2 BARS; back left,
+  BY HAND again. It plays only while the clock runs, is not recorded by the looper, and is saved with the
+  journey.
+- **A kick on each new key.** SCENE's LANDS (the journey's, like TRAVELS) lands a kick as each new scene's
+  key comes in, by PRESET, MORPH or travelling by itself.
+- **From MIDI** (note 41 on the channel after VOX's), it hits as hard as it is played. BLOOM too (note 42).
 
 ### Black key 7: BLOOM
 
@@ -408,6 +429,7 @@ a LEVEL as 100% as made (up to 127%). Times, octaves and note lengths keep their
 | VOX 3 | DETUNE | B OCT (the second oscillator: -1, 0, +1) | B MIX | ENV (how far the envelope opens the filter) |
 | VOX SINGS | SINGS (NOT, RARELY, AT TIMES, OFTEN) | PLACE (in the field) | DRIFT (round it, on the tide) | OCTAVE (-1, 0, +1) |
 | PULSE | DROP (the kick's fall in pitch) | DECAY | CLICK | SPACE |
+| PULSE 2 | TUNE (root, 4th, 5th, octave) | DRIVE | DUCK (how far each kick dips the rest) | BY ITSELF (HAND, HEART, 1 BAR, HALF, 2 BARS) |
 | TEXTURE | COLOUR | SWEEP | RATE | WIDTH |
 | TIDES | RATE (8 s to 4 min a tide) | DRONE (how far it moves the drone's filter) | SPACE (the sends) | VOX (its brightness) |
 | PAN | DRONE | VOX | PULSE (and BLOOM) | TEXTURE |
@@ -441,7 +463,7 @@ BLOOM's settings are under its own hold (black key 7). PULSE's level sets the ki
 
 - DRONE also resets the drone voices' own settings.
 - The VOX pages reset the VOX sound playing.
-- PULSE also resets BLOOM.
+- PULSE also resets BLOOM; PULSE 2 puts the kick back on the root, its DRIVE as made, no DUCK, by hand.
 - DRONE 2, TIDES, PAN and PAN 2 reset only their own page.
 
 The first press only asks, so nothing resets by accident.
@@ -583,7 +605,7 @@ made, with the journey.
 | FX | FX page; held: throws (DIP both ways), + ALGO: WARP |
 | ENV | SHAPE, TIDES, PAN, PAN 2 (again: next page; SEL twice: reset); held: A/B |
 | Black 1-5 | Drone voices (held: shape; + ALGO: HELD or SWELL) |
-| Black 6 / 7 | Kick / BLOOM (held: shape; BLOOM + ALGO: by itself) |
+| Black 6 / 7 | Kick / BLOOM (held: shape; + ALGO: by itself) |
 | Black 8-11 | VOX sounds: GLASS, REED, HALO, LOW (held: shape; + ALGO: sings) |
 | White keys | VOX, in the key (held: bends; + ALGO: pitch) |
 | ARP | FREEZE |

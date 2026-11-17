@@ -25,7 +25,8 @@
 #define JR_USER 8
 #define JR_DRONES 5
 #define JR_MAGIC 0x314A4E50u                    /* "PNJ1" */
-#define JR_FORMAT 10u                           /* 9 (1.2 .. 1.5): no singers' places, nor BLOOM by itself; 8 (1.2's
+#define JR_FORMAT 11u                           /* 10 (1.6, 1.7): no kick of its own (TUNE, DRIVE, DUCK, by itself,
+                                                 * landing); 9 (1.2 .. 1.5): no singers' places, nor BLOOM by itself; 8 (1.2's
                                                  * second and third betas): one SWAY for all and PAN 2's
                                                  * switches, no RATE; 7 (its first): no PAN 2; 6 (1.1): nor PAN or
                                                  * SWAY; 5 (1.0): nor ROOM, HALO, drone motion or TIDES (settings.c
@@ -41,6 +42,11 @@
 #define JR_TIDE 5                               /* TIDES (engine.h TD_*) */
 #define JR_SING_N 4                             /* a sound's singing: not, rarely, now and then, often */
 #define JR_PAN JR_VOICES                        /* each voice's place in the field (64: the middle) */
+#define JR_KICK 4                               /* the kick's own: TUNE, DRIVE, DUCK, AUTO */
+enum { JR_KK_TUNE, JR_KK_DRIVE, JR_KK_DUCK, JR_KK_AUTO };
+#define JR_KTUNE_N 4                            /* the root, the fourth, the fifth, the octave */
+enum { JR_KA_HAND, JR_KA_HEART, JR_KA_BAR, JR_KA_HALF, JR_KA_TWO, JR_KA_N };   /* the kick by itself: by hand,
+                                                 * a heartbeat each bar, every bar, every half bar, every two bars */
 
 enum { SC_IONIAN, SC_DORIAN, SC_PHRYGIAN, SC_LYDIAN, SC_MIXOLYDIAN, SC_AEOLIAN, SC_HARMONIC, NSCALES };
 enum { VC_OPEN, VC_WARM, VC_HIGH, VC_CLUSTER, NVOICINGS };
@@ -84,7 +90,10 @@ typedef struct {
                                                  * place (64 the middle, over VOX's); [DRIFT] 0 still .. 127 how far
                                                  * it sways round it on the tide; [OCT] 0 down, 1 as is, 2 up */
     uint8_t bloom_auto;                         /* BLOOM by itself, now and then: 0 not, 1 rarely .. 3 often */
-    uint8_t rsv2[40 - JR_DMOTION - JR_TIDE - 2 * JR_PAN - 2 - 4 * JR_VSOUNDS - 1];   /* (spare) */
+    uint8_t kick[JR_KICK];                      /* the kick (its key held, SHAPE's PULSE 2): JR_KK_*: TUNE (0 the root,
+                                                 * 1 the fourth, 2 the fifth, 3 the octave), DRIVE, DUCK (how far each
+                                                 * kick dips the rest), AUTO (by itself: JR_KA_*) (format 10 and before:
+                                                 * spare, set as made) */
     /* the sound (0..127; nothing here reads it but dswell: the engine does) */
     uint8_t shape[JR_VOICES][JR_SHAPE];
     uint8_t dvoice[JR_DRONES][JR_DVOICE];
@@ -96,8 +105,9 @@ typedef struct {
     uint8_t vcur;                               /* the one playing */
     uint8_t vsing, vsing_snd;                   /* (1.5's: one sound singing, at that level; settings.c moves it
                                                  * into sing, and they stay 0) */
-    uint8_t rsv3[1];
+    uint8_t kick_land;                          /* 1: a kick lands as each new scene's key comes in */
 } journey_t;
+_Static_assert(JR_DMOTION + JR_TIDE + 2 * JR_PAN + 2 + 4 * JR_VSOUNDS + 1 + JR_KICK == 40, "the kick: in the spare bytes");
 enum { JR_SG_HOW, JR_SG_PLACE, JR_SG_DRIFT, JR_SG_OCT };
 #define JR_SING(j, s) ((int)(j)->sing[JR_SG_HOW][(s) % JR_VSOUNDS])
 
@@ -173,6 +183,8 @@ void jr_sound_default(journey_t *j);             /* the sound as made (a preset'
 void jr_sing_default(journey_t *j);              /* no sound singing, each in the middle, still, as is; no BLOOM by itself */
 void jr_vsound_default(journey_t *j);            /* VOX's four sounds as made */
 void jr_bloom_default(journey_t *j);             /* BLOOM as made */
+void jr_kick_default(journey_t *j);              /* the kick's sound as made: the root, a little DRIVE, no DUCK (its
+                                                  * playing by itself and landing: jr_sing_default's) */
 void jr_motion_default(journey_t *j);            /* the drone's movement and TIDES as made */
 void jr_pan_default(journey_t *j);               /* PAN as made: every voice in the middle, on the tide; PAN 2's too */
 void jr_sway_default(journey_t *j);              /* PAN 2 as made: VOX sways a quarter of the way out, nothing else; in sync */

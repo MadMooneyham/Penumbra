@@ -3,7 +3,7 @@
 # tide (RATE came later).
 legacy12b
 wait 500
-expect jr_format 10
+expect jr_format 11
 expect journey 4
 expect pan1 20
 expect sway_rate 0
@@ -14,7 +14,7 @@ expect sway_off 0
 expect jr_playing 1
 legacy12c
 wait 500
-expect jr_format 10
+expect jr_format 11
 expect pan1 20
 expect sway_rate 0
 expect sway0 90

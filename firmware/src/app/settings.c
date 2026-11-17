@@ -145,6 +145,12 @@ static void journey_sane(journey_t *j)          /* a loaded one: every field in 
     }
     if (j->bloom_auto >= JR_SING_N)
         j->bloom_auto = 0;
+    j->kick[JR_KK_TUNE] %= JR_KTUNE_N;
+    j->kick[JR_KK_DRIVE] &= 0x7Fu;
+    j->kick[JR_KK_DUCK] &= 0x7Fu;
+    if (j->kick[JR_KK_AUTO] >= JR_KA_N)
+        j->kick[JR_KK_AUTO] = JR_KA_HAND;
+    j->kick_land &= 1u;
     if (j->travel >= JR_TRAVEL_N)
         j->travel = 0;
     for (i = 0; i < JR_SCENES; i++)
@@ -174,7 +180,7 @@ static void journey_upgrade(journey_t *j)
         jr_pan_default(j);
         for (k = 0; k < JR_PAN; k++)
             j->sway[k] = 0;
-    } else {
+    } else if (j->format <= 8u) {                /* (9 on: PAN 2 as it is now, kept) */
         const uint8_t all = j->sway_rate;        /* (the one SWAY) */
         for (k = 0; k < JR_PAN; k++)
             j->sway[k] = (j->format == 7u ? k == 1 : j->sway[k] != 0) ? all : 0;   /* (7: VOX alone) */
@@ -182,9 +188,11 @@ static void journey_upgrade(journey_t *j)
             j->sway_off = 0;
         j->sway_rate = 0;
     }
-    for (k = 0; k < (int)sizeof j->rsv2; k++)
-        j->rsv2[k] = 0;
-    jr_sing_default(j);                          /* (9 and before: the singers' places in the middle, as is) */
+    if (j->format <= 9u)
+        jr_sing_default(j);                      /* (9 and before: the singers' places in the middle, as is) */
+    jr_kick_default(j);                          /* (10 and before: the kick as it was, by hand, no landing) */
+    j->kick[JR_KK_AUTO] = JR_KA_HAND;
+    j->kick_land = 0;
     j->format = JR_FORMAT;
 }
 

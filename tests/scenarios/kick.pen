@@ -1,0 +1,53 @@
+# The kick, its key held (black 6): K1-K3 DROP, DECAY, CLICK (PULSE's), K4 TUNE in the key (the root, the
+# fourth, the fifth, the octave); ALGO it by itself (a heartbeat, every bar, every half bar, every 2 bars),
+# on the clock. SHAPE's PULSE 2: TUNE, DRIVE, DUCK, BY ITSELF. SCENE's LANDS: a kick as each new key comes in.
+# MIDI on the next channel plays it as hard as it is played. Audio in kick.wav (DUCK: the drone dipping)
+autoplay 0
+wait 300
+wav kick.wav
+key b5 down
+turn K4 2
+expect kick_tune 2
+turn K2 -5
+expect shape32 70
+turn ALGO 2
+expect kick_auto 2
+shot kick_hold.png
+key b5 up
+expect view 0
+# by itself: every bar, on the clock (90 BPM: a bar 2.67 s)
+expect kicks 1
+tap SEQ
+wait 5500
+expect kicks >2
+expect kicks <5
+# PULSE 2 (ENV after the hold: its page)
+tap ENV
+expect page 7
+turn K3 40
+expect kick_duck 80
+turn K2 10
+expect kick_drive 40
+shot pulse2.png
+wait 3000
+# by hand again (PULSE 2's BY ITSELF), and the scene's LANDS
+turn K4 -4
+expect kick_auto 0
+tap EDIT
+turn SELECT 13
+turn K2 1
+expect kick_land 1
+shot lands.png
+tap HOME
+wait 500
+expect kicks_since >-1
+turn PRESET 1
+wait 13000
+expect scene 2
+expect kicks_since 1
+wavstop
+# MIDI: the kick on the next channel (note 41), as hard as it came
+midi 91 29 30
+wait 50
+midi 81 29 00
+wait 100

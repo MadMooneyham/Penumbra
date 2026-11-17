@@ -7,8 +7,8 @@
 # pan2.wav.
 wait 500
 tap ENV
-turn SELECT 9
-expect page 9
+turn SELECT 10
+expect page 10
 expect pan0 64
 expect pan1 64
 expect sway_rate 0
@@ -32,11 +32,11 @@ wait 400
 turn K1 -40 30
 expect pan0 4
 turn SELECT -1
-expect page 8
+expect page 9
 turn K1 -40
 turn ALGO -40
 turn SELECT 2
-expect page 10
+expect page 11
 expect sway1 32
 turn K2 50
 expect sway1 127
@@ -65,7 +65,7 @@ expect pan1 64
 expect pan3 64
 expect sway_rate 0
 turn SELECT 1
-expect page 10
+expect page 11
 turn K2 -64
 turn K1 64
 turn K3 64

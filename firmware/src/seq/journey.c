@@ -112,6 +112,15 @@ void jr_sing_default(journey_t *j)
         j->sing[JR_SG_OCT][s] = 1;
     }
     j->bloom_auto = 0;
+    j->kick[JR_KK_AUTO] = JR_KA_HAND;             /* (the kick: by hand, and no landing) */
+    j->kick_land = 0;
+}
+
+void jr_kick_default(journey_t *j)               /* on the key's root, DRIVE as the kick always had it, no DUCK */
+{
+    j->kick[JR_KK_TUNE] = 0;
+    j->kick[JR_KK_DRIVE] = 20;
+    j->kick[JR_KK_DUCK] = 0;
 }
 
 static void character(journey_t *j, const character_t *c)
@@ -163,6 +172,7 @@ void jr_sound_default(journey_t *j)
     j->dswell = 0x1F;                            /* (all five come and go, as ECLIPSE: since 1.4) */
     jr_vsound_default(j);
     jr_bloom_default(j);
+    jr_kick_default(j);
     jr_motion_default(j);
     jr_pan_default(j);
 }

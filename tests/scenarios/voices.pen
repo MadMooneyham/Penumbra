@@ -1,5 +1,5 @@
 # SHAPE (ENV): each voice's sound, four knobs and its level (ALGO), kept with the journey. PULSE's level
-# down (the kick sits under the drone) and its decay longer; ENV again: the next voice, TEXTURE's colour
+# down (the kick sits under the drone) and its decay longer; ENV twice (past PULSE 2): TEXTURE's colour
 # darker. Held, a button says what it does and does nothing else; an idle page goes home after 30 s.
 autoplay 0
 wait 300
@@ -11,6 +11,8 @@ expect shape30 60
 expect set_bpm 90
 turn K2 5
 expect shape32 90
+tap ENV
+expect page 7
 tap ENV
 turn K1 -5
 expect shape41 54

@@ -1,0 +1,12 @@
+# A journey from 1.6 / 1.7 (format 10) comes over as it was: its PAN 2 and its singing kept (not converted
+# as 1.2's betas' were), the kick as it was (on the root, DRIVE as made, no DUCK, by hand, no landing)
+legacy16
+wait 300
+expect jr_format 11
+expect sway0 77
+expect vsing3 2
+expect kick_tune 0
+expect kick_drive 20
+expect kick_duck 0
+expect kick_auto 0
+expect kick_land 0

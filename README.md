@@ -69,6 +69,10 @@ Penumbra is slow, and much of what it does best unfolds over a few minutes.
   while the white keys play another, each with its own place, drift and octave on SHAPE's VOX SINGS page.
 - **BLOOM by itself:** BLOOM's key (black 7) held with **ALGO** turned right sets it swelling in now and
   then on its own.
+- **The kick:** its key (black 6) held puts its drop, decay, click and TUNE (root, fourth, fifth, octave) under
+  the knobs, and **ALGO** sets it playing by itself: a heartbeat, every bar, every half bar or every two.
+  SHAPE's PULSE 2 adds DRIVE and DUCK, each kick dipping the drone and letting it swell back, and SCENE's
+  LANDS drops a kick as each new key comes in.
 - **Layers of instruments:** each looped note keeps the VOX sound it was played with, so a layer of GLASS,
   one of REED and one of HALO play together.
 - **The loop's layers:** **SEL** pressed on HOME opens LOOP, where each layer has its own level, sound,

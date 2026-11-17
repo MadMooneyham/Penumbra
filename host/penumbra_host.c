@@ -617,7 +617,17 @@ static int expect(const char *what, const char *val)
         got = ui.fxrow;
     else if (!strncmp(what, "fx", 2) && what[2] >= '0' && what[2] <= '9')   /* fxN: the FX page's setting N (engine.h EF_*) */
         got = cfg.fx[atoi(what + 2) % EF_N];
-    else if (!strcmp(what, "page"))                 /* SHAPE's page (ui.c PG_*: 0 DRONE, 1 DRONE 2, 2 VOX .. 7 TIDES) */
+    else if (!strcmp(what, "kicks_since")) {        /* the kicks since the last look */
+        static uint32_t last;
+        got = (int)(eng_kicks - last);
+        last = eng_kicks;
+    }
+    else if (!strncmp(what, "kick_", 5)) {          /* the kick's own: kick_tune, kick_drive, kick_duck, kick_auto; kick_land */
+        const char *f = what + 5;
+        got = !strcmp(f, "land") ? eng_jr.kick_land
+              : eng_jr.kick[!strcmp(f, "tune") ? JR_KK_TUNE : !strcmp(f, "drive") ? JR_KK_DRIVE : !strcmp(f, "duck") ? JR_KK_DUCK : JR_KK_AUTO];
+    }
+    else if (!strcmp(what, "page"))                 /* SHAPE's page (ui.c PG_*: 0 DRONE .. 6 PULSE, 7 PULSE 2, 8 TEXTURE, 9 TIDES) */
         got = ui.vsel;
     else if (!strncmp(what, "dmotion", 7))          /* dmotionN: the drone's movement, 0 RATE .. 3 DRIFT */
         got = eng_jr.dmotion[atoi(what + 7) % JR_DMOTION];
@@ -925,6 +935,18 @@ int main(int argc, char **argv)
             memset(slots, 0, sizeof slots);
             slots[0] = j;
             plat_store_save(OBJ_USER, slots, sizeof slots);
+            store_writes = 0;
+            held_btn = held_keys = 0;
+            boot();
+        } else if (!strcmp(cmd, "legacy16")) {        /* 1.6 / 1.7's flash: the journey playing as format 10 (TOTALITY, its
+                                                       * PAN 2 and singing its own; the kick's bytes spare, so 0) */
+            journey_t j;
+            jr_preset(JR_PRESETS - 1, &j);
+            j.format = 10;
+            memset(j.kick, 0, sizeof j.kick);
+            j.kick_land = 0;
+            j.sway[EV_DRONE] = 77;                    /* (its own: it must come over, not be converted) */
+            plat_store_save(OBJ_WORK, &j, sizeof j);
             store_writes = 0;
             held_btn = held_keys = 0;
             boot();

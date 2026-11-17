@@ -196,11 +196,16 @@ void engine_journey_loaded(void) { cq_put(C_LOADED, 0, 0, 0); }
 void engine_perf(int i, int value) { cq_put(C_PERF, (uint32_t)i, 0, (uint32_t)(value + 128)); }
 void engine_fx(int i, int value) { cq_put(C_FX, (uint32_t)i, 0, (uint32_t)value); }
 void engine_midi_send(int status, int d1, int d2) { cq_put(C_MIDIOUT, (uint32_t)status, (uint32_t)d1, (uint32_t)d2); }
+static float duck_env, duck_g = 1.0f;           /* DUCK: each kick's dip, falling (~0.35 s); the gain on the rest */
+static uint8_t land_cur = 0xFFu;                 /* the scene whose key is in, as last seen (0xFF: none yet) */
 static void hit(int which, float vel)            /* (ISR) a PULSE hit; the kicks are counted for the screen */
 {
     pulse_hit(&pulse, which, vel);
-    if (which == PULSE_KICK)
+    if (which == PULSE_KICK) {
         eng_kicks++;
+        if (vel > duck_env)
+            duck_env = vel;
+    }
 }
 int engine_drone_on(int voice) { return voice >= 0 && voice < DRONE_VOICES && dn.v[voice].on; }
 float engine_drone_level(int voice)
@@ -510,7 +515,7 @@ static void hand_off(int note)
 enum { KV_CUT, KV_ATK, KV_REL, KV_VIB, KV_LEVEL, KV_OF, KV_N = KV_OF + 8 };   /* a VOX sound's, each of the four */
 enum { K_DCUT, K_DRESO, K_SWARM, K_PPITCH, K_PDEC, K_PTICK, K_TLVL, K_TCOL,
        K_TSWEEP, K_TRATE, K_TWIDTH, K_ROOT, K_SHIM, K_FDBK, K_DECAY, K_DIP, K_BLVL, K_BLEN, K_BHGT, K_B5TH,
-       K_LEVEL, K_DWAVE = K_LEVEL + EV_N, K_DLVL = K_DWAVE + DRONE_VOICES, K_DTONE = K_DLVL + DRONE_VOICES,
+       K_PTUNE, K_PDRIVE, K_LEVEL, K_DWAVE = K_LEVEL + EV_N, K_DLVL = K_DWAVE + DRONE_VOICES, K_DTONE = K_DLVL + DRONE_VOICES,
        K_DSPREAD = K_DTONE + DRONE_VOICES, K_DOCT = K_DSPREAD + DRONE_VOICES, K_DMODE = K_DOCT + DRONE_VOICES,
        K_VX = K_DMODE + DRONE_VOICES, K_SIZE = K_VX + VOX_SOUNDS * KV_N, K_DM = K_SIZE + 1, K_WARP = K_DM + DM_N, NK = K_WARP + 1 };
 static int16_t cache[NK];
@@ -686,6 +691,13 @@ static void conduct(void)
         pulse_set(&pulse, PL_DECAY, sh[EV_PULSE][SH_K2]);
     if (moved(K_PTICK, sh[EV_PULSE][SH_K3]))
         pulse_set(&pulse, PL_CLICK, sh[EV_PULSE][SH_K3]);
+    {   /* its TUNE (in the key: the root, the fourth, the fifth, the octave over) and DRIVE */
+        static const uint8_t TUNE_SEMI[JR_KTUNE_N] = {0, 5, 7, 12};
+        if (moved(K_PTUNE, eng_jr.kick[JR_KK_TUNE] % JR_KTUNE_N))
+            pulse_set(&pulse, PL_TUNE, 12 + TUNE_SEMI[eng_jr.kick[JR_KK_TUNE] % JR_KTUNE_N]);
+        if (moved(K_PDRIVE, eng_jr.kick[JR_KK_DRIVE]))
+            pulse_set(&pulse, PL_DRIVE, eng_jr.kick[JR_KK_DRIVE]);
+    }
     if (moved(K_ROOT, o->root_midi))
         pulse_root(&pulse, o->root_midi);
     if (moved(K_BLVL, sh[EV_PULSE][SH_HIDE]))    /* BLOOM */
@@ -844,6 +856,19 @@ static void clk_step(void *x, uint32_t n)
         looper_seek(&lp, n * LP_TPS, &LSINK);
     }
     jr_step(&jr, n, &JSINK);
+    {   /* the kick by itself (its key held, ALGO; PULSE 2): on the clock, a bar of 16 16ths. Not looped */
+        const uint32_t s = n % 16u, bar = n / 16u;
+        float v = 0.0f;
+        switch (eng_jr.kick[JR_KK_AUTO]) {
+        case JR_KA_HEART: v = s == 0u ? 0.85f : s == 3u ? 0.55f : 0.0f; break;   /* lub .. dub */
+        case JR_KA_BAR: v = s == 0u ? 0.85f : 0.0f; break;
+        case JR_KA_HALF: v = s == 0u ? 0.85f : s == 8u ? 0.65f : 0.0f; break;
+        case JR_KA_TWO: v = s == 0u && !(bar & 1u) ? 0.9f : 0.0f; break;
+        default: break;
+        }
+        if (v > 0.0f)
+            hit(PULSE_KICK, v);
+    }
 }
 static void clk_stopped(void *x)
 {
@@ -1041,6 +1066,7 @@ static void drain(void)
         else if (type == C_LOADED) {
             jr_restart(&jr, &JSINK);
             conduct_reset();
+            land_cur = 0xFFu;                    /* (a journey opened: its scene is not one arrived at) */
         } else if (type == C_PERF && a < PF_N) {
             int v = (int)(c & 0xFFFu) - 128;
             perf[a] = (int16_t)(v < -127 ? -127 : v > 127 ? 127 : v);
@@ -1314,6 +1340,9 @@ void engine_render(int32_t *out_lr, uint32_t n)
     looper_tick(n);
     if (!testing) {                              /* the scene's glides, then the sound into the voices */
         jr_tick(&jr, n, &JSINK);
+        if (land_cur != 0xFFu && jr.cur != land_cur && eng_jr.kick_land && jr.playing)
+            hit(PULSE_KICK, 0.9f);               /* a new scene's key comes in (PRESET, MORPH, travelling): a kick lands */
+        land_cur = jr.cur;
         tide_tick(n);
         conduct();
     }
@@ -1378,6 +1407,31 @@ void engine_render(int32_t *out_lr, uint32_t n)
         add_glide(rev, mono, &mix_glide[P_VOX][GL_REV], n);
         add_glide(dly, mono, &mix_glide[P_VOX][GL_DLY], n);
     }
+    if (tex_was_active) {
+        for (i = 0; i < n; i++)
+            mono[i] = (tex_l[i] + tex_r[i]) * 0.5f;
+        add_glide(out_l, tex_l, &mix_glide[P_TEX][GL_L], n);
+        add_glide(out_r, tex_r, &mix_glide[P_TEX][GL_R], n);
+        add_glide(rev, mono, &mix_glide[P_TEX][GL_REV], n);
+        add_glide(dly, mono, &mix_glide[P_TEX][GL_DLY], n);
+    }
+    {   /* DUCK (PULSE 2): each kick dips the drone, VOX and the wind (and what they send), then lets them swell
+         * back; the kick and BLOOM, added after, stay whole. Down in ~2 ms, back with the hit's ~0.35 s fall */
+        const float depth = (float)eng_jr.kick[JR_KK_DUCK] * (0.8f / 127.0f);
+        if (duck_env > 1e-4f || duck_g < 0.99999f) {
+            float env = duck_env, g = duck_g;
+            for (i = 0; i < n; i++) {
+                g += (1.0f - depth * env - g) * 0.011f;
+                env *= 0.999935f;
+                out_l[i] *= g;
+                out_r[i] *= g;
+                rev[i] *= g;
+                dly[i] *= g;
+            }
+            duck_env = fm_flush(env);
+            duck_g = g;
+        }
+    }
     if (pulse_was_active) {
         for (i = 0; i < n; i++)
             mono[i] = (pulse_l[i] + pulse_r[i]) * 0.5f;
@@ -1394,14 +1448,6 @@ void engine_render(int32_t *out_lr, uint32_t n)
         }
         add_glide(out_r, pulse_r, &mix_glide[P_PULSE][GL_R], n);
         add_glide(rev, mono, &mix_glide[P_PULSE][GL_REV], n);
-    }
-    if (tex_was_active) {
-        for (i = 0; i < n; i++)
-            mono[i] = (tex_l[i] + tex_r[i]) * 0.5f;
-        add_glide(out_l, tex_l, &mix_glide[P_TEX][GL_L], n);
-        add_glide(out_r, tex_r, &mix_glide[P_TEX][GL_R], n);
-        add_glide(rev, mono, &mix_glide[P_TEX][GL_REV], n);
-        add_glide(dly, mono, &mix_glide[P_TEX][GL_DLY], n);
     }
     {
         float *sr = fx_send[fx_par][0], *sd = fx_send[fx_par][1];

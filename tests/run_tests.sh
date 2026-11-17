@@ -76,6 +76,7 @@ fi
 [ -f build/scenarios/drones/drones.wav ] && run drone-clicks python3 tests/click_check.py build/scenarios/drones/drones.wav
 [ -f build/scenarios/vox/vox.wav ] && run vox-clicks python3 tests/click_check.py build/scenarios/vox/vox.wav
 [ -f build/scenarios/pulse/pulse.wav ] && run pulse-clicks python3 tests/click_check.py build/scenarios/pulse/pulse.wav
+[ -f build/scenarios/kick/kick.wav ] && run kick-clicks python3 tests/click_check.py build/scenarios/kick/kick.wav
 [ -f build/scenarios/journey/journey.wav ] && run journey-clicks python3 tests/click_check.py build/scenarios/journey/journey.wav
 [ -f build/scenarios/tides/tides.wav ] && run tides-clicks python3 tests/click_check.py build/scenarios/tides/tides.wav
 [ -f build/scenarios/fxmore/fxmore.wav ] && run fx-clicks python3 tests/click_check.py build/scenarios/fxmore/fxmore.wav
