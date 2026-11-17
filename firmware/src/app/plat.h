@@ -37,6 +37,7 @@ void plat_play_red(int red);           /* PLAY lights green; red (its other LED)
 /* MIDI over USB and the TRS jack, 4-byte USB-MIDI event packets (cable 0) */
 int plat_midi_in(uint32_t *pkt);       /* 1 = got one (called from the audio ISR) */
 void plat_midi_out(uint32_t pkt);      /* queue one (audio ISR or main loop) */
+int plat_usb_audio_on(void);           /* 1: a computer is taking the USB audio now (its stream open) */
 
 /* persistent storage (Felucca storage.c objects: A/B sectors, CRC, torn-write safe). An object's
  * number is written into its flash record, so these numbers never change: OBJ_PANEL is 4 as in

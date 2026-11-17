@@ -1,10 +1,13 @@
 # A made journey survives a power cut: its macros, a stored scene, its sound, the scene it was in, saved
 # by SAVE (at once) and by itself once STOP's tails have gone.
 wait 1000
-turn ALGO -1
-turn K2 -10
-turn K4 6
+# (the macros by their CCs; HOME's DRONE page, K1, its filter)
+midi B0 0F 2C
+midi B0 11 4C
+wait 100
 expect macro2 44
+turn K2 -5
+expect shape12 >0
 turn PRESET 1
 wait 13000
 expect scene 2
@@ -27,7 +30,8 @@ expect scene 2
 expect shape11 85
 expect jr_playing 1
 tap HOME
-turn K3 -8
+midi B0 10 30
+wait 100
 expect macro3 48
 tap SEQ
 wait 40000

@@ -52,7 +52,9 @@ int settings_load(void)
     s.bend %= BEND_RANGES;
     s.midi_quiet &= 3u;
     s.sound_lock &= 1u;
-    if (s.home_page > 4)
+    if (s.usb_full > 2)
+        s.usb_full = 0;
+    if (s.home_page > 5)
         s.home_page = 0;
     for (i = 0; i < EF_N; i++)
         if (s.fx[i] > engine_fx_max(i))

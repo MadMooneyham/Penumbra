@@ -62,11 +62,11 @@ expect pan0 0
 expect thr3 73
 expect fx0 32
 expect ccs_out 0
-turn ALGO -1
+turn ALGO 4
+expect hpage 4
 turn K2 2
 wait 100
-expect macro2 68
-expect cc_out15 68
+expect cc_out71 104
 expect ccs_out 2
 tapkey w2
 wait 100

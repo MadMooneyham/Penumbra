@@ -1,7 +1,7 @@
 # PLAY AT POWER-ON: the clock starts; ECLIPSE's drone voices all come and go, the lowest swelling in at
 # once, the rest every few bars; nothing else plays by itself. PRESET
 # moves to the next scene, the one before: it glides there (12 s), the drone holding its pedal. HOME's
-# TONE page (ALGO there, one back from MIX): the macros DRONE, VOX, SPACE, TONE. SEQ: it all falls away. Audio in journey.wav. (The
+# first page (ALGO there steps them): DRONE, its filter, body, swarm, wave. SEQ: it all falls away. Audio in journey.wav. (The
 # guard sees a steady 30 %: the host's own timing, on a busy machine, would trip it; guard.pen tests it.)
 load 30
 wav journey.wav
@@ -15,11 +15,11 @@ expect vox_notes 0
 shot home.png
 wait 20000
 expect vox_notes 0
-turn ALGO -1
+expect hpage 0
 turn K1 10
-expect macro1 84
+expect shape11 95
 turn K2 -5
-expect macro2 54
+expect shape12 35
 turn PRESET 1
 wait 200
 expect travelling 1

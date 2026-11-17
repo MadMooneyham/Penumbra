@@ -57,9 +57,10 @@ LANDING = """<!doctype html>
 <main>
 <h1>Penumbra</h1>
 <p class="sub">A space-drone instrument for the M-VAVE FM-1, by Lunar Eclipse Forge. __VERSION__</p>
-<p>A deep five-voice drone held on a pedal, VOX far back in the shimmer, a looper that follows the scene,
-and holds that let you play the sound itself: throws, bends, freeze, morph. Switch it on and the drone
-swells in; you play over it.</p>
+<p>An ambient space-drone synth that plays itself until you do. Switched on, its drone swells in, a far-off
+voice sings, and it glides from scene to scene. It is played by shaping it: HOME's knobs on the drone, VOX,
+the tides and the space; throws of shimmer and frozen rooms; a slow walk to the next scene. Every key is in
+tune, and loops follow each key change.</p>
 <p><a class="go" href="emu/">Play it in the browser</a> &nbsp; <a class="go" href="install/">Install __VERSION__</a></p>
 <p><a href="cheatsheet/">Cheat sheet</a> &nbsp;·&nbsp; <a href="backup/">Backup</a> &nbsp;·&nbsp; <a href="https://github.com/MadMooneyham/Penumbra/blob/main/MANUAL.md">Manual</a>
 &nbsp;·&nbsp; <a href="firmware/__PKG__">Download the package</a> &nbsp;·&nbsp; <a href="https://github.com/MadMooneyham/Penumbra">Source</a></p>

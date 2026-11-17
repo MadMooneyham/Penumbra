@@ -42,7 +42,7 @@ svg text { font-family: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-ser
 .t-keyb { fill: var(--keyb-ink); font-weight: 700; font-size: 10.5px; }
 .t-scr { fill: #ecebf6; font-weight: 600; font-size: 11px; letter-spacing: .06em; }
 .t-scr2 { fill: #ff9646; font-weight: 600; font-size: 10px; }
-.cols { display: grid; grid-template-columns: 1.55fr 1fr 1fr; gap: 14px 22px; }
+.cols { display: grid; grid-template-columns: 1.4fr 1fr 1.1fr; gap: 14px 22px; }
 @media screen and (max-width: 860px) { .cols { grid-template-columns: 1fr; } .panelbox { overflow-x: auto; } svg.panel { min-width: 760px; } }
 table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
 th, td { text-align: left; padding: 2px 6px 2px 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
@@ -76,23 +76,23 @@ footer { margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--rule); 
 <div class="sheet">
 <header>
   <h1>PENUMBRA</h1>
-  <span class="sub">1.6 · a space-drone instrument for the M-VAVE FM-1 · cheat sheet</span>
+  <span class="sub">1.6 · an ambient space-drone synth for the M-VAVE FM-1 · cheat sheet</span>
   <nav class="links" aria-label="Penumbra pages"><a href="../emu/">Play it in the browser</a><a href="https://github.com/MadMooneyham/Penumbra/blob/main/MANUAL.md">Manual</a><a href="../backup/">Backup</a><a href="penumbra-cheatsheet.pdf">PDF</a></nav>
 </header>
 
 <section class="start" aria-labelledby="start-h">
   <h2 id="start-h">The first few minutes</h2>
-  <p><b>1</b> <b>On its own:</b> TOTALITY sings and travels by itself; black 1–5 call drone voices in.</p>
-  <p><b>2</b> <b>White keys:</b> VOX, always in the key. Slow suits it.</p>
-  <p><b>3</b> <b>A loop:</b> REC, a few notes, REC. REC again layers.</p>
-  <p><b>4</b> <b>Travel:</b> PRESETS one click glides to a new scene in 12 s; the loop follows the key.</p>
-  <p><b>5</b> <b>A journey:</b> a new scene every minute or two.</p>
+  <p><b>1</b> <b>On its own:</b> TOTALITY sings and travels by itself, a new scene every 16 bars.</p>
+  <p><b>2</b> <b>Shape it:</b> HOME's knobs on the drone; ALGO turns to VOX, MOTION, SPACE, MIX, ALIVE.</p>
+  <p><b>3</b> <b>Throw it:</b> FX held: shimmer, feedback, a frozen room, a dip; let go, it drifts back.</p>
+  <p><b>4</b> <b>Travel:</b> PRESETS glides to the next scene in 12 s; SELECT on HOME walks there by hand.</p>
+  <p><b>5</b> <b>Play over it:</b> white keys, always in the key; REC loops them, following each key change.</p>
 </section>
 
 <div class="panelbox">
 <svg class="panel" viewBox="0 0 1000 508" role="img" aria-labelledby="panel-t panel-d">
   <title id="panel-t">The FM-1's panel, labelled for Penumbra</title>
-  <desc id="panel-d">MASTER is volume. SELECT morphs on HOME. PRESETS moves scene. ALGORITHM on HOME steps the knobs' page, elsewhere sets the tempo. Knobs 1 to 4 on HOME play the page: MIX, SPACE, MOTION, ALIVE or TONE.
+  <desc id="panel-d">MASTER is volume. SELECT morphs on HOME. PRESETS moves scene. ALGORITHM on HOME steps the knobs' page, elsewhere sets the tempo. Knobs 1 to 4 on HOME play the page: DRONE, VOX, MOTION, SPACE, MIX or ALIVE.
     OCT minus and plus move the white keys' octave. Buttons: FX the FX page, held for throws; SEL chooses; ENV SHAPE; LFO JOURNEY; EDIT SCENE; GLO SYSTEM;
     HOME; SAVE, which keeps a hold; ARP freezes; SEQ starts the clock; PLAY plays or stops the loop; REC records it.
     Black keys 1 to 5 are the drone voices, 6 the kick, 7 BLOOM, 8 to 11 VOX's sounds GLASS, REED, HALO and LOW. The white keys play VOX in the scene's key.</desc>
@@ -124,17 +124,17 @@ footer { margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--rule); 
   <g fill="#ff9646"><circle cx="386" cy="112" r="3"/><circle cx="402" cy="96" r="3"/><circle cx="436" cy="96" r="3"/><circle cx="451" cy="116" r="3"/><circle cx="445" cy="150" r="3"/></g>
   <text class="t-scr2" x="418" y="182" text-anchor="middle">a bead per drone voice</text>
   <text class="t-scr" x="418" y="204" text-anchor="middle">SCENE · KEY · LOOP</text>
-  <text class="t-scr2" x="418" y="236" text-anchor="middle">DRONE  VOX  PULSE  TEXTURE</text>
+  <text class="t-scr2" x="418" y="236" text-anchor="middle">FILTER  BODY  SWARM  WAVE</text>
   <text class="t-small" x="418" y="282" text-anchor="middle">any page goes back to HOME after 30 s</text>
 
   <!-- the four knobs -->
   <g>
     <text class="t-small" x="767" y="22" text-anchor="middle">on HOME, the page ALGORITHM picks · in a hold, what the hold plays</text>
-    <circle class="p-ctl" cx="610" cy="70" r="19"/><text class="t-name" x="610" y="44" text-anchor="middle">KNOB 1</text><text class="t-does" x="610" y="106" text-anchor="middle">DRONE</text>
-    <circle class="p-ctl" cx="714" cy="70" r="19"/><text class="t-name" x="714" y="44" text-anchor="middle">KNOB 2</text><text class="t-does" x="714" y="106" text-anchor="middle">VOX</text>
-    <circle class="p-ctl" cx="818" cy="70" r="19"/><text class="t-name" x="818" y="44" text-anchor="middle">KNOB 3</text><text class="t-does" x="818" y="106" text-anchor="middle">PULSE</text>
-    <circle class="p-ctl" cx="922" cy="70" r="19"/><text class="t-name" x="922" y="44" text-anchor="middle">KNOB 4</text><text class="t-does" x="922" y="106" text-anchor="middle">TEXTURE</text>
-    <text class="t-small" x="767" y="120" text-anchor="middle">pages: MIX · SPACE · MOTION (tempo) · ALIVE · TONE (the macros)</text>
+    <circle class="p-ctl" cx="610" cy="70" r="19"/><text class="t-name" x="610" y="44" text-anchor="middle">KNOB 1</text><text class="t-does" x="610" y="106" text-anchor="middle">FILTER</text>
+    <circle class="p-ctl" cx="714" cy="70" r="19"/><text class="t-name" x="714" y="44" text-anchor="middle">KNOB 2</text><text class="t-does" x="714" y="106" text-anchor="middle">BODY</text>
+    <circle class="p-ctl" cx="818" cy="70" r="19"/><text class="t-name" x="818" y="44" text-anchor="middle">KNOB 3</text><text class="t-does" x="818" y="106" text-anchor="middle">SWARM</text>
+    <circle class="p-ctl" cx="922" cy="70" r="19"/><text class="t-name" x="922" y="44" text-anchor="middle">KNOB 4</text><text class="t-does" x="922" y="106" text-anchor="middle">WAVE</text>
+    <text class="t-small" x="767" y="120" text-anchor="middle">pages: DRONE · VOX · MOTION · SPACE · MIX · ALIVE</text>
   </g>
 
   <!-- the buttons: name, then what it does -->
@@ -150,45 +150,50 @@ footer { margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--rule); 
 <div class="cols">
   <div>
     <section>
+      <h2>HOME's knobs: ALGO turns the page</h2>
+      <table>
+        <thead><tr><th>Page</th><th>K1</th><th>K2</th><th>K3</th><th>K4</th></tr></thead>
+        <tbody>
+          <tr><td><b>DRONE</b></td><td>FILTER</td><td>BODY</td><td>SWARM</td><td>WAVE</td></tr>
+          <tr><td><b>VOX</b></td><td>BRIGHT</td><td>FILTER</td><td>RESO</td><td>RELEASE</td></tr>
+          <tr><td><b>MOTION</b></td><td>SWEEP</td><td>RATE</td><td>DRIFT</td><td>TIDES</td></tr>
+          <tr><td><b>SPACE</b></td><td>REVERB</td><td>DECAY</td><td>SHIMMER</td><td>DELAY</td></tr>
+          <tr><td><b>MIX</b></td><td>DRONE</td><td>VOX</td><td>PULSE</td><td>TEXTURE</td></tr>
+          <tr><td><b>ALIVE</b></td><td>SINGS</td><td>BLOOMS</td><td>SWELLS</td><td>TRAVELS</td></tr>
+        </tbody>
+      </table>
+      <p class="note">VOX: the sound playing (black 8–11 pick it). MOTION: the drone's own sweep, its rate and drift;
+        how far the tides reach. ALIVE, a step a click: how much plays by itself. The page is kept.</p>
+    </section>
+    <section>
       <h2>The holds: hold one, the knobs play it</h2>
       <table>
         <thead><tr><th>Hold</th><th>K1</th><th>K2</th><th>K3</th><th>K4</th><th>Also</th></tr></thead>
         <tbody>
+          <tr><td><b>FX</b></td><td>SHIMMER</td><td>FEEDBACK</td><td>FREEZE</td><td>DIP ±</td><td>ALGO: WARP</td></tr>
           <tr><td><b>Drone</b> b1–5</td><td>LEVEL</td><td>TONE</td><td>DETUNE</td><td>OCTAVE</td><td>ALGO: HELD/SWELL</td></tr>
           <tr><td><b>VOX sound</b> b8–11</td><td>BRIGHT</td><td>WAVE</td><td>FILTER</td><td>RELEASE</td><td>ALGO: IT SINGS</td></tr>
           <tr><td><b>BLOOM</b> b7</td><td>LEVEL</td><td>LENGTH</td><td>HEIGHT</td><td>FIFTH</td><td>ALGO: BY ITSELF</td></tr>
-          <tr><td><b>FX</b></td><td>SHIMMER</td><td>FEEDBACK</td><td>FREEZE</td><td>DIP ±</td><td>ALGO: WARP</td></tr>
           <tr><td><b>White key</b></td><td>BRIGHT</td><td>VIBRATO</td><td>SHIMMER</td><td>RELEASE</td><td>ALGO: PITCH</td></tr>
-          <tr><td><b>ENV</b> (A/B)</td><td colspan="5">OCT− keeps the sound as A · OCT+ as B · SELECT blends A ↔ B, gliding</td></tr>
         </tbody>
       </table>
       <p class="note">Key holds stay as set, and ENV then opens that part's page; on SHAPE the knobs stay the
         page's. Throws and bends ease back when let go; <b>SAVE while holding</b> keeps them. DIP: left
         low-pass, right high-pass.</p>
     </section>
-    <section>
-      <h2>SHAPE (ENV): four knobs a page · ALGO the part's level</h2>
-      <table>
-        <thead><tr><th>Page</th><th>K1</th><th>K2</th><th>K3</th><th>K4</th></tr></thead>
-        <tbody>
-          <tr><td><b>DRONE</b></td><td>FILTER</td><td>BODY</td><td>SWARM</td><td>WAVE</td></tr>
-          <tr><td><b>DRONE 2</b></td><td>RATE</td><td>SWEEP</td><td>WIDTH</td><td>DRIFT</td></tr>
-          <tr><td><b>VOX</b></td><td>BRIGHT</td><td>ATTACK</td><td>RELEASE</td><td>SHIMMER</td></tr>
-          <tr><td><b>VOX 2</b></td><td>WAVE</td><td>FILTER</td><td>RESO</td><td>GLIDE</td></tr>
-          <tr><td><b>VOX 3</b></td><td>DETUNE</td><td>B OCT</td><td>B MIX</td><td>ENV</td></tr>
-          <tr><td><b>VOX SINGS</b></td><td>SINGS</td><td>PLACE</td><td>DRIFT</td><td>OCTAVE</td></tr>
-          <tr><td><b>PULSE</b></td><td>DROP</td><td>DECAY</td><td>CLICK</td><td>SPACE</td></tr>
-          <tr><td><b>TEXTURE</b></td><td>COLOUR</td><td>SWEEP</td><td>RATE</td><td>WIDTH</td></tr>
-          <tr><td><b>TIDES</b></td><td>RATE</td><td>DRONE</td><td>SPACE</td><td>VOX</td></tr>
-          <tr><td><b>PAN</b></td><td>DRONE</td><td>VOX</td><td>PULSE</td><td>TEXTURE</td></tr>
-        </tbody>
-      </table>
-      <p class="note">ENV again or SELECT: the next page. <b>SEL twice</b>: the page back as made. TIDES: one slow
-        swell under it all (ALGO: even .. wandering). PAN: each part's place (ALGO: RATE, the tide or 60 s .. 0.5 s). PAN 2: how far each sways (ALGO: OFFSET,
-        in sync .. mirrored).</p>
-    </section>
   </div>
   <div>
+    <section>
+      <h2>Moving through it</h2>
+      <ul class="tight">
+        <li><b>PRESETS</b>: the next scene, gliding 12 s. Drone notes move one voice at a time.</li>
+        <li><b>SELECT on HOME</b>: MORPH by hand; halfway, the key changes.</li>
+        <li><b>ENV held</b>: OCT− keeps the sound as A, OCT+ as B; SELECT walks between them.</li>
+        <li><b>ARP</b>: FREEZE what is held; again to let it ring out.</li>
+        <li><b>SEQ</b> starts and stops the clock; the drone swells in and fades out with it.</li>
+        <li><b>Black 6</b> the kick, <b>black 7</b> BLOOM, <b>8–11</b> GLASS · REED · HALO · LOW.</li>
+      </ul>
+    </section>
     <section>
       <h2>The looper: VOX, kick and BLOOM, on the clock</h2>
       <table>
@@ -205,40 +210,40 @@ footer { margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--rule); 
       <p class="note">Up to 16 bars, 8 layers. It follows the scene's key, each note keeps its VOX sound, and it
         is saved with the journey.</p>
     </section>
-    <section>
-      <h2>Moving through it</h2>
-      <ul class="tight">
-        <li><b>SEQ</b> starts and stops the clock; the drone swells in and fades out with it.</li>
-        <li><b>PRESETS</b>: the next scene. Drone notes move one voice at a time.</li>
-        <li><b>SELECT on HOME</b>: MORPH by hand; halfway, the key changes.</li>
-        <li><b>ARP</b>: FREEZE what you hold; again to let it ring out.</li>
-        <li><b>Black 6</b> the kick, <b>black 7</b> BLOOM, <b>8–11</b> GLASS · REED · HALO · LOW.</li>
-      </ul>
-    </section>
   </div>
   <div>
+    <section>
+      <h2>SHAPE (ENV): every setting · ALGO the level</h2>
+      <table>
+        <tbody>
+          <tr><td><b>DRONE</b></td><td>FILTER BODY SWARM WAVE</td></tr>
+          <tr><td><b>DRONE 2</b></td><td>RATE SWEEP WIDTH DRIFT</td></tr>
+          <tr><td><b>VOX 1–3</b></td><td>BRIGHT ATTACK RELEASE SHIMMER · WAVE FILTER RESO GLIDE · DETUNE B&nbsp;OCT B&nbsp;MIX ENV</td></tr>
+          <tr><td><b>VOX SINGS</b></td><td>SINGS PLACE DRIFT OCTAVE</td></tr>
+          <tr><td><b>PULSE</b></td><td>DROP DECAY CLICK SPACE</td></tr>
+          <tr><td><b>TEXTURE</b></td><td>COLOUR SWEEP RATE WIDTH</td></tr>
+          <tr><td><b>TIDES</b></td><td>RATE DRONE SPACE VOX (ALGO: even .. wandering)</td></tr>
+          <tr><td><b>PAN 1–2</b></td><td>each part's place · how far it sways (ALGO: RATE · OFFSET)</td></tr>
+        </tbody>
+      </table>
+      <p class="note">ENV again or SELECT: the next page. <b>SEL twice</b>: the page back as made.</p>
+    </section>
     <section>
       <h2>Pages</h2>
       <table>
         <tbody>
-          <tr><td><b>FX</b></td><td>REVERB: DECAY SIZE SHIMMER TONE · REVERB 2: MOTION LOW&nbsp;CUT INTERVAL LEVEL ·
-            DELAY: TIME FEEDBACK TONE WEAR · DELAY 2: LEVEL LOW&nbsp;CUT PING-PONG WARP</td></tr>
-          <tr><td><b>EDIT</b></td><td>SCENE: SELECT field, K1 scene, K2–K4 value; ROOM, HALO its space; SOUND A-B; TRAVELS by itself · SEL stores</td></tr>
-          <tr><td><b>LFO</b></td><td>JOURNEY: 7 presets (TOTALITY plays itself), 8 user slots · each brings its sound (a knob right: LOCKED) · SEL opens · SAVE stores · again: SOUNDS,
-            8 sounds without scenes (SAVE stores the sound, SEL glides it in)</td></tr>
-          <tr><td><b>GLO</b></td><td>SYSTEM: clock, MIDI, bend range, SLEEP, RESET SOUND · again: BENCH</td></tr>
-          <tr><td><b>HOME</b></td><td>the corona, the scene, the loop; knob pages on ALGO</td></tr>
+          <tr><td><b>FX</b></td><td>REVERB · REVERB 2 · DELAY · DELAY 2, four knobs a row (SELECT the row)</td></tr>
+          <tr><td><b>EDIT</b></td><td>SCENE: SELECT field, K1 scene, K2–K4 value · SEL stores the moment</td></tr>
+          <tr><td><b>LFO</b></td><td>JOURNEY: 7 presets, 8 user slots, each with its sound · again: SOUNDS, a library of 8</td></tr>
+          <tr><td><b>GLO</b></td><td>SYSTEM: clock, MIDI, USB audio (USB ONLY), SLEEP, RESET SOUND · again: BENCH</td></tr>
         </tbody>
       </table>
     </section>
     <section>
       <h2>Good to know</h2>
       <ul class="tight">
-        <li>It saves itself once the sound rests; <b>SAVE</b> saves now.</li>
-        <li>A dot in the header: not saved yet.</li>
-        <li><b>SLEEP</b> (SYSTEM): everything lets go over 20–90 min.</li>
-        <li>MIDI (channel 1): VOX's notes, clock and song position, CCs and program changes both ways; the
-          black keys on channel 2 (the manual's MIDI section).</li>
+        <li>It saves itself once the sound rests; <b>SAVE</b> saves now. A dot in the header: not saved yet.</li>
+        <li>MIDI (channel 1): notes, clock, CCs and program changes both ways; black keys on channel 2.</li>
         <li>The silence is part of it.</li>
       </ul>
     </section>

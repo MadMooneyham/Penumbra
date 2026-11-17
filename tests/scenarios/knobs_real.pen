@@ -2,40 +2,39 @@
 # snaps on by itself changes nothing; a click straight back within a quarter second is the snap, not taken;
 # turning, every click counts, a step a click. Only a knob that keeps spinning fast goes further: four quick
 # clicks in a row (under 70 ms apart) two steps a click, ten three. Choosing (SELECT's rows) is a step a click.
-# (HOME's TONE page: the macros, two a step)
+# (HOME's DRONE page: K1 the drone's FILTER, two a step)
+knobs real
 autoplay 0
 wait 300
-turn ALGO -1
-knobs real
-expect macro1 64
+expect shape11 75
 turn K1 1
 wait 800
-expect macro1 64
+expect shape11 75
 turn K1 3 200
 wait 800
-expect macro1 68
+expect shape11 79
 turn K1 1 100
 turn K1 -1 100
 wait 800
-expect macro1 68
+expect shape11 79
 turn K1 -1 1000
 turn K1 -1 1000
 wait 800
-expect macro1 68
+expect shape11 79
 turn K1 5 200
 wait 50
-expect macro1 76
+expect shape11 87
 wait 800
 # fast, six clicks: the first wakes it, then 1 1 1 2 2 steps
 turn K1 6 60
-expect macro1 90
+expect shape11 101
 wait 800
 turn K1 -6 20
-expect macro1 76
+expect shape11 87
 wait 800
 # a long fast spin: 1 1 1, then 2 (six clicks), then 3
 turn K1 -14 20
-expect macro1 22
+expect shape11 33
 wait 800
 tap GLO
 turn SELECT 6 30

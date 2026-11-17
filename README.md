@@ -8,22 +8,25 @@ Drone voices drift in and out, a far-off voice sings, and the sound glides from 
 crosses the screen. Every key is in tune, and loops follow each key change. A thick, slow drone, like the
 Solar 42.
 
-Most drones stay where they are put. Penumbra is a place, and it moves:
+Most drones stay where they are put. Penumbra is a place, and it moves. It is played less like a keyboard
+and more like a mixing desk in a night sky: shaping, throwing and steering a sound that is already playing.
 
 - **It plays itself, until it is played.** A new unit starts on TOTALITY, a journey that travels on its
-  own: scene after scene, its whole sound changing as it goes, a voice singing now and then. Any key or knob
-  joins in.
-- **It breathes on its own.** Drone voices drift in and out with space around them, and a VOX sound can
-  sing by itself: a few soft notes, now and then.
-- **Nothing sounds wrong.** Every white key is in the scene's key, and so is everything it plays itself.
+  own: scene after scene, its whole sound changing as it goes, a voice singing now and then.
+- **The sound is the instrument.** HOME's four knobs play six pages, one turn of ALGO apart: the drone's
+  filter, body, swarm and wave; VOX's tone; the drone's slow motion and the tides; the space; the mix; and
+  how much plays by itself.
+- **Gestures, not just settings.** FX held turns the knobs into throws: a burst of shimmer, feedback, a
+  frozen room, the whole mix dipped, drifting back when let go. A held key puts that voice under the knobs.
+  A slow walk between two versions of the whole sound.
 - **It travels.** One click of a knob and the whole place glides to a new scene over 12 seconds: the drone
-  voice by voice, the room, the key. Seven journeys are built in, and there's room for eight more.
-- **Loops come along.** A loop is kept as steps of the key, so it follows into each new scene, and every
-  layer keeps the sound it was played with: a few instruments, built up one at a time.
-- **The sound itself is playable.** Throws of shimmer, a frozen room, bends, and a slow walk between two
-  versions of the whole sound.
+  voice by voice, the room, the key. Or SELECT walks there by hand, as slowly as it is turned. Seven journeys
+  are built in, and there's room for eight more.
+- **Nothing sounds wrong.** Every white key is in the scene's key, and so is everything it plays itself.
+  Loops are kept as steps of the key, so they follow into each new scene.
 - **The eclipse shows it.** On the screen the moon slides off the sun as a scene changes, the drone's voices
-  swell as beads in the corona, notes come out as stars, and the loop circles as a satellite.
+  swell as beads in the corona, notes come out as stars, and the loop circles as a satellite. Behind every
+  other page a moon rises in that page's colour, breathing with the tide.
 
 The silence between the notes is part of it.
 
@@ -39,31 +42,32 @@ Penumbra is slow, and much of what it does best unfolds over a few minutes.
 - **On its own,** TOTALITY, the journey a new unit starts on, plays by itself: the drone's voices drift in
   and out, HALO sings a phrase now and then, and every 16 bars it glides to its next scene, six in all, the
   sound opening up toward the middle and closing again. Everything below works while it does.
-- **ECLIPSE** (LFO opens the journeys) is the quiet one for playing: all five drone voices come and go, and
-  nothing else moves until it is played.
-- **Black keys 1-5** each call one of those voices in, to swell and fade.
-- **The white keys** play VOX. Every key fits the scene's key, so there are no wrong notes, and slow,
-  spacious playing suits it.
-- **The looper:** **REC**, a few notes, **REC** again, and they play back on the clock. **REC** while it
-  plays adds a layer.
+- **HOME's knobs** shape it as it plays. The first page is the drone: FILTER, BODY, SWARM, WAVE. **ALGO** on
+  HOME turns to the next page: VOX, MOTION (the drone's sweep and drift, the tides), SPACE, MIX and ALIVE
+  (how often it sings and blooms, how many drone voices come and go, how often it travels).
+- **Throws:** with **FX** held, **K1** sends a burst of shimmer, **K3** freezes the room, **K4** dips the
+  whole mix; let go, they drift back.
+- **A voice in hand:** a drone key (black 1-5) held puts that voice's level, tone, detune and octave under
+  the knobs; pressed, it calls the voice in, to swell and fade.
 - **Travelling:** one click of **PRESET** moves to the next scene. Over 12 seconds the drone glides there
-  voice by voice, the room changes, and a loop carries on in the new key. A new scene every minute or two
-  makes a journey.
+  voice by voice, the room changes, and a loop carries on in the new key. On HOME, **SELECT** walks there by
+  hand instead, as slowly as it is turned.
+- **The keys:** the white keys play VOX, every key in the scene's key; slow, spacious playing suits it.
+  **REC**, a few notes, **REC** again, and they loop on the clock.
 
 ## More it can do
 
-- **Throws:** holding **FX** and turning **K1** up sends a burst of shimmer; letting go, it drifts back.
-  **K3** freezes the room instead.
+- **ECLIPSE** (LFO opens the journeys) is the quiet one: all five drone voices come and go, and nothing else
+  moves until it is shaped or played.
 - **A frozen chord:** notes held when **ARP** is pressed keep ringing; **ARP** again lets them go.
-- **Bends:** holding a white key and turning **ALGO** bends its pitch.
-- **Travelling by hand:** on HOME, **SELECT** is MORPH. Turned slowly, it walks toward the next scene, and
-  the key changes halfway.
-- **Held voices:** holding a drone key and turning **ALGO** left makes that voice HELD, on until its key is
+- **Bends:** a white key held puts its note's brightness, vibrato, shimmer and release under the knobs, and
+  **ALGO** bends its pitch.
+- **Held voices:** a drone key held with **ALGO** turned left makes that voice HELD, on until its key is
   pressed again. In the other journeys most voices start held.
-- **Voices that sing:** holding one of VOX's sound keys (black 8-11) and turning **ALGO** right sets that
+- **Voices that sing:** one of VOX's sound keys (black 8-11) held with **ALGO** turned right sets that
   sound singing by itself, rarely or often. Each sound has its own setting, so several can sing at once
   while the white keys play another, each with its own place, drift and octave on SHAPE's VOX SINGS page.
-- **BLOOM by itself:** holding BLOOM's key (black 7) and turning **ALGO** right sets it swelling in now and
+- **BLOOM by itself:** BLOOM's key (black 7) held with **ALGO** turned right sets it swelling in now and
   then on its own.
 - **Layers of instruments:** each looped note keeps the VOX sound it was played with, so a layer of GLASS,
   one of REED and one of HALO play together.
@@ -97,8 +101,8 @@ back, onto this FM-1 or another. The emulator reads and writes the same file.
 
 ## The manual
 
-Everything else, from the drone voices to the looper, holds, scenes and sound pages, is in the
-**[manual](MANUAL.md)**. Its last section is a one-page cheat sheet.
+Everything else, from HOME's pages and the gestures to the scenes, the loop, the keys and every sound
+setting, is in the **[manual](MANUAL.md)**. Its last section is a one-page cheat sheet.
 
 ## What's in it
 
@@ -120,7 +124,8 @@ Everything else, from the drone voices to the looper, holds, scenes and sound pa
 - **With a DAW**: USB audio and MIDI. A tight clock in (and song position) or out, VOX's notes and the black
   keys both ways, 44 controls on CCs both ways (automate them, or record your moves), program changes for the
   scenes and journeys.
-- **Extras**: a SLEEP timer, and screen-reader support.
+- **Extras**: a SLEEP timer, USB ONLY (the FM-1's own outputs silent while a computer takes its USB audio),
+  backups, and screen-reader support.
 
 ## Tell me how you play it
 

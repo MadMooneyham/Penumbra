@@ -589,9 +589,8 @@ static void conduct(void)
 {
     const jr_out_t *o = &jr.out;
     const uint8_t (*sh)[SH_N] = eng_jr.shape;
-    /* the macros (HOME's TONE page): 2.5 times 1.6's reach, so each is heard all the way (the filters clamp) */
-    const float tone = (jr.macro_s[MAC_TONE] - 64.0f) * 2.5f, freeze = (float)perf[PF_FREEZE] * (1.0f / 127.0f);
-    const float dmac = (jr.macro_s[MAC_DRONE] - 64.0f) * 2.5f, bright = o->bright + tone + (jr.macro_s[MAC_VOX] - 64.0f) * 2.25f;
+    const float tone = jr.macro_s[MAC_TONE] - 64.0f, freeze = (float)perf[PF_FREEZE] * (1.0f / 127.0f);
+    const float dmac = jr.macro_s[MAC_DRONE] - 64.0f, bright = o->bright + tone + (jr.macro_s[MAC_VOX] - 64.0f) * 0.9f;
     const uint8_t *vs = eng_jr.vsound[eng_jr.vcur % JR_VSOUNDS];
     const uint8_t *td = eng_jr.tide, *dm = eng_jr.dmotion;
     /* the tide's reach: the drone's filter (pot steps), VOX's brightness, the sends (a share) */
@@ -1068,7 +1067,8 @@ void engine_out_loud(int on)
     out_lim = on ? 1.0f : 2.0f;
 }
 /* USB AUDIO FULL: the render at full level, for the USB tap, and the MASTER knob after it, for the
- * speaker, headphones and line out (with the master's ~10 ms glide) */
+ * speaker, headphones and line out (with the master's ~10 ms glide). USB ONLY (2): the same, and while a
+ * computer takes the USB audio those three glide to silence (unplugged, or not streaming: as FULL) */
 static volatile int usb_full;
 static float vol_after = -1.0f;
 void engine_usb_full(int on) { usb_full = on; }
@@ -1078,7 +1078,8 @@ uint32_t engine_quiet_ms(void) { return eng_quiet_frames / 44u; }
 
 void engine_volume(int32_t *out_lr, uint32_t n)
 {
-    float vol = (float)plat_master() / 4096.0f, v = vol_after < 0.0f ? vol : vol_after;
+    float vol = usb_full == 2 && plat_usb_audio_on() ? 0.0f : (float)plat_master() / 4096.0f;
+    float v = vol_after < 0.0f ? vol : vol_after;
     uint32_t i;
     if (!usb_full) {
         vol_after = -1.0f;

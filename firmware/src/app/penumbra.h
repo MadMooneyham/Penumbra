@@ -23,14 +23,16 @@ typedef struct {
     uint8_t one_core;                    /* 1: the second core stays off (applies at the next power-on) */
     uint8_t drone_core;                  /* the drone voices: 0 the first core, 1 the second, 2 split (engine.h) */
     uint8_t out_loud;                    /* 1: the output 6 dB hotter (the codec's full scale) */
-    uint8_t usb_full;                    /* 1: USB audio at full level, MASTER for the FM-1's own outputs */
+    uint8_t usb_full;                    /* 1: USB audio at full level, MASTER for the FM-1's own outputs; 2: USB ONLY,
+                                          * the same, the FM-1's own outputs silent while a computer takes its audio */
     uint8_t autoplay;                    /* 1: the journey plays at power-on */
     uint8_t bend;                        /* PITCH's range either way: 0 2, 1 5, 2 7, 3 12 semitones (BEND_SEMIS) */
     uint8_t midi_quiet;                  /* what does not go out: bit 0 the notes, bit 1 the CCs and program changes
                                           * (a spare byte in 1.1: 0, everything out) */
     uint8_t sound_lock;                  /* 1: a journey opened brings its scenes, and the sound playing stays
                                           * (0, and a spare byte to 1.4: it brings its own sound, gliding in) */
-    uint8_t home_page;                   /* HOME's knob page (ALGO there): 0 MIX .. 4 TONE (a spare byte to 1.6: MIX) */
+    uint8_t home_page;                   /* HOME's knob page (ALGO there): 0 DRONE, VOX, MOTION, SPACE, MIX, 5 ALIVE
+                                          * (a spare byte to 1.6: DRONE) */
     uint8_t rsv[2];
     uint8_t fx[EF_N];                   /* the FX page (engine.h EF_*) */
     uint8_t rsv2[28 - EF_N];

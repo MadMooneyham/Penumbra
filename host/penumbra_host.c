@@ -87,6 +87,8 @@ void plat_glow(int on) { (void)on; }
 void plat_play_red(int red) { (void)red; }
 void plat_keys_dim(uint32_t k) { dim_keys = k; }
 
+static int usb_audio_on;                         /* 'usbaudio 1': a computer takes the USB audio */
+int plat_usb_audio_on(void) { return usb_audio_on; }
 #define MQ 1024
 static uint32_t min_q[MQ], mi_w, mi_r;
 static FILE *midi_log;
@@ -545,6 +547,8 @@ static int expect(const char *what, const char *val)
         got = cfg.clk_out;
     else if (!strcmp(what, "set_midi_ch"))
         got = cfg.midi_ch;
+    else if (!strcmp(what, "set_usb"))              /* USB AUDIO: 0 MASTER, 1 FULL, 2 USB ONLY */
+        got = cfg.usb_full;
     else if (!strcmp(what, "set_bpm"))
         got = cfg.bpm_x10 / 10;
     else if (!strcmp(what, "jr_playing"))           /* the journey: playing */
@@ -849,6 +853,8 @@ int main(int argc, char **argv)
                 is_step(n ? "WRITING" : "WAITING FOR THE COMPUTER");
                 is_bar((uint32_t)n, 100);
             }
+        } else if (!strcmp(cmd, "usbaudio")) {        /* usbaudio 1|0: a computer takes the USB audio, or lets it go */
+            usb_audio_on = atoi(a) != 0;
         } else if (!strcmp(cmd, "knobs")) {           /* knobs real: as on the FM-1 (a click from rest wakes the knob, a
                                                        * snap back is not taken, a fast turn goes further); exact: a click
                                                        * a step */

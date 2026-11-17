@@ -211,11 +211,12 @@ static const uint8_t SLEEP_MIN[SLEEPS] = {0, 20, 40, 60, 90};
 static const char *const ONOFF_N[] = {"OFF", "ON"};
 static const char *const CORE_N[] = {"1ST", "2ND", "SPLIT"};
 static const char *const LOUD_N[] = {"NORMAL", "LOUD"};
-static const char *const USB_N[] = {"MASTER", "FULL"};
+static const char *const USB_N[] = {"MASTER", "FULL", "USB ONLY"};   /* (USB ONLY: the FM-1's own outputs silent
+                                                                       * while a computer takes its USB audio) */
 
 static int row_n(int r)                           /* choices; 0: not a setting */
 {
-    return r == R_MIDICH ? 17 : r == R_DRNCORE ? 3 : r == R_BEND ? BEND_RANGES : r == R_SLEEP ? SLEEPS
+    return r == R_MIDICH ? 17 : r == R_DRNCORE || r == R_USBFULL ? 3 : r == R_BEND ? BEND_RANGES : r == R_SLEEP ? SLEEPS
            : r == R_ABOUT || r == R_RESET ? 0 : 2;
 }
 static int row_get(int r)
@@ -1700,21 +1701,28 @@ static void cc_set(int c, int v)                  /* a CC came: the control ther
 }
 
 /* ------------------------------------------------------ HOME's knob pages --- */
-/* ALGO on HOME steps through five pages of what changes a performance most (the tempo is on MOTION, and ALGO
- * on every other page): MIX each part's level; SPACE the reverb's and the delay's return, the reverb's
- * decay and shimmer; MOTION the tempo, how far the tides reach, the drone's swarm and drift; ALIVE what
- * plays by itself (the sound playing's singing, BLOOM, the drone voices that come and go, travelling);
- * TONE the four macros. All but SPACE (the FX page's) are the journey's, saved with it */
-enum { HP_MIX, HP_SPACE, HP_MOTION, HP_ALIVE, HP_TONE, HP_N };
-static const char *const HP_NAME[HP_N] = {"MIX", "SPACE", "MOTION", "ALIVE", "TONE"};
-enum { HK_LEVEL, HK_FX, HK_TEMPO, HK_TIDES, HK_SWARM, HK_DRIFT, HK_SING, HK_BLOOM, HK_SWELLS, HK_TRAVEL, HK_MACRO };
+/* ALGO on HOME steps through six pages, shaping first: DRONE its filter, body, swarm and wave (SHAPE's DRONE);
+ * VOX the sound playing's brightness, filter, resonance and release; MOTION the drone's own sweep, its rate,
+ * its drift, and how far the tides reach; SPACE the reverb's and the delay's return, the reverb's decay and
+ * shimmer (the FX page's); MIX each part's level; ALIVE what plays by itself (the sound playing's singing,
+ * BLOOM, the drone voices that come and go, travelling). All but SPACE are the journey's, saved with it.
+ * (The tempo: ALGO on every other page) */
+enum { HP_DRONE, HP_VOX, HP_MOTION, HP_SPACE, HP_MIX, HP_ALIVE, HP_N };
+static const char *const HP_NAME[HP_N] = {"DRONE", "VOX", "MOTION", "SPACE", "MIX", "ALIVE"};
+enum { HK_SHAPE, HK_LEVEL, HK_FX, HK_TIDES, HK_SING, HK_BLOOM, HK_SWELLS, HK_TRAVEL };
 typedef struct { const char *name; uint8_t kind, i; } hknob_t;
+#define HKS(pg, k) ((pg) << 2 | (k))                  /* (a SHAPE page's knob) */
 static const hknob_t HKNOB[HP_N][4] = {
-    {{"DRONE", HK_LEVEL, EV_DRONE}, {"VOX", HK_LEVEL, EV_VOX}, {"PULSE", HK_LEVEL, EV_PULSE}, {"TEXTURE", HK_LEVEL, EV_TEX}},
+    {{"FILTER", HK_SHAPE, HKS(PG_DRONE, 0)}, {"BODY", HK_SHAPE, HKS(PG_DRONE, 1)}, {"SWARM", HK_SHAPE, HKS(PG_DRONE, 2)},
+     {"WAVE", HK_SHAPE, HKS(PG_DRONE, 3)}},
+    {{"BRIGHT", HK_SHAPE, HKS(PG_VOX, 0)}, {"FILTER", HK_SHAPE, HKS(PG_VOX2, 1)}, {"RESO", HK_SHAPE, HKS(PG_VOX2, 2)},
+     {"RELEASE", HK_SHAPE, HKS(PG_VOX, 2)}},
+    {{"SWEEP", HK_SHAPE, HKS(PG_DRONE2, 1)}, {"RATE", HK_SHAPE, HKS(PG_DRONE2, 0)}, {"DRIFT", HK_SHAPE, HKS(PG_DRONE2, 3)},
+     {"TIDES", HK_TIDES, 0}},
     {{"REVERB", HK_FX, EF_RV_LEVEL}, {"DECAY", HK_FX, EF_RV_DECAY}, {"SHIMMER", HK_FX, EF_RV_SHIMMER}, {"DELAY", HK_FX, EF_DL_LEVEL}},
-    {{"TEMPO", HK_TEMPO, 0}, {"TIDES", HK_TIDES, 0}, {"SWARM", HK_SWARM, 0}, {"DRIFT", HK_DRIFT, 0}},
-    {{"SINGS", HK_SING, 0}, {"BLOOMS", HK_BLOOM, 0}, {"SWELLS", HK_SWELLS, 0}, {"TRAVELS", HK_TRAVEL, 0}},
-    {{"DRONE", HK_MACRO, MAC_DRONE}, {"VOX", HK_MACRO, MAC_VOX}, {"SPACE", HK_MACRO, MAC_SPACE}, {"TONE", HK_MACRO, MAC_TONE}}};
+    {{"DRONE", HK_LEVEL, EV_DRONE}, {"VOX", HK_LEVEL, EV_VOX}, {"PULSE", HK_LEVEL, EV_PULSE}, {"TEXTURE", HK_LEVEL, EV_TEX}},
+    {{"SINGS", HK_SING, 0}, {"BLOOMS", HK_BLOOM, 0}, {"SWELLS", HK_SWELLS, 0}, {"TRAVELS", HK_TRAVEL, 0}}};
+static int hk_signed(int k);
 static const char *const HK_OFTEN[JR_SING_N] = {"-", "RARE", "SOME", "OFTEN"};
 static const hknob_t *hknob(int k) { return &HKNOB[cfg.home_page % HP_N][k & 3]; }
 static int popc5(uint32_t m) { int n = 0; for (; m; m &= m - 1u) n++; return n; }
@@ -1724,18 +1732,25 @@ static int hk_get(int k, int *max)                /* the knob's value now, 0 .. 
     const hknob_t *h = hknob(k);
     *max = 127;
     switch (h->kind) {
+    case HK_SHAPE: {
+        const int st = pg_steps(h->i >> 2, h->i & 3);
+        if (st)
+            *max = st;
+        return *pg_ptr(h->i >> 2, h->i & 3);
+    }
     case HK_LEVEL: return h->i == EV_VOX ? vsound()[VS_LEVEL] : eng_jr.shape[h->i][SH_LEVEL];
     case HK_FX: *max = engine_fx_max(h->i); return cfg.fx[h->i];
-    case HK_TEMPO: *max = 280; return cfg.bpm_x10 / 10 - 20;
     case HK_TIDES: return (eng_jr.tide[TD_DRONE] + eng_jr.tide[TD_SPACE] + eng_jr.tide[TD_VOX] + 1) / 3;
-    case HK_SWARM: return eng_jr.shape[EV_DRONE][SH_K3];
-    case HK_DRIFT: return eng_jr.dmotion[DM_DRIFT];
     case HK_SING: *max = JR_SING_N - 1; return JR_SING(&eng_jr, eng_jr.vcur % JR_VSOUNDS);
     case HK_BLOOM: *max = JR_SING_N - 1; return eng_jr.bloom_auto;
     case HK_SWELLS: *max = ENG_DRONES; return popc5(eng_jr.dswell);
-    case HK_TRAVEL: *max = JR_TRAVEL_N - 1; return eng_jr.travel;
-    default: return eng_jr.macro[h->i];
+    default: *max = JR_TRAVEL_N - 1; return eng_jr.travel;
     }
+}
+static int hk_signed(int k)                       /* an offset from as made: its arc fills from the top */
+{
+    const hknob_t *h = hknob(k);
+    return h->kind == HK_SHAPE && (PAGE[h->i >> 2].sgn >> (h->i & 3) & 1u);
 }
 
 static void hk_text(int k, char *b)               /* short, for the knob */
@@ -1743,13 +1758,12 @@ static void hk_text(int k, char *b)               /* short, for the knob */
     const hknob_t *h = hknob(k);
     int mx, v = hk_get(k, &mx);
     switch (h->kind) {
+    case HK_SHAPE: shape_text(h->i >> 2, h->i & 3, b); break;
     case HK_FX: fx_text(h->i, b); break;
-    case HK_TEMPO: put_i(b, v + 20); break;
     case HK_SING:
     case HK_BLOOM: put_s(b, HK_OFTEN[v % JR_SING_N]); break;
     case HK_SWELLS: put_s(put_i(b, v), "/5"); break;
     case HK_TRAVEL: if (v) put_i(b, JR_TRAVEL_BARS[v % JR_TRAVEL_N]); else put_s(b, "-"); break;
-    case HK_MACRO: put_spct(b, v - 64); break;
     case HK_LEVEL: put_s(put_i(b, v), "%"); break;   /* (a level: its own number, 100% as made) */
     default: put_pct(b, v); break;
     }
@@ -1762,6 +1776,17 @@ static void hk_turn(int k, int e)
     char t[48], v[16];
     int i;
     switch (h->kind) {
+    case HK_SHAPE: {                              /* (as on SHAPE's page: a step a click where it has a few) */
+        const int pg = h->i >> 2, kk = h->i & 3, st = pg_steps(pg, kk);
+        uint8_t *p = pg_ptr(pg, kk);
+        *p = (uint8_t)(st ? clamp_i(*p + step, 0, st) : clamp_i(*p + amt, 0, 127));
+        changed_jr();
+        shape_text(pg, kk, v);
+        put_s(put_s(put_s(put_s(put_s(t, PAGE[pg].voice == EV_VOX ? jr_vsound_name(eng_jr.vcur) : "DRONE"), " "),
+                                h->name), " "), v);
+        say(t, 0);
+        return;
+    }
     case HK_LEVEL: {
         uint8_t *p = h->i == EV_VOX ? &vsound()[VS_LEVEL] : &eng_jr.shape[h->i][SH_LEVEL];
         *p = (uint8_t)clamp_i(*p + amt, 0, 127);
@@ -1775,20 +1800,13 @@ static void hk_turn(int k, int e)
         changed();
         break;
     }
-    case HK_TEMPO:
-        cfg.bpm_x10 = (uint16_t)(clamp_i(cfg.bpm_x10 / 10 + e * ui.mult, 20, 300) * 10);
-        settings_apply();
-        changed();
-        break;
-    case HK_TIDES:                                /* (all three reaches together, each from where it is) */
+    case HK_TIDES:                               /* (all three reaches together, each from where it is) */
         for (i = 0; i < 3; i++) {
             static const uint8_t TD[3] = {TD_DRONE, TD_SPACE, TD_VOX};
             eng_jr.tide[TD[i]] = (uint8_t)clamp_i(eng_jr.tide[TD[i]] + amt, 0, 127);
         }
         changed_jr();
         break;
-    case HK_SWARM: eng_jr.shape[EV_DRONE][SH_K3] = (uint8_t)clamp_i(eng_jr.shape[EV_DRONE][SH_K3] + amt, 0, 127); changed_jr(); break;
-    case HK_DRIFT: eng_jr.dmotion[DM_DRIFT] = (uint8_t)clamp_i(eng_jr.dmotion[DM_DRIFT] + amt, 0, 127); changed_jr(); break;
     case HK_SING: {
         const int s = eng_jr.vcur % JR_VSOUNDS, lv = clamp_i(JR_SING(&eng_jr, s) + step, 0, JR_SING_N - 1);
         eng_jr.sing[JR_SG_HOW][s] = (uint8_t)lv;
@@ -1810,7 +1828,7 @@ static void hk_turn(int k, int e)
         say(t, 0);
         return;
     }
-    case HK_TRAVEL:
+    default:                                      /* (TRAVELS) */
         eng_jr.travel = (uint8_t)clamp_i(eng_jr.travel + step, 0, JR_TRAVEL_N - 1);
         changed_jr();
         if (eng_jr.travel)
@@ -1819,7 +1837,6 @@ static void hk_turn(int k, int e)
             put_s(t, "TRAVELS BY HAND");
         say(t, 0);
         return;
-    default: eng_jr.macro[h->i] = (uint8_t)clamp_i(eng_jr.macro[h->i] + amt, 0, 127); changed_jr(); break;
     }
     hk_text(k, v);
     put_s(put_s(put_s(t, h->name), " "), v);
@@ -2017,7 +2034,7 @@ static void input(void)
         } else if (ui.view == V_LOOP && loop_layers()) {
             loop_len_knob(e);
         } else if (ui.view == V_HOME) {
-            home_page_turn(e);                    /* HOME: the knobs' next page (the tempo: on MOTION) */
+            home_page_turn(e);                    /* HOME: the knobs' next page (the tempo: ALGO on the other pages) */
         } else {
             int bpm = clamp_i(cfg.bpm_x10 / 10 + e * ui.mult, 20, 300);
             cfg.bpm_x10 = (uint16_t)(bpm * 10);
@@ -3123,7 +3140,7 @@ static void draw_knobs(void)
         for (k = 0; k < 4; k++) {
             int mx, v = hk_get(k, &mx);
             hk_text(k, a);
-            cell_arc(k, hknob(k)->name, a, mx ? (float)v / (float)mx : 0.0f, hknob(k)->kind == HK_MACRO, C_AMB);
+            cell_arc(k, hknob(k)->name, a, mx ? (float)v / (float)mx : 0.0f, hk_signed(k), C_AMB);
         }
         x = cv_text(6, 64, &FONT_XS, "ALGO ", C_DIM);
         x = cv_text(x, 64, &FONT_XS, HP_NAME[cfg.home_page % HP_N], C_AMB) + 6;

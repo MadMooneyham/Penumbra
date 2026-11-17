@@ -95,6 +95,14 @@ int plat_midi_in(uint32_t *pkt)
     return 1;
 }
 void plat_midi_out(uint32_t pkt) { midi_out_event(pkt); }
+int plat_usb_audio_on(void)                         /* the computer has the USB audio stream open (SET_INTERFACE) */
+{
+#if FELUCCA_UAC
+    return usb.config && !usb.suspended && uac.alt;
+#else
+    return 0;
+#endif
+}
 
 int plat_store_load(uint32_t obj, void *dst, uint32_t max) { return flash_ok ? st_load(obj, dst, max) : -1; }
 int plat_store_save(uint32_t obj, const void *src, uint32_t len) { return flash_ok ? st_save(obj, src, len) : -9; }

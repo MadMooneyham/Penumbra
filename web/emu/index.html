@@ -119,28 +119,26 @@ kbd { font: 600 .85em ui-monospace, Menlo, monospace; background: var(--card); b
 
 <section class="try" aria-labelledby="try-h">
   <h2 id="try-h">The first few minutes</h2>
-  <p>Penumbra is slow, and much of what it does best unfolds over a few minutes.</p>
+  <p>Penumbra plays itself, and much of what it does best comes from shaping it as it goes, over a few minutes.</p>
   <ol>
     <li><b>On its own,</b> TOTALITY plays by itself: the drone's voices drift in and out, a voice sings a phrase now and then, and every 16 bars it glides to its next scene, the sound opening up and closing again. Everything below works while it does.</li>
-    <li><b>Black keys 1–5</b> (<kbd>1</kbd>–<kbd>5</kbd>) each call one of those voices in, to swell and fade.</li>
-    <li><b>The white keys</b> (<kbd>Q</kbd>–<kbd>K</kbd>) play VOX. Every key fits the scene's key, so there are no wrong notes, and slow, spacious playing suits it.</li>
-    <li><b>A loop:</b> REC (<kbd>Enter</kbd>), a few notes, REC again, and they play back on the clock. REC while it plays adds a layer.</li>
-    <li><b>Travelling:</b> one click of PRESETS (dragged, or scrolled over) moves to the next scene. Over 12 seconds the drone glides there, the room changes, and a loop carries on in the new key.</li>
-    <li><b>A journey:</b> a new scene every minute or two.</li>
+    <li><b>HOME's four knobs</b> shape it: first the drone's FILTER, BODY, SWARM and WAVE. ALGORITHM (<kbd>←</kbd> <kbd>→</kbd>) on HOME turns to the next page: VOX, MOTION (the drone's sweep and drift, the tides), SPACE, MIX, and ALIVE (how much plays by itself).</li>
+    <li><b>Throws:</b> FX held (<kbd>L</kbd>) turns the knobs into SHIMMER, FEEDBACK, FREEZE and DIP; let go, they drift back.</li>
+    <li><b>A voice in hand:</b> a drone key held (<kbd>1</kbd>–<kbd>5</kbd>) puts that voice's level, tone, detune and octave under the knobs; pressed, it calls the voice in, to swell and fade.</li>
+    <li><b>Travelling:</b> one click of PRESETS (dragged, or scrolled over) glides to the next scene over 12 seconds, the room and the key changing. On HOME, SELECT (<kbd>↑</kbd> <kbd>↓</kbd>) walks there by hand, as slowly as it is turned.</li>
+    <li><b>The keys:</b> the white keys (<kbd>Q</kbd>–<kbd>K</kbd>) play VOX, every key in the scene's key. REC (<kbd>Enter</kbd>), a few notes, REC again: a loop, following each key change.</li>
   </ol>
   <h3>More it can do</h3>
   <ul>
-    <li><b>Throws:</b> FX held (<kbd>L</kbd>) with KNOB 1 turned up sends a burst of shimmer; let go, it drifts back. KNOB 3 freezes the room instead.</li>
     <li><b>A frozen chord:</b> notes held when ARP is pressed keep ringing.</li>
-    <li><b>Bends:</b> a white key held with ALGORITHM turned (<kbd>←</kbd> <kbd>→</kbd>) bends its pitch.</li>
-    <li><b>Travelling by hand:</b> on HOME, SELECT (<kbd>↑</kbd> <kbd>↓</kbd>) is MORPH: turned slowly, it walks toward the next scene.</li>
+    <li><b>Bends:</b> a white key held puts its note's brightness, vibrato, shimmer and release under the knobs, and ALGORITHM bends its pitch.</li>
     <li><b>Held voices:</b> a drone key held with ALGORITHM turned left stays on until pressed again.</li>
     <li><b>Voices that sing:</b> a VOX sound key (<kbd>8</kbd>–<kbd>-</kbd>) held with ALGORITHM turned right sets that sound singing by itself; each sound its own, so several can sing at once (SHAPE's VOX SINGS: its place, drift and octave). BLOOM's key (<kbd>7</kbd>) held with ALGORITHM turned right: BLOOM by itself.</li>
     <li><b>Layers of instruments:</b> each looped note keeps the VOX sound it was played with.</li>
     <li><b>The loop's layers:</b> SEL (<kbd>Shift</kbd>) pressed on HOME opens LOOP: each layer's level, sound, octave and mute, and (ENV there) its place, drift, tone and swell; ALGORITHM gives a layer its own length.</li>
     <li><b>Colour:</b> black key 7 is BLOOM, a slow swell; 8–11 are VOX's four sounds.</li>
     <li><b>Other journeys:</b> LFO opens them, SELECT moves through, SEL opens one, and each brings its own sound, gliding in. ECLIPSE is the quiet one for playing, FAR SIDE vast, PERIGEE close and quick.</li>
-    <li><b>Travelling by itself:</b> on SCENE (EDIT), TRAVELS sets any journey moving on every 8 to 64 bars.</li>
+    <li><b>Travelling by itself:</b> ALIVE's TRAVELS on HOME (or SCENE's) sets any journey moving on every 8 to 64 bars.</li>
     <li><b>Any button</b> held a moment shows on the screen what it does.</li>
   </ul>
 </section>
@@ -215,7 +213,7 @@ const STORE_KEY = "penumbra-emu-store", PREFS_KEY = "penumbra-emu-prefs";
 // what each control does in Penumbra (the manual's cheat sheet), for its description
 const DOES = { MASTER: "Volume.", SELECT: "On HOME: MORPH toward the next scene. Elsewhere: the row.",
   PRESETS: "Next or previous scene.", ALGORITHM: "On HOME: the knobs' next page. Elsewhere: tempo. In SHAPE: the part's level. In a hold: what the hold says.",
-  KNOB: "On HOME: the page ALGORITHM chose (MIX, SPACE, MOTION, ALIVE, TONE). In a hold: what the hold plays.",
+  KNOB: "On HOME: the page ALGORITHM chose (DRONE, VOX, MOTION, SPACE, MIX, ALIVE). In a hold: what the hold plays.",
   "OCT-": "White keys an octave down.", "OCT+": "White keys an octave up.", FX: "FX page. Held: throws; with ALGORITHM, WARP.",
   SEL: "Choose; on a page, twice resets it.", ENV: "SHAPE and TIDES; again: the next page. Held: A/B, with OCT minus, OCT plus and SELECT.",
   LFO: "JOURNEY list; again: SOUNDS.",

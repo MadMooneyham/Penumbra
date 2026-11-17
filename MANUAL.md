@@ -2,68 +2,100 @@
 
 Penumbra 1.6 for the M-VAVE FM-1, by Lunar Eclipse Forge.
 
-Penumbra is a space-drone instrument. Three layers make its sound:
+Penumbra is an ambient space-drone synth that plays itself. What it does best comes from shaping and
+moving the sound while it plays: turning HOME's knobs, throwing the effects, holding a voice to reshape it,
+gliding from scene to scene. The keys are there too, always in tune, but they are one way in among many.
 
-- **The drone** is the ground everything stands on: five voices on a pedal, slowly beating. In the first
-  journey, ECLIPSE, they drift in and out; in the others most of them are held.
-- **The colour** is what you play over it: VOX, a soft synth voice far back in the shimmer, and BLOOM, a slow
-  swell in the key.
+Three layers make its sound:
+
+- **The drone** is the ground everything stands on: five voices on a pedal, slowly beating, drifting in and
+  out or held.
+- **The colour** over it: VOX, a soft synth voice far back in the shimmer that can sing by itself, and BLOOM,
+  a slow swell in the key.
 - **The space** is a long shimmering reverb, a worn tape delay, and a wind that is always under everything.
-
-Nothing plays by itself except the drone, and VOX when it is asked to sing. The silence between notes is
-part of the sound.
 
 **The first few minutes.** Penumbra is slow, and much of what it does best unfolds over a few minutes:
 
-- On its own, the drone's voices drift in and out; black keys 1-5 each call one in.
-- The white keys play VOX, always in the scene's key, so there are no wrong notes. Slow playing suits it.
-- REC, a few notes, REC again: they loop, on the clock.
-- One click of PRESET moves to the next scene. Over 12 seconds the drone glides there, and a loop carries on
-  in the new key. A new scene every minute or two makes a journey.
+- **On its own** it plays as soon as it is on. A new unit plays TOTALITY: the drone's voices drift in and
+  out, a voice sings now and then, and every 16 bars it glides to its next scene.
+- **HOME's four knobs** shape it as it plays: the drone's filter, body, swarm and wave first. **ALGO** on HOME
+  turns to the next page of four: VOX, the drone's motion, the space, the mix, and what plays by itself.
+- **FX held** turns the knobs into throws: a burst of shimmer, feedback, a frozen room, the whole mix dipped.
+  Let go and they drift back.
+- **A drone key held** (black 1-5) puts that voice under the knobs; pressed, it calls the voice in.
+- **PRESET** glides to the next scene over 12 seconds, the key and the room changing as it goes. **SELECT**
+  on HOME walks there by hand, as slowly as it is turned.
+- **The white keys** play VOX, always in the scene's key, and **REC** loops what they play, following each
+  key change.
 
 Contents:
 
 1. [Starting](#1-starting)
-2. [HOME and the screen](#2-home-and-the-screen)
-3. [The keys](#3-the-keys)
-4. [The holds](#4-the-holds)
-5. [The looper](#5-the-looper)
-6. [FREEZE and MORPH](#6-freeze-and-morph)
-7. [Scenes and journeys](#7-scenes-and-journeys)
-8. [SHAPE: the sound](#8-shape-the-sound)
-9. [FX, SYSTEM and saving](#9-fx-system-and-saving)
-10. [MIDI and a DAW](#10-midi-and-a-daw)
-11. [Cheat sheet](#11-cheat-sheet)
+2. [Shaping on HOME](#2-shaping-on-home)
+3. [Gestures: holds, FREEZE and MORPH](#3-gestures-holds-freeze-and-morph)
+4. [Scenes and journeys](#4-scenes-and-journeys)
+5. [The loop](#5-the-loop)
+6. [The keys](#6-the-keys)
+7. [SHAPE: the whole sound](#7-shape-the-whole-sound)
+8. [FX, SYSTEM and saving](#8-fx-system-and-saving)
+9. [MIDI and a DAW](#9-midi-and-a-daw)
+10. [Cheat sheet](#10-cheat-sheet)
 
 ---
 
 ## 1. Starting
 
 When the FM-1 switches on, the clock starts and the journey's drone begins. A new unit plays TOTALITY, which
-carries on by itself (section 7): it sings, and travels from scene to scene. In ECLIPSE the lowest voice
+carries on by itself (section 4): it sings, and travels from scene to scene. In ECLIPSE the lowest voice
 swells in at once and the others follow every few bars. **PLAY AT POWER-ON** (in SYSTEM), turned off, starts it
 silent instead.
 
 - **SEQ** starts and stops the clock. Starting it swells the scene's drones in. Stopping it lets everything
   fade away: the drone, the loop and the tails.
-- **ALGO** on HOME steps through HOME's knob pages (section 2), the tempo among them on MOTION. On the other
-  pages ALGO sets the tempo, which defaults to 90 BPM. The tempo sets the delay's time and the looper's beat.
+- **ALGO** on HOME turns HOME's knob pages (section 2). On the other pages it sets the tempo, which defaults
+  to 90 BPM. The tempo sets the delay's time and the looper's beat.
 - **HOME** always brings you back to the main screen. Any other page also returns to HOME after 30 seconds
   untouched, except BENCH.
 - **Hold any button** for a moment and it says what it does instead of doing it. FX takes a little longer,
   because holding FX is also how you throw.
 
-## 2. HOME and the screen
+## 2. Shaping on HOME
+
+### The knob pages
+
+**HOME's four knobs** play one of six pages, and **ALGO** on HOME turns to the next, round and round. The knob
+strip shows the page's name, a dot for each of the six, and each knob as an arc of the corona filled to its
+value (an offset from as made fills from the top, either way). The page stays chosen across a power-off.
+
+| Page | K1 | K2 | K3 | K4 |
+| --- | --- | --- | --- | --- |
+| **DRONE** | FILTER | BODY (resonance) | SWARM (the crowd, and the voices' detune) | WAVE (soft to reedy) |
+| **VOX** | BRIGHT | FILTER (low-pass to band-pass) | RESO | RELEASE |
+| **MOTION** | SWEEP (the drone's slow LFO over its filter) | RATE (that LFO, ~1 s to 100 s) | DRIFT (the drone voices' tuning wandering) | TIDES (how far the tide reaches the drone, VOX and the space) |
+| **SPACE** | REVERB (its return) | DECAY | SHIMMER | DELAY (its return) |
+| **MIX** | DRONE level | VOX level | PULSE level (the kick and BLOOM) | TEXTURE level |
+| **ALIVE** | SINGS (how often the sound playing sings) | BLOOMS (BLOOM by itself) | SWELLS (how many drone voices come and go, the top ones first) | TRAVELS (on to the next scene every 8 to 64 bars) |
+
+- **DRONE, VOX and MOTION** are SHAPE's own settings (section 7), on HOME so they can be played. VOX's are the
+  VOX sound playing; a VOX sound key (black 8-11) picks which.
+- **SPACE** is the FX page's own settings (section 8).
+- **ALIVE** moves a step a click: from nothing by itself to a lot, while the clock runs.
+- Everything but SPACE belongs to the journey, and is saved with it.
+
+**The knobs' speed.** Each click is one step. A knob that keeps spinning quickly goes further: after four
+quick clicks in a row, two steps a click; after ten, three. A slow click or a turn back is one step again.
+
+### The screen
 
 HOME shows the corona: the eclipsed moon with a bead out in its glow for each drone voice, lit and swelling
 as loud as that voice is. It shows what you hear:
 
 - **The drone's beads move with it.** They slide round the moon toward the side DRONE is panned to, swaying
   with it, and the tide lifts them out and lets them back (further, the more TIDES moves the DRONE).
-- **Each note you play puts out a star**, on VOX's side of the stereo field, and the stars drift as the
-  tide sways VOX. If VOX goes to the delay, each echo lights the star again, fainter, in time; with PING-PONG
-  the echoes light it on alternate sides.
-- **While a scene travels to the next** (or you MORPH there), the moon slides off the sun and back. The
+- **Each note puts out a star**, on VOX's side of the stereo field, and the stars drift as the tide sways
+  VOX. If VOX goes to the delay, each echo lights the star again, fainter, in time; with PING-PONG the echoes
+  light it on alternate sides.
+- **While a scene travels to the next** (or MORPH walks there), the moon slides off the sun and back. The
   corona fades, a diamond ring flashes as the sun comes out, a crescent grows, and at the middle, where the
   key changes, the sun shows most. Going to the next scene the moon goes left; to the one before, right.
 - **The looper is a satellite** circling the corona once a loop, trailing red while it records. Each layer
@@ -73,11 +105,9 @@ as loud as that voice is. It shows what you hear:
 Under the corona:
 
 - **The scene line** shows the scene's number, key and scale, for example `1/4 A AEOLIAN`. While a move to
-  another scene is under way, it adds `> 2`. During a MORPH it shows `~ 2` and a bar for how far you have
-  come.
+  another scene is under way, it adds `> 2`. During a MORPH it shows `~ 2` and a bar for how far it has come.
 - **On the right** it shows PLAYING or STOPPED, or SLEEP with the minutes left.
-- **The looper line** shows what the looper is doing, its layers and its speed (where it is in the loop:
-  its satellite).
+- **The looper line** shows what the looper is doing, its layers and its speed.
 - **FROZEN** shows when notes are frozen, and **THROW** when a throw is out.
 
 The header carries the journey's name and the tempo. A small dot in the header means something has not been
@@ -91,146 +121,161 @@ same colour.
 **Installs** show how far they have got: Penumbra's screen while it reads the package and readies the
 installer, then the installer's own, with a bar, while it writes. The FM-1 starts again when it is done.
 
-**HOME's four knobs** play one of five pages, and **ALGO** on HOME steps to the next, round and round. The
-knob strip shows the page's name, a dot for each of the five, and each knob as an arc of the corona filled
-to its value. The page stays chosen across a power-off.
+## 3. Gestures: holds, FREEZE and MORPH
 
-| Page | K1 | K2 | K3 | K4 |
-| --- | --- | --- | --- | --- |
-| **MIX** | DRONE level | VOX level (the sound playing) | PULSE level | TEXTURE level |
-| **SPACE** | REVERB (its return) | DECAY | SHIMMER | DELAY (its return) |
-| **MOTION** | TEMPO | TIDES (how far the tide reaches the drone, VOX and the space) | SWARM | DRIFT |
-| **ALIVE** | SINGS (the sound playing: how often) | BLOOMS (BLOOM by itself) | SWELLS (how many drone voices come and go, the top ones first) | TRAVELS (every 8 to 64 bars) |
-| **TONE** | DRONE (filter and body) | VOX (brightness) | SPACE (reverb and delay) | TONE (everything brighter or darker) |
+### The holds
 
-TONE's four are macros, each 0% as made and reaching much further than in 1.6. SPACE's knobs are the FX
-page's own settings; the rest are the journey's, saved with it. ALIVE's knobs move a step a click.
-
-**The knobs' speed.** Each click is one step. A knob that keeps spinning quickly goes further: after four
-quick clicks in a row, two steps a click; after ten, three. A slow click or a turn back is one step again.
-
-## 3. The keys
-
-### White keys: VOX
-
-The white keys play VOX in the scene's key and scale, so you cannot play a wrong note. VOX has eight voices.
-**OCT-** and **OCT+** move the keys' octave, two octaves either way.
-
-VOX also plays notes from MIDI, on SYSTEM's MIDI channel (1 by default). It takes pitch bend too. For
-playing with a DAW, see section 10.
-
-### Black keys 1-5: the drone
-
-Each of the first five black keys is a drone voice. Each voice is one of two kinds:
-
-- **SWELL**: the voice comes and goes. Each press swells it in, holds it a moment, and lets it out again.
-  While the clock runs, the journey also swells it in by itself every few bars. ECLIPSE
-  starts with all five like this.
-- **HELD**: the key latches the voice on, and pressing it again lets it fall away. A held voice latches when
-  you let go of the key, so holding the key to shape the voice does not toggle it (see the holds, below).
-  The other journeys start with most of their voices held.
-
-Holding a voice's key and turning **ALGO** switches it: left for HELD, right for SWELL.
-
-The journey sets the drone's notes from the scene: its root (the *pedal*) and its voicing. The drone holds
-those notes the whole scene. When you move to another scene, only the notes that must change move: one voice
-at a time, the top first and the bass last, three seconds apart, each sliding slowly into place.
-
-### Black key 6: the kick
-
-A deep kick, tuned to the key. It's at its best rare: a low thud under the drone, or a slow pulse in a loop.
-
-### Black key 7: BLOOM
-
-A deep, slow swell in the drone's key. Two sine tones a few cents apart beat against each other, with a soft
-fifth above them. It swells in over about two seconds, then fades into the reverb. Press it again while it
-sounds and it grows from where it is.
-
-**BLOOM by itself.** With BLOOM's key held, turning **ALGO** right sets it swelling in by itself, every so
-many bars: RARELY, NOW AND THEN or OFTEN; back left, BY HAND again. It plays only while the clock runs, is
-not recorded by the looper, and is saved with the journey. TOTALITY blooms rarely as made.
-
-### Black keys 8-11: VOX's four sounds
-
-Each key picks one of VOX's sounds, even mid-phrase. A note keeps the sound it began with, so notes
-already sounding ring on as they were while new ones take the new sound.
-
-| Key | Sound | Character |
-| --- | --- | --- |
-| 8 | **GLASS** | Two soft saws, a little apart: VOX as made |
-| 9 | **REED** | A narrow pulse through a band-pass, closer and woody |
-| 10 | **HALO** | Wide, an octave above, long and far back |
-| 11 | **LOW** | A square an octave below, gliding from note to note |
-
-The key of the sound playing is lit. Each journey keeps its own four sounds.
-
-**A sound can sing by itself.** With a sound's key held, turning **ALGO** right makes that sound sing: a few
-soft, slow notes in the scene's key, a phrase now and then, with long rests between. Further right it sings
-more often (RARELY, NOW AND THEN, OFTEN); back left, less, then not at all. Each of the four sounds has its own
-setting, so several can sing at once, each with its own phrases, and the white keys can play another over
-them. SHAPE's **VOX SINGS** page sets the rest for the sound playing: how often it SINGS, its PLACE in the
-field, how far it DRIFTs round that place on the tide, and its OCTAVE (one down, as is, one up). It sings only while the
-clock runs, its notes are not recorded by the looper, and it is saved with the journey. As made, nothing
-sings.
-
-## 4. The holds
-
-While you hold one of these, the four knobs play something else. The buttons (FX, ENV) do so on any
-page; the keys do on every page but SHAPE, where the knobs stay the page's, so keys can be played while a
-sound is shaped.
+While one of these is held, the four knobs play something else. The buttons (FX, ENV) do so on any page; the
+keys do on every page but SHAPE, where the knobs stay the page's, so keys can be played while a sound is
+shaped.
 
 | Hold | K1 | K2 | K3 | K4 | Extra |
 | --- | --- | --- | --- | --- | --- |
+| **FX** | SHIMMER | FEEDBACK | FREEZE | DIP | Throws; ALGO: WARP |
 | A drone key (black 1-5) | LEVEL | TONE | DETUNE | OCTAVE | ALGO: HELD or SWELL |
 | A VOX sound key (black 8-11) | BRIGHT | WAVE | FILTER | RELEASE | ALGO: it sings |
 | BLOOM's key (black 7) | LEVEL | LENGTH | HEIGHT | FIFTH | ALGO: by itself |
-| **FX** | SHIMMER | FEEDBACK | FREEZE | DIP | Throws; ALGO: WARP |
 | A white key | BRIGHT | VIBRATO | SHIMMER | RELEASE | Bends; ALGO: PITCH |
 | **ENV** | | | | | A/B: OCT- keeps A, OCT+ keeps B, SELECT blends |
 
-The knob strip shows what the knobs are playing while you hold.
+The knob strip shows what the knobs are playing during a hold.
 
+- **FX** throws the effects for a moment:
+  - **SHIMMER** swells the shimmer.
+  - **FEEDBACK** pushes the delay toward feedback, but never into a runaway.
+  - **FREEZE** makes the reverb hold what it has while new sound stops going in.
+  - **DIP** filters the whole mix, both ways: to the left a low-pass closes, to the right a high-pass opens.
+  - **WARP** (**ALGO**) bends the delay's time: left and the echoes slow and dive, right and they rise, like
+    a tape slowing down and speeding up. DELAY 2's WARP sets how far.
+
+  Let go and the throws drift back over a couple of seconds.
 - **A drone key** shapes that voice alone: its level and tone, how detuned it is, and its octave (one down, as
   it is, or one up). The change stays.
 - **A VOX sound key** shapes that sound. The change stays.
 - **BLOOM's key** sets its level, its length, its height (on the root, an octave above, or two) and how much
   fifth it has. The change stays.
-- **FX** throws the effects for a moment:
-  - **SHIMMER** swells the shimmer.
-  - **FEEDBACK** pushes the delay toward feedback, but never into a runaway.
-  - **FREEZE** makes the reverb hold what it has while new sound stops going in.
-  - **DIP** filters the whole mix, both ways: turn left and a low-pass closes, turn right and a
-    high-pass opens.
-  - **WARP** (turn **ALGO**) bends the delay's time: left and the echoes slow and dive, right and they
-    rise, like a tape slowing down and speeding up. DELAY 2's WARP sets how far.
-
-  Let go and the throws drift back over a couple of seconds.
-- **A white key** bends VOX for the note you are holding: its brightness, vibrato, shimmer and release.
-  Turning **ALGO** bends the pitch of every VOX note sounding, including frozen and looped ones. Let go and
-  the bends ease back.
-
+- **A white key** bends VOX for the note held: its brightness, vibrato, shimmer and release. **ALGO** bends
+  the pitch of every VOX note sounding, frozen and looped ones too. Let go and the bends ease back.
 - **ENV** holds two versions of the sound, **A** and **B**, and walks between them:
-  - Shape a sound, then hold ENV and press **OCT-**: it is kept as A.
-  - Shape it another way, hold ENV and press **OCT+**: that is B.
-  - Hold ENV and turn **SELECT**: the sound walks from A to B and back, gliding as it follows, the way
-    MORPH walks between scenes. Every value moves; an octave or HELD / SWELL changes at the middle.
+  - ENV held with **OCT-**: the sound as it is now is kept as A.
+  - ENV held with **OCT+**: the sound as it is now is kept as B.
+  - ENV held, **SELECT** turned: the sound walks from A to B and back, gliding as it follows, the way MORPH
+    walks between scenes. Every value moves; an octave or HELD / SWELL changes at the middle.
 
-  The blend is the sound playing: what you hear is what is saved, and you can go on shaping it (keep it
-  again to make it A or B). A and B are saved with the journey playing. MORPH the scene and blend the
-  sound together for one long change of place and colour.
+  The blend is the sound playing: what is heard is what is saved, and it can go on being shaped (keep it
+  again to make it A or B). A and B are saved with the journey playing. MORPH the scene and blend the sound
+  together for one long change of place and colour.
 
-**SAVE while holding keeps what the knobs did.**
+**SAVE during a hold keeps what the knobs did.**
 
-- With FX, the throws stay out until you next hold FX and turn a knob.
-- With a white key, the bends go into VOX's sound for good, and the pitch stays bent until the next note you
-  play.
+- With FX, the throws stay out until FX is next held and a knob turned.
+- With a white key, the bends go into VOX's sound for good, and the pitch stays bent until the next note.
 
-## 5. The looper
+### FREEZE and MORPH
 
-The looper records what you play: VOX's notes, the kick and BLOOM. It plays them back on the clock, in
+**FREEZE (ARP).** Notes held when ARP is pressed keep sounding after they are let go. ARP again and they ring
+out; anything held at that moment freezes in their place. A frozen key pressed again comes back into the
+hand. ARP is lit while notes are frozen.
+
+**MORPH (SELECT, on HOME).** SELECT walks toward the next scene (right) or the one before (left), by hand:
+
+- Halfway there, the key changes.
+- All the way, it arrives; the next turn sets out again from there.
+- Turned back, it goes back.
+
+The drone, the wind and VOX's brightness move only as far as it is turned. MORPH waits while a PRESET move is
+gliding.
+
+## 4. Scenes and journeys
+
+A **scene** is a place to play in:
+
+- a key and scale;
+- the drone's root (its pedal) and voicing;
+- VOX's brightness and register;
+- the space: how much reverb and delay, and its own room (the reverb's size and decay) and halo (its
+  shimmer), so a journey travels from one space to the next;
+- the wind's level and colour.
+
+A **journey** is a bank of up to eight scenes, with a sound of its own.
+
+**PRESET** moves to the next scene, or the one before. Everything glides there over 12 seconds, the room
+too, and the key changes at the middle. Each preset journey keeps its drone's root from scene to scene, so
+the drone changes only its colour.
+
+**A journey can travel by itself.** With TRAVELS set (ALIVE on HOME, or SCENE's last field), the journey moves
+to its next scene after that many bars in each, round and round, for as long as the clock runs. PRESET and
+MORPH still move it by hand, and the count starts again from wherever that leaves it.
+
+**The sound can travel with the scenes.** With A and B kept (ENV held, section 3), a scene's SOUND A-B names
+a place between them. Moving to that scene glides the sound there, as MORPH and PRESET glide everything else,
+so each scene has its own colour of the sound. A scene set to STAYS leaves the sound where it is. Neither of
+these writes to the FM-1's memory as it moves, so a journey can travel all night.
+
+**SCENE (EDIT)** edits the scenes:
+
+- SELECT picks the field.
+- K1 picks the scene.
+- K2 to K4 change the field.
+- **SEL** stores the moment, as it sounds now, as a new scene. When the journey already has eight scenes, it
+  goes over the scene shown.
+
+| Field | What it sets |
+| --- | --- |
+| KEY | The scene's key |
+| SCALE | Ionian, dorian, phrygian, lydian, mixolydian, aeolian, harmonic minor |
+| DRONE ROOT | The drone's pedal: the key's root, or another note in the key |
+| VOICING | How the five drone voices stack: open, warm, high, cluster |
+| VOX BRIGHTNESS | How bright VOX is in this scene |
+| VOX REGISTER | VOX's octave |
+| SPACE | How much reverb and delay |
+| ROOM | The reverb's size and decay, over the FX page's (0%: as the FX page has them) |
+| HALO | The shimmer, over the FX page's (0%: as set) |
+| WIND | The wind's level |
+| WIND COLOUR | The wind's colour |
+| SOUND A-B | Where the sound sits between A and B in this scene (STAYS: the scene leaves the sound alone) |
+| TRAVELS | The whole journey's, not the scene's: BY HAND, or on to the next scene EVERY 8, 16, 32 or 64 BARS |
+
+**JOURNEY (LFO)** lists the seven presets and eight user slots:
+
+- **The presets**: ECLIPSE, PENUMBRA, SELENE, TRANQUILITY, PERIGEE, FAR SIDE and TOTALITY. Each has a
+  sound of its own as well as its scenes:
+
+  | Journey | Its sound |
+  | --- | --- |
+  | ECLIPSE | Penumbra as made: all five drone voices coming and going; VOX on a gentle tide, about once every 50 seconds |
+  | PENUMBRA | A reedier drone; VOX (REED) and the wind mirrored, swaying every 16 seconds |
+  | SELENE | An uneasy, wandering tide; the two high drone voices come and go; VOX (HALO) and the drone a quarter tide apart on it |
+  | TRANQUILITY | Soft and still: a three-minute even tide; VOX and the wind drifting together every 40 seconds |
+  | PERIGEE | Close and quick: a short tide, VOX (LOW) to the left, the kick and the wind swinging round every 4 seconds |
+  | FAR SIDE | Vast: a four-minute wandering tide, three drone voices coming and going, every part taking its turn round the field every 24 seconds |
+  | TOTALITY | The one that plays itself, and what a new unit starts on: an eclipse from first contact to afterglow in six scenes on a pedal D. It travels on every 16 bars, HALO sings now and then, every part sways in turn, and its sound glides from A (dark, close) to B (open, a full swarm, a deep tide) and back with the scenes |
+
+  SEL twice on a SHAPE page puts it back as Penumbra makes it, not as the journey had it: reopening the
+  journey (JOURNEY, SEL) brings its own sound back.
+- SELECT or PRESET moves through the list, and SEL opens the journey shown.
+- SAVE on a user slot stores the journey playing there.
+- **A journey opened brings its own sound.** It glides in over two seconds from the sound playing, so each
+  journey sounds as it was made: its drone, its tide, its movement, the voices that come and go. TOTALITY
+  brings its A and B too, its singing and its travelling. A user journey brings back the sound saved with it.
+- **SOUND: LOCKED.** Any knob turned right on JOURNEY locks the sound: journeys opened then bring their
+  scenes (and each part's place in the field) and the sound playing stays, with its A and B. Turned left, it
+  is ITS OWN again. The lock is saved with the settings. A sound worth keeping also fits in SOUNDS or in A.
+
+**SOUNDS (LFO again, from JOURNEY)** is a library of eight sounds, apart from the journeys. A sound is
+everything the SHAPE pages, the holds, DRONE 2 and TIDES set; not the scenes, and not the FX page.
+
+- **SAVE** on a slot stores the sound playing.
+- **SEL** brings a slot's sound into the journey playing, gliding in over two seconds, so it can be done
+  mid-performance.
+- So any sound plays over any journey's scenes, and two of them can be A and B.
+
+## 5. The loop
+
+The looper records what is played: VOX's notes, the kick and BLOOM. It plays them back on the clock, in
 layers.
 
-| You press | What happens |
+| Press | What happens |
 | --- | --- |
 | **REC** (no loop) | Starts recording. The clock starts too, if it is stopped |
 | **REC** again | The loop closes, its length rounded to the nearest beat, and it plays |
@@ -238,10 +283,13 @@ layers.
 | **REC** again | Keeps the layer |
 | **PLAY** | Stops the loop, or plays it from its start |
 | **PLAY** held and let go | Undoes the last layer. With only one layer, the loop goes |
-| **PLAY** held, turn **ALGO** | Half speed, as played, or double speed |
+| **PLAY** held, **ALGO** turned | Half speed, as played, or double speed |
 | **REC and PLAY together** | Clears the loop |
 
 A loop can be up to 16 bars long, with up to 8 layers.
+
+**The loop follows the scene.** It keeps its notes as degrees of the scene's key, not as fixed pitches. On
+another scene, or during a MORPH, the same tune plays on in the new key.
 
 **LOOP: the layers.** SEL pressed on HOME opens LOOP, a row for each layer: the sound it plays with, how many
 notes it has, and anything set on it. The row of a layer sounding is lit. SELECT picks a layer, and the knobs
@@ -266,9 +314,6 @@ Taking out the only layer clears the loop. The layers sound apart, so the same p
 layer an octave up in another sound, is two parts. The kick and BLOOM in a layer follow its LEVEL and MUTE.
 All of it is saved with the loop.
 
-**The loop follows the scene.** It keeps its notes as degrees of the scene's key, not as fixed pitches. Move
-to another scene, or MORPH, and the same tune plays on in the new key.
-
 **Each note keeps its sound.** A note loops with the VOX sound it was played with, whichever sound is in
 hand later. A layer of GLASS, then one of REED over it, then HALO played by hand: three instruments. Shaping
 a sound still changes it everywhere it plays, the loop included. VOX has eight voices in all, shared by
@@ -279,114 +324,77 @@ before 1.5 plays with the sound in hand, as it did.)
 again when the clock starts. Stopping the clock silences it until the next start. User journey slots do not
 hold a loop.
 
-## 6. FREEZE and MORPH
+## 6. The keys
 
-**FREEZE (ARP).** Hold some notes and press ARP: they keep sounding after you let go. Press ARP again and they
-ring out; anything you are holding at that moment freezes in their place. Pressing a frozen key takes that
-note back into your hand. ARP is lit while notes are frozen.
+### White keys: VOX
 
-**MORPH (SELECT, on HOME).** Turn SELECT to walk toward the next scene (right) or the one before (left), by
-hand:
+The white keys play VOX in the scene's key and scale, so there are no wrong notes. VOX has eight voices.
+**OCT-** and **OCT+** move the keys' octave, two octaves either way.
 
-- Halfway there, the key changes.
-- Turn all the way and you arrive; the next turn sets out again from there.
-- Turn back and you go back.
+VOX also plays notes from MIDI, on SYSTEM's MIDI channel (1 by default). It takes pitch bend too. For
+playing with a DAW, see section 9.
 
-The drone, the wind and VOX's brightness move only as far as you turn. MORPH waits while a PRESET move is
-gliding.
+### Black keys 1-5: the drone
 
-## 7. Scenes and journeys
+Each of the first five black keys is a drone voice. Each voice is one of two kinds:
 
-A **scene** is a place to play in:
+- **SWELL**: the voice comes and goes. Each press swells it in, holds it a moment, and lets it out again.
+  While the clock runs, the journey also swells it in by itself every few bars. ECLIPSE starts with all five
+  like this. ALIVE's SWELLS on HOME sets how many.
+- **HELD**: the key latches the voice on, and pressing it again lets it fall away. A held voice latches when
+  the key is let go, so holding the key to shape the voice does not toggle it (section 3). The other
+  journeys start with most of their voices held.
 
-- a key and scale;
-- the drone's root (its pedal) and voicing;
-- VOX's brightness and register;
-- the space: how much reverb and delay, and its own room (the reverb's size and decay) and halo (its
-  shimmer), so a journey travels from one space to the next;
-- the wind's level and colour.
+A voice's key held with **ALGO** turned switches it: left for HELD, right for SWELL.
 
-A **journey** is a bank of up to eight scenes, with a sound of its own.
+The journey sets the drone's notes from the scene: its root (the *pedal*) and its voicing. The drone holds
+those notes the whole scene. On another scene only the notes that must change move: one voice at a time,
+the top first and the bass last, three seconds apart, each sliding slowly into place.
 
-**PRESET** moves to the next scene, or the one before. Everything glides there over 12 seconds, the room
-too, and the key changes at the middle. Each preset journey keeps its drone's root from scene to scene, so the drone changes
-only its colour.
+### Black key 6: the kick
 
-**SCENE (EDIT)** edits the scenes:
+A deep kick, tuned to the key. It's at its best rare: a low thud under the drone, or a slow pulse in a loop.
 
-- SELECT picks the field.
-- K1 picks the scene.
-- K2 to K4 change the field.
-- **SEL** stores the moment, as it sounds now, as a new scene. When the journey already has eight scenes, it
-  goes over the scene shown.
+### Black key 7: BLOOM
 
-The fields:
+A deep, slow swell in the drone's key. Two sine tones a few cents apart beat against each other, with a soft
+fifth above them. It swells in over about two seconds, then fades into the reverb. Pressed again while it
+sounds, it grows from where it is.
 
-| Field | What it sets |
-| --- | --- |
-| KEY | The scene's key |
-| SCALE | Ionian, dorian, phrygian, lydian, mixolydian, aeolian, harmonic minor |
-| DRONE ROOT | The drone's pedal: the key's root, or another note in the key |
-| VOICING | How the five drone voices stack: open, warm, high, cluster |
-| VOX BRIGHTNESS | How bright VOX is in this scene |
-| VOX REGISTER | VOX's octave |
-| SPACE | How much reverb and delay |
-| ROOM | The reverb's size and decay, over the FX page's (0%: as the FX page has them) |
-| HALO | The shimmer, over the FX page's (0%: as set) |
-| WIND | The wind's level |
-| WIND COLOUR | The wind's colour |
-| SOUND A-B | Where the sound sits between A and B in this scene (STAYS: the scene leaves the sound alone) |
-| TRAVELS | The whole journey's, not the scene's: BY HAND, or on to the next scene EVERY 8, 16, 32 or 64 BARS |
+**BLOOM by itself.** With BLOOM's key held, **ALGO** turned right sets it swelling in by itself, every so
+many bars: RARELY, NOW AND THEN or OFTEN; back left, BY HAND again (also ALIVE's BLOOMS on HOME). It plays
+only while the clock runs, is not recorded by the looper, and is saved with the journey. TOTALITY blooms
+rarely as made.
 
-**A journey can travel by itself.** With TRAVELS set, the journey moves to its next scene after that many
-bars in each, round and round, for as long as the clock runs. PRESET and MORPH still move it by hand, and the
-count starts again from wherever that leaves it.
+### Black keys 8-11: VOX's four sounds
 
-**The sound can travel with the scenes.** With A and B kept (ENV held, section 4), a scene's SOUND A-B names
-a place between them. Moving to that scene glides the sound there, as MORPH and PRESET glide everything else,
-so each scene has its own colour of the sound. A scene set to STAYS leaves the sound where it is. Neither of
-these writes to the FM-1's memory as it moves, so a journey can travel all night.
+Each key picks one of VOX's sounds, even mid-phrase. A note keeps the sound it began with, so notes already
+sounding ring on as they were while new ones take the new sound.
 
-**JOURNEY (LFO)** lists the seven presets and eight user slots:
+| Key | Sound | Character |
+| --- | --- | --- |
+| 8 | **GLASS** | Two soft saws, a little apart: VOX as made |
+| 9 | **REED** | A narrow pulse through a band-pass, closer and woody |
+| 10 | **HALO** | Wide, an octave above, long and far back |
+| 11 | **LOW** | A square an octave below, gliding from note to note |
 
-- **The presets**: ECLIPSE, PENUMBRA, SELENE, TRANQUILITY, PERIGEE, FAR SIDE and TOTALITY. Each has a
-  sound of its own as well as its scenes:
+The key of the sound playing is lit. Each journey keeps its own four sounds.
 
-  | Journey | Its sound |
-  | --- | --- |
-  | ECLIPSE | Penumbra as made: all five drone voices coming and going; VOX on a gentle tide, about once every 50 seconds |
-  | PENUMBRA | A reedier drone; VOX (REED) and the wind mirrored, swaying every 16 seconds |
-  | SELENE | An uneasy, wandering tide; the two high drone voices come and go; VOX (HALO) and the drone a quarter tide apart on it |
-  | TRANQUILITY | Soft and still: a three-minute even tide; VOX and the wind drifting together every 40 seconds |
-  | PERIGEE | Close and quick: a short tide, VOX (LOW) to the left, the kick and the wind swinging round every 4 seconds |
-  | FAR SIDE | Vast: a four-minute wandering tide, three drone voices coming and going, every part taking its turn round the field every 24 seconds |
-  | TOTALITY | The one that plays itself, and what a new unit starts on: an eclipse from first contact to afterglow in six scenes on a pedal D. It travels on every 16 bars, HALO sings now and then, every part sways in turn, and its sound glides from A (dark, close) to B (open, a full swarm, a deep tide) and back with the scenes |
+**A sound can sing by itself.** With a sound's key held, **ALGO** turned right makes that sound sing: a few
+soft, slow notes in the scene's key, a phrase now and then, with long rests between. Further right it sings
+more often (RARELY, NOW AND THEN, OFTEN); back left, less, then not at all (also ALIVE's SINGS on HOME, for the
+sound playing). Each of the four sounds has its own setting, so several can sing at once, each with its own
+phrases, and the white keys can play another over them. SHAPE's **VOX SINGS** page sets the rest for the sound
+playing: how often it SINGS, its PLACE in the field, how far it DRIFTs round that place on the tide, and its
+OCTAVE (one down, as is, one up). It sings only while the clock runs, its notes are not recorded by the
+looper, and it is saved with the journey. As made, nothing sings.
 
-  SEL twice on a SHAPE page puts it back as Penumbra makes it, not as the journey had it: reopen the journey
-  (JOURNEY, SEL) to have its own sound back.
-- SELECT or PRESET moves through the list, and SEL opens the journey shown.
-- SAVE on a user slot stores the journey playing there.
-- **A journey opened brings its own sound.** It glides in over two seconds from the sound playing, so each
-  journey sounds as it was made: its drone, its tide, its movement, the voices that come and go. TOTALITY
-  brings its A and B too, its singing and its travelling. A user journey brings back the sound saved with it.
-- **SOUND: LOCKED.** Any knob turned right on JOURNEY locks the sound: journeys opened then bring their
-  scenes (and each part's place in the field) and the sound playing stays, with its A and B. Turned left, it
-  is ITS OWN again. The lock is saved with the settings. A sound worth keeping also fits in SOUNDS or in A.
+## 7. SHAPE: the whole sound
 
-**SOUNDS (LFO again, from JOURNEY)** is a library of eight sounds, apart from the journeys. A sound is
-everything the SHAPE pages, the holds, DRONE 2 and TIDES set; not the scenes, and not the FX page.
-
-- **SAVE** on a slot stores the sound playing.
-- **SEL** brings a slot's sound into the journey playing, gliding in over two seconds, so it can be done
-  while you play.
-- So any of your sounds plays over any journey's scenes, and two of them can be A and B.
-
-## 8. SHAPE: the sound
-
-**ENV** opens SHAPE: four knobs for each part of the sound, with **ALGO** setting that part's level. Press
-ENV again (or turn SELECT) for the next page. The VOX pages shape the VOX sound playing at the time.
-After you shape something through a hold (a drone key, a VOX sound key, BLOOM's key, a white key), ENV
-opens that part's page, so you can go on shaping it in depth.
+**ENV** opens SHAPE: every setting of every part, four knobs a page, with **ALGO** setting that part's level.
+ENV again (or SELECT) turns to the next page. The VOX pages shape the VOX sound playing. After something is
+shaped through a hold (a drone key, a VOX sound key, BLOOM's key, a white key), ENV opens that part's page.
+HOME's DRONE, VOX and MOTION pages are a selection of these.
 
 Values are shown as percentages: a share from 0 to 100%, an offset from as made as -/+% (0%: as made), and
 a LEVEL as 100% as made (up to 127%). Times, octaves and note lengths keep their own units.
@@ -411,11 +419,11 @@ sine) to WANDERING (it drifts to a new height each half tide). The line under th
 tide is now. As made, it moves the drone and the space gently, about once every 50 seconds.
 
 **PAN** places each part in the stereo field, from LEFT 100% through MIDDLE to RIGHT 100%. The parts glide
-to where you put them, so you can move them while you play. The drone's five voices keep their own spread
-around the drone's place. On this page **ALGO** sets RATE, how fast the parts sway: at TIDE (all the way
-down) they move with the tide, its shape and all; turned up, they get a steady cycle of their own, from 60
-seconds down to half a second, so even a part on a slow tide can move where you can hear it. The screen
-shows each part's lane, and where the sway has taken it.
+to where they are put, so they can be moved during a performance. The drone's five voices keep their own
+spread around the drone's place. On this page **ALGO** sets RATE, how fast the parts sway: at TIDE (all the
+way down) they move with the tide, its shape and all; turned up, they get a steady cycle of their own, from
+60 seconds down to half a second, so even a part on a slow tide can move audibly. The screen shows each
+part's lane, and where the sway has taken it.
 
 **PAN 2** sets how far each part sways, from STILL to 100% (all the way out to each side). When VOX sways,
 its echoes follow it half as far. **ALGO** sets OFFSET: at IN SYNC (0%) every swaying part moves together;
@@ -427,8 +435,7 @@ the parts that stay still.
 As made, every part is in the middle and VOX sways 25% on the tide, in sync. Journeys from 1.1 and earlier
 come in with no sway, so they sound as they did.
 
-BLOOM's settings are under its own hold (black key 7, above). PULSE's level sets the kick's and BLOOM's
-together.
+BLOOM's settings are under its own hold (black key 7). PULSE's level sets the kick's and BLOOM's together.
 
 **SEL twice** on a SHAPE page puts that page back as made:
 
@@ -437,11 +444,12 @@ together.
 - PULSE also resets BLOOM.
 - DRONE 2, TIDES, PAN and PAN 2 reset only their own page.
 
-The first press only asks, so you cannot reset by accident.
+The first press only asks, so nothing resets by accident.
 
-## 9. FX, SYSTEM and saving
+## 8. FX, SYSTEM and saving
 
-**FX** sets the reverb and the delay. SELECT picks the row; the knobs change it.
+**FX** sets the reverb and the delay. SELECT picks the row; the knobs change it. HOME's SPACE page plays four
+of these.
 
 | Row | K1 | K2 | K3 | K4 |
 | --- | --- | --- | --- | --- |
@@ -451,9 +459,9 @@ The first press only asks, so you cannot reset by accident.
 | DELAY 2 | LEVEL (its return) | LOW CUT | PING-PONG (on: the echoes go left, right) | WARP (how far the WARP throw bends it: up to two octaves) |
 
 A change of SIZE glides: the reverb's lines slide to the new size, so the room breathes and never clicks.
-A new delay TIME, or a new tempo, is taken once you stop turning: the echoes cross-fade to it and stay on
-pitch. Only the WARP throw bends them.
-Each scene can move the reverb further with its ROOM and HALO (section 7).
+A new delay TIME, or a new tempo, is taken once the knob stops: the echoes cross-fade to it and stay on
+pitch. Only the WARP throw bends them. Each scene can move the reverb further with its ROOM and HALO
+(section 4).
 
 **SYSTEM (GLO)**: SELECT moves through the list, and a knob or SEL changes the row shown.
 
@@ -461,18 +469,23 @@ Each scene can move the reverb further with its ROOM and HALO (section 7).
 | --- | --- |
 | MIDI CLOCK OUT | Sends MIDI clock and start/stop while the clock runs |
 | FOLLOW CLOCK IN | Follows MIDI clock and start/stop from outside |
-| MIDI CHANNEL | VOX's notes, the CCs and program changes, 1-16, or off; the black keys use the next channel (section 10) |
-| MIDI NOTES OUT | Sends the notes you play |
-| MIDI CC OUT | Sends the CCs and program changes as you change things |
+| MIDI CHANNEL | VOX's notes, the CCs and program changes, 1-16, or off; the black keys use the next channel (section 9) |
+| MIDI NOTES OUT | Sends the notes played |
+| MIDI CC OUT | Sends the CCs and program changes as things change |
 | 2ND CORE | Uses the FM-1's second processor core; applies at the next power-on |
 | DRONE CORE | Which core runs the drone voices; SPLIT balances itself |
 | OUTPUT LEVEL | NORMAL, or LOUD (6 dB hotter) |
-| USB AUDIO | MASTER (follows the volume knob), or FULL level |
-| PLAY AT POWER-ON | Starts the clock and the drone when you switch on |
+| USB AUDIO | MASTER (follows the volume knob), FULL level, or USB ONLY (below) |
+| PLAY AT POWER-ON | Starts the clock and the drone at power-on |
 | BEND RANGE | The pitch bend's range: 2, 5, 7 or 12 semitones each way |
 | SLEEP | Off, or 20, 40, 60 or 90 minutes (below) |
 | RESET SOUND | SEL twice puts the whole sound back as made (below) |
 | ABOUT | The version |
+
+**USB ONLY** sends USB audio at full level, as FULL does, and while a computer is taking that audio the
+FM-1's own outputs (the speaker, the headphones and the line out) fade to silence. With no computer taking
+it, unplugged or on battery, the FM-1 plays as FULL. The speaker is also silent whenever a plug is in the
+headphone jack.
 
 **SLEEP** lets everything go, gently:
 
@@ -485,16 +498,16 @@ SLEEP lasts only this session; it is not saved.
 **RESET SOUND** puts back as made:
 
 - every SHAPE page, the drone voices (all five coming and going, as in ECLIPSE) and VOX's four sounds;
-- the FX page and HOME's macros;
+- the FX page and the macros (CCs 14-17);
 - any throw or bend that is out.
 
-Your scenes, the loop, the tempo, A and B, the sound library and the other settings stay.
+The scenes, the loop, the tempo, A and B, the sound library and the other settings stay.
 
-**BENCH**: press GLO again from SYSTEM. It shows what each part of the sound costs the processor. SEL there
-runs a load test that sets every voice at its heaviest.
+**BENCH**: GLO again from SYSTEM. It shows what each part of the sound costs the processor. SEL there runs
+a load test that sets every voice at its heaviest.
 
 **Saving** happens by itself once the sound has been silent for a second and nothing has changed for two, so
-after you STOP. SAVE saves at once. Everything is kept: the journey playing, its sound, its loop and the
+after a STOP. SAVE saves at once. Everything is kept: the journey playing, its sound, its loop and the
 settings.
 
 **Backups.** The [Backup page](https://madmooneyham.github.io/Penumbra/backup/) (Chrome or Edge, the FM-1
@@ -505,14 +518,14 @@ from an older Penumbra comes over upgraded, as its journeys would; a part from a
 FM-1 keeps what it had. The panel's calibration stays the unit's own. The emulator saves and restores the same
 file, so a journey made in the browser can go onto the FM-1, and back.
 
-**Leaving Penumbra.** Install another firmware the usual way; Penumbra carries the update loader. If the FM-1
-ever won't take an install, hold **OCT-** and **OCT+** together for five seconds to put it in update mode.
+**Leaving Penumbra.** Another firmware installs the usual way; Penumbra carries the update loader. If the
+FM-1 ever won't take an install, **OCT-** and **OCT+** held together for five seconds put it in update mode.
 
-## 10. MIDI and a DAW
+## 9. MIDI and a DAW
 
-Connect the FM-1 by USB: a computer sees it as an audio device and a MIDI device. The TRS jack takes MIDI
-in too. Everything below is on SYSTEM's MIDI CHANNEL (channel *N*, 1 by default), except the black keys,
-which use the channel after it (*N*+1).
+Connected by USB, the FM-1 is an audio device and a MIDI device to a computer. The TRS jack takes MIDI in
+too. Everything below is on SYSTEM's MIDI CHANNEL (channel *N*, 1 by default), except the black keys, which
+use the channel after it (*N*+1).
 
 **The clock.** With FOLLOW CLOCK IN on, the DAW's clock runs the tempo, and its start, stop and continue
 run the transport. Penumbra times each tick as it arrives, so it holds the DAW's tempo to about a tenth of
@@ -520,20 +533,19 @@ a BPM, and the delay's echoes stay put. SONG POSITION is followed too: when the 
 clock and a playing loop carry on from there. With MIDI CLOCK OUT on and nothing to follow, Penumbra sends
 its own clock.
 
-**Notes.** VOX plays notes on channel *N*, and sends the notes you play on the white keys there (MIDI
-NOTES OUT). The black keys go out on channel *N*+1 as notes 36 to 46, one for each key from black 1 to
-black 11. Notes 36 to 46 coming in on that channel press those keys, so the DAW can play the drone, the
-kick, BLOOM and the VOX sounds back exactly as you did. The loop's own notes are not sent; yours were, as
-you played them. To record the FM-1's notes, set the DAW track's output somewhere other than the FM-1, or
-every note will sound twice. ALL NOTES OFF (CC 123) ends VOX's notes.
+**Notes.** VOX plays notes on channel *N*, and sends the notes played on the white keys there (MIDI NOTES
+OUT). The black keys go out on channel *N*+1 as notes 36 to 46, one for each key from black 1 to black 11.
+Notes 36 to 46 coming in on that channel press those keys, so the DAW can play the drone, the kick, BLOOM
+and the VOX sounds back exactly as they were played. The loop's own notes are not sent; the hands' were, as
+they were played. A DAW track recording the FM-1's notes and sending them back to it plays every note twice,
+so its output belongs elsewhere. ALL NOTES OFF (CC 123) ends VOX's notes.
 
-**CCs.** Each of these can be automated by the DAW. When you change one on the FM-1 (by a knob, A/B, a
-load or a throw), Penumbra sends its CC (MIDI CC OUT), so the DAW can record your moves. A CC coming in is
-never sent back.
+**CCs.** Each of these can be automated by the DAW. A change on the FM-1 (by a knob, A/B, a load or a throw)
+sends its CC (MIDI CC OUT), so the DAW can record the moves. A CC coming in is never sent back.
 
 | CC | Control |
 | --- | --- |
-| 14-17 | HOME: DRONE, VOX, SPACE, TONE |
+| 14-17 | The macros: DRONE (filter and body), VOX (brightness), SPACE (reverb and delay), TONE (all brighter or darker) |
 | 18-20 | Throws: SHIMMER, FEEDBACK, FREEZE |
 | 21 | DIP (64: open; below, the low-pass; above, the high-pass) |
 | 22 | WARP (64: none) |
@@ -549,7 +561,8 @@ never sent back.
 | 114-117 | FX: DELAY 2 row (LEVEL, LOW CUT, PING-PONG, WARP) |
 
 A throw set by a CC stays where the DAW puts it; it does not drift back. The FX page's switches (the delay
-TIME, INTERVAL, PING-PONG) spread their steps over 0 to 127.
+TIME, INTERVAL, PING-PONG) spread their steps over 0 to 127. The macros (14-17) are MIDI's own: each 0% as
+made, with the journey.
 
 **Program changes**, both ways:
 
@@ -559,25 +572,25 @@ TIME, INTERVAL, PING-PONG) spread their steps over 0 to 127.
 | 8-14 | Open preset journey 1-7 |
 | 16-23 | Open user journey 1-8 (if saved) |
 
-## 11. Cheat sheet
+## 10. Cheat sheet
 
 | Control | Does |
 | --- | --- |
-| White keys | VOX, in the key |
-| Black 1-5 | Drone voices (held: shape; + ALGO: HELD or SWELL) |
-| Black 6 / 7 | Kick / BLOOM (held: shape) |
-| Black 8-11 | VOX sounds: GLASS, REED, HALO, LOW (held: shape) |
-| K1-K4 (HOME) | The page's: MIX, SPACE, MOTION, ALIVE or TONE |
+| K1-K4 (HOME) | The page's: DRONE, VOX, MOTION, SPACE, MIX or ALIVE |
+| ALGO | HOME: the knobs' next page; elsewhere tempo (SHAPE: level; holds: see section 3) |
 | SELECT (HOME) | MORPH |
 | PRESET | Next or previous scene |
-| ALGO | HOME: the knobs' next page; elsewhere tempo (SHAPE: level; holds: see above) |
+| FX | FX page; held: throws (DIP both ways), + ALGO: WARP |
+| ENV | SHAPE, TIDES, PAN, PAN 2 (again: next page; SEL twice: reset); held: A/B |
+| Black 1-5 | Drone voices (held: shape; + ALGO: HELD or SWELL) |
+| Black 6 / 7 | Kick / BLOOM (held: shape; BLOOM + ALGO: by itself) |
+| Black 8-11 | VOX sounds: GLASS, REED, HALO, LOW (held: shape; + ALGO: sings) |
+| White keys | VOX, in the key (held: bends; + ALGO: pitch) |
+| ARP | FREEZE |
 | SEQ | Clock start / stop |
 | REC | Loop: record, play, overdub, keep |
 | PLAY | Loop: stop / play; held: undo; held + ALGO: speed |
 | REC + PLAY | Clear the loop |
-| ARP | FREEZE |
-| FX | FX page; held: throws (DIP both ways), + ALGO: WARP |
-| ENV | SHAPE, TIDES, PAN, PAN 2 (again: next page; SEL twice: reset); held: A/B |
 | EDIT | SCENE, ROOM, HALO (SEL: store the moment) |
 | LFO | JOURNEY (SEL: open; SAVE: into a user slot); again: SOUNDS |
 | GLO | SYSTEM, then BENCH |

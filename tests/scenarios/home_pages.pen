@@ -1,30 +1,39 @@
-# HOME's knob pages: ALGO there steps MIX, SPACE, MOTION, ALIVE, TONE (round and round; kept across a power
-# cut), the knobs each page's, drawn as arcs (screenshots in build/scenarios/home_pages/)
+# HOME's knob pages: ALGO there steps DRONE, VOX, MOTION, SPACE, MIX, ALIVE (round and round; kept across a
+# power cut), the knobs each page's, drawn as arcs (screenshots in build/scenarios/home_pages/)
 autoplay 0
 wait 500
 expect hpage 0
-shot mix.png
-# MIX: the parts' levels (VOX's: the sound playing's)
-turn K1 -5
-expect shape10 90
-turn K4 3
+shot drone.png
+# DRONE: SHAPE's DRONE page (FILTER, BODY, SWARM, WAVE)
+turn K3 4
+expect shape13 88
 turn ALGO 1
 expect hpage 1
 expect view 0
-shot space.png
-# SPACE: the reverb's return, its decay, shimmer, the delay's return (the FX page's)
-turn K3 5
-expect fx2 35
+# VOX: the sound playing's BRIGHT, FILTER (VOX 2), RESO, RELEASE
+turn K4 3
+expect vs1.3 96
+shot vox.png
 turn ALGO 1
 expect hpage 2
-# MOTION: the tempo first
-turn K1 6
-expect set_bpm 96
-turn K3 4
-expect shape13 >0
+# MOTION: the drone's SWEEP, RATE, DRIFT; TIDES
+turn K3 5
+expect dmotion3 35
 shot motion.png
 turn ALGO 1
 expect hpage 3
+# SPACE: the reverb's return, its decay, shimmer, the delay's return (the FX page's)
+turn K3 5
+expect fx2 35
+shot space.png
+turn ALGO 1
+expect hpage 4
+# MIX: the parts' levels
+turn K1 -5
+expect shape10 90
+shot mix.png
+turn ALGO 1
+expect hpage 5
 # ALIVE: steps; SWELLS how many drone voices come and go (all five in ECLIPSE: down to two, the top two)
 turn K3 -3
 expect dswell 24
@@ -32,15 +41,12 @@ turn K4 2
 expect travel 2
 shot alive.png
 turn ALGO 1
-expect hpage 4
-shot tone.png
-turn ALGO 1
 expect hpage 0
 turn ALGO -2
-expect hpage 3
+expect hpage 4
 tap SAVE
 powercut
 wait 300
-expect hpage 3
+expect hpage 4
 expect travel 2
 expect dswell 24

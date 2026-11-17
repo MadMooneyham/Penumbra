@@ -1,0 +1,29 @@
+# SYSTEM > USB AUDIO: USB ONLY. While a computer takes the USB audio the FM-1's own outputs (speaker,
+# headphones, line out) fall silent, gliding; when it lets go, or with no computer, they play as FULL.
+wait 1500
+tap GLO
+turn SELECT 8
+expect row 8
+tap SEL
+tap SEL
+expect set_usb 2
+tap HOME
+tapkey w4
+wait 300
+peakreset
+wait 1000
+expect peak_db_min -40
+# a computer takes the USB audio: silent (after the glide)
+usbaudio 1
+tapkey w4
+wait 300
+peakreset
+wait 1500
+expect peak_db_max -80
+# it lets go: back
+usbaudio 0
+tapkey w4
+wait 300
+peakreset
+wait 1000
+expect peak_db_min -40
