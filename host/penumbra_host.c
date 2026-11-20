@@ -547,6 +547,8 @@ static int expect(const char *what, const char *val)
         got = cfg.clk_out;
     else if (!strcmp(what, "set_midi_ch"))
         got = cfg.midi_ch;
+    else if (!strcmp(what, "morph"))                /* MORPH: how far toward the next (or the one before), % */
+        got = (int)(engine_jr()->mamt * 100.0f + 0.5f);
     else if (!strcmp(what, "knobs"))                /* KNOBS: 0 PENUMBRA, 1 CONTROLLER */
         got = cfg.knobs;
     else if (!strncmp(what, "ctl", 3) && what[3] >= '0' && what[3] <= '6')   /* ctlN: CONTROLLER's knob N's value

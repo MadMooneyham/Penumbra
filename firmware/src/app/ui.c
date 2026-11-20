@@ -59,7 +59,7 @@ static const char *const VIEW_N[NVIEWS] = {"HOME", "SHAPE", "SCENE", "FX", "JOUR
 enum { L_PAGE, L_DRONE, L_VSOUND, L_BLOOM, L_THROW, L_BEND, L_SOUND, L_KICK };   /* what the controls play: the page's, or a hold's */
 #define AB_GLIDE_S 2.0f                    /* A/B: the blend follows SELECT, all the way in this */
 #define LOAD_GLIDE_S 2.0f                  /* a sound from the library glides in over this */
-#define NCC 44                             /* the controls MIDI CCs reach (CCMAP) */
+#define NCC 66                             /* the controls MIDI CCs reach (CCMAP) */
 
 typedef struct {
     uint8_t view;
@@ -1700,7 +1700,13 @@ static void knob_turn(int k, int e)
  * load, sends it), the program changes (PC_*: scenes, journeys). On the next channel the black keys as
  * notes 36 .. 46, both ways: a DAW playing them back presses the keys, holds and all. The CCs are in the
  * ranges MIDI leaves free (14-31, 70-73 the sound controllers, 85-90, 102-117) */
-enum { CK_MACRO, CK_THROW, CK_WARP, CK_TIDE, CK_DMOTION, CK_LEVEL, CK_PAN, CK_RATE, CK_OFFSET, CK_FX };
+enum { CK_MACRO, CK_THROW, CK_WARP, CK_TIDE, CK_DMOTION, CK_LEVEL, CK_PAN, CK_RATE, CK_OFFSET, CK_FX,
+       CK_SHAPE, CK_BLOOMS, CK_SWELLS, CK_TRAVEL, CK_MORPH, CK_SCENE, CK_AB };
+/* 1.9's (HOME's pages, the kick, the moves): 52-55 DRONE (FILTER BODY SWARM WAVE), 56-59 VOX (the sound
+ * playing's BRIGHT FILTER RESO RELEASE), 60-63 ALIVE (SINGS BLOOMS SWELLS TRAVELS), 81-83 the kick's DROP DECAY
+ * CLICK, 44-46 its TUNE DRIVE DUCK, 119 BY ITSELF, 3 MORPH (64: at the scene), 9 SCENE (16 a scene), 118 A/B.
+ * (74-80: KNOBS' CONTROLLER, never taken.) A knob of a few steps spreads them over 0 .. 127 */
+#define CKS(pg, k) ((pg) << 2 | (k))
 typedef struct { uint8_t cc, kind, i; } ccmap_t;
 static const ccmap_t CCMAP[NCC] = {
     {14, CK_MACRO, MAC_DRONE}, {15, CK_MACRO, MAC_VOX}, {16, CK_MACRO, MAC_SPACE}, {17, CK_MACRO, MAC_TONE},
@@ -1711,11 +1717,37 @@ static const ccmap_t CCMAP[NCC] = {
     {85, CK_PAN, EV_DRONE}, {86, CK_PAN, EV_VOX}, {87, CK_PAN, EV_PULSE}, {88, CK_PAN, EV_TEX}, {89, CK_RATE, 0}, {90, CK_OFFSET, 0},
     {102, CK_FX, 0}, {103, CK_FX, 1}, {104, CK_FX, 2}, {105, CK_FX, 3}, {106, CK_FX, 4}, {107, CK_FX, 5},
     {108, CK_FX, 6}, {109, CK_FX, 7}, {110, CK_FX, 8}, {111, CK_FX, 9}, {112, CK_FX, 10}, {113, CK_FX, 11},
-    {114, CK_FX, 12}, {115, CK_FX, 13}, {116, CK_FX, 14}, {117, CK_FX, 15}};   /* the FX page, row by row */
+    {114, CK_FX, 12}, {115, CK_FX, 13}, {116, CK_FX, 14}, {117, CK_FX, 15},   /* the FX page, row by row */
+    {52, CK_SHAPE, CKS(PG_DRONE, 0)}, {53, CK_SHAPE, CKS(PG_DRONE, 1)}, {54, CK_SHAPE, CKS(PG_DRONE, 2)},
+    {55, CK_SHAPE, CKS(PG_DRONE, 3)},
+    {56, CK_SHAPE, CKS(PG_VOX, 0)}, {57, CK_SHAPE, CKS(PG_VOX2, 1)}, {58, CK_SHAPE, CKS(PG_VOX2, 2)},
+    {59, CK_SHAPE, CKS(PG_VOX, 2)},
+    {60, CK_SHAPE, CKS(PG_SING, 0)}, {61, CK_BLOOMS, 0}, {62, CK_SWELLS, 0}, {63, CK_TRAVEL, 0},
+    {81, CK_SHAPE, CKS(PG_PULSE, 0)}, {82, CK_SHAPE, CKS(PG_PULSE, 1)}, {83, CK_SHAPE, CKS(PG_PULSE, 2)},
+    {44, CK_SHAPE, CKS(PG_PULSE2, 0)}, {45, CK_SHAPE, CKS(PG_PULSE2, 1)}, {46, CK_SHAPE, CKS(PG_PULSE2, 2)},
+    {119, CK_SHAPE, CKS(PG_PULSE2, 3)},
+    {3, CK_MORPH, 0}, {9, CK_SCENE, 0}, {118, CK_AB, 0}};
 #define MIDI_KEY0 36                              /* the first black key's note, on the next channel */
 #define CC_PER_FRAME 8                            /* (a load moves them all: the ring has room for these) */
 static int signed_cc(float x) { return clamp_i(x < 0.0f ? 64 + round_i(x * (64.0f / 127.0f)) : 64 + round_i(x * (63.0f / 127.0f)), 0, 127); }
 static float cc_signed(int v) { return v < 64 ? (float)(v - 64) * (127.0f / 64.0f) : (float)(v - 64) * (127.0f / 63.0f); }
+static int cc_spread(int x, int steps) { return steps ? (x * 127 + steps / 2) / steps : x; }   /* (steps 0: 0 .. 127) */
+static int cc_unspread(int v, int steps) { return steps ? (v * steps + 63) / 127 : v; }
+static int cc_popc(uint32_t m) { int n = 0; for (; m; m &= m - 1u) n++; return n; }
+static float cc_morph_now(void)                   /* MORPH: how far, -1 (the scene before) .. 0 (here) .. 1 (the next) */
+{
+    const jrun_t *r = engine_jr();
+    const int n = eng_jr.nscenes ? eng_jr.nscenes : 1;
+    if (r->mamt <= 0.0f)
+        return 0.0f;
+    return r->mto == (r->mbase + 1) % n ? r->mamt : -r->mamt;
+}
+static int cc_scene_now(void)                     /* the scene playing, or the one on its way to */
+{
+    const jrun_t *r = engine_jr();
+    return ui.sdest >= 0 && (r->travelling || r->cur != ui.sdest) ? ui.sdest : r->cur;
+}
+static int morph_cc = -1;                         /* MORPH's CC as it came (the last of a frame's: midi_take applies it) */
 static int cc_get(int c)                          /* the control now, 0 .. 127 */
 {
     const ccmap_t *m = &CCMAP[c];
@@ -1729,6 +1761,13 @@ static int cc_get(int c)                          /* the control now, 0 .. 127 *
     case CK_PAN: return eng_jr.pan[m->i];
     case CK_RATE: return eng_jr.sway_rate;
     case CK_OFFSET: return eng_jr.sway_off;
+    case CK_SHAPE: return cc_spread(*pg_ptr(m->i >> 2, m->i & 3), pg_steps(m->i >> 2, m->i & 3));
+    case CK_BLOOMS: return cc_spread(eng_jr.bloom_auto, JR_SING_N - 1);
+    case CK_SWELLS: return cc_spread(cc_popc(eng_jr.dswell), ENG_DRONES);
+    case CK_TRAVEL: return cc_spread(eng_jr.travel, JR_TRAVEL_N - 1);
+    case CK_MORPH: return signed_cc(cc_morph_now() * 127.0f);
+    case CK_SCENE: return cc_scene_now() * 16;
+    case CK_AB: return sound_ab.have == 3u ? clamp_i(round_i(ui.ab_goal * 127.0f), 0, 127) : 0;
     default: {
         int f = fx_of(m->i / 4, m->i % 4), mx = engine_fx_max(f);
         return mx >= 127 ? cfg.fx[f] : (cfg.fx[f] * 127 + mx / 2) / (mx ? mx : 1);   /* (a switch: its steps spread) */
@@ -1757,6 +1796,33 @@ static void cc_set(int c, int v)                  /* a CC came: the control ther
     case CK_PAN: eng_jr.pan[m->i] = (uint8_t)v; changed_jr(); break;
     case CK_RATE: eng_jr.sway_rate = (uint8_t)v; changed_jr(); break;
     case CK_OFFSET: eng_jr.sway_off = (uint8_t)v; changed_jr(); break;
+    case CK_SHAPE: {
+        const int pg = m->i >> 2, k = m->i & 3;
+        *pg_ptr(pg, k) = (uint8_t)cc_unspread(v, pg_steps(pg, k));
+        changed_jr();
+        break;
+    }
+    case CK_BLOOMS: eng_jr.bloom_auto = (uint8_t)cc_unspread(v, JR_SING_N - 1); changed_jr(); break;
+    case CK_SWELLS: {                             /* (how many come and go: the top voices first, as ALIVE's) */
+        const int n = cc_unspread(v, ENG_DRONES);
+        eng_jr.dswell = (uint8_t)((((1u << n) - 1u) << (ENG_DRONES - n)) & ((1u << ENG_DRONES) - 1u));
+        changed_jr();
+        break;
+    }
+    case CK_TRAVEL: eng_jr.travel = (uint8_t)cc_unspread(v, JR_TRAVEL_N - 1); changed_jr(); break;
+    case CK_MORPH: morph_cc = v; break;           /* (applied after the frame's MIDI: the engine's MORPH moves a block later) */
+    case CK_SCENE: {
+        const int n = eng_jr.nscenes ? eng_jr.nscenes : 1, to = clamp_i(v / 16, 0, n - 1);
+        if (to != cc_scene_now())
+            scene_go(to);
+        break;
+    }
+    case CK_AB:
+        if (sound_ab.have == 3u) {
+            ui.load_t = 1.0f;
+            ui.ab_goal = (float)v * (1.0f / 127.0f);
+        }
+        break;
     default: {
         int f = fx_of(m->i / 4, m->i % 4), mx = engine_fx_max(f);
         cfg.fx[f] = (uint8_t)(mx >= 127 ? v : (v * mx + 63) / 127);
@@ -1977,6 +2043,18 @@ static void midi_take(void)                       /* what MIDI brought, applied 
                 journey_sel();
             }
         }
+    }
+    if (morph_cc >= 0) {                          /* MORPH's CC (3): the way there from where MORPH stands now */
+        const jrun_t *r = engine_jr();
+        const int n = eng_jr.nscenes ? eng_jr.nscenes : 1;
+        const float t = cc_signed(morph_cc) * (1.0f / 127.0f);
+        const int d = round_i((t - cc_morph_now()) * (float)JR_MORPH_STEPS);
+        if (n >= 2 && !r->travelling && d)
+            engine_morph(d);
+        morph_cc = -1;
+        for (c = 0; c < NCC; c++)                 /* (where it lands, a frame on, is taken quietly: no echo) */
+            if (CCMAP[c].kind == CK_MORPH)
+                ui.cc_sent[c] = 0xFF;
     }
     midi_applying = 0;
 }

@@ -1,0 +1,52 @@
+# The DAW map (1.9): HOME's DRONE, VOX and ALIVE pages, the kick, MORPH, the scene and A/B on CCs, both ways.
+# Out: a knob turned sends its CC (MIDI CC OUT). In: a CC sets it, quietly (nothing echoed).
+autoplay 0
+wait 300
+# out: DRONE's FILTER (CC 52), VOX's RELEASE (59), ALIVE's SWELLS (62, five steps spread)
+turn K1 2
+expect cc_out52 79
+turn ALGO 1
+turn K4 3
+expect cc_out59 96
+turn ALGO 4
+turn K3 -2
+expect cc_out62 76
+# the kick held: its TUNE (CC 44, four steps spread), its pattern (119)
+key b5 down
+turn K4 1
+turn ALGO 2
+key b5 up
+expect cc_out44 42
+expect cc_out119 64
+# MORPH (3): 64 at the scene, more toward the next
+tap HOME
+turn ALGO 2
+turn SELECT 8
+wait 100
+expect cc_out3 >70
+turn SELECT -8
+wait 100
+expect cc_out3 64
+# in: each one set from a CC, nothing sent back
+expect ccs_out >0
+midi B0 34 14
+midi B0 3B 28
+midi B0 3E 7F
+midi B0 2D 64
+midi B0 77 20
+wait 100
+expect shape11 20
+expect vs1.3 40
+expect dswell 31
+expect kick_drive 100
+expect kick_auto 1
+# SCENE (9): 16 a scene
+midi B0 09 10
+wait 200
+expect travelling 1
+wait 13000
+expect scene 2
+# MORPH in: half way to the next
+midi B0 03 60
+wait 200
+expect morph >40

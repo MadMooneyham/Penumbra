@@ -7,6 +7,7 @@
 autoplay 0
 wait 300
 dswell 0
+# (all held: SWELLS, CC 62, goes out once)
 tap REC
 wait 100
 key w2 down
@@ -61,13 +62,13 @@ expect macro1 127
 expect pan0 0
 expect thr3 73
 expect fx0 32
-expect ccs_out 0
+expect ccs_out 1
 turn ALGO 4
 expect hpage 4
 turn K2 2
 wait 100
 expect cc_out71 104
-expect ccs_out 2
+expect ccs_out 3
 tapkey w2
 wait 100
 expect notes_out1 3

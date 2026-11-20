@@ -582,9 +582,20 @@ sends its CC (MIDI CC OUT), so the DAW can record the moves. A CC coming in is n
 | 106-109 | FX: REVERB 2 row (MOTION, LOW CUT, INTERVAL, LEVEL) |
 | 110-113 | FX: DELAY row (TIME, FEEDBACK, TONE, WEAR) |
 | 114-117 | FX: DELAY 2 row (LEVEL, LOW CUT, PING-PONG, WARP) |
+| 52-55 | HOME's DRONE page: FILTER, BODY, SWARM, WAVE |
+| 56-59 | HOME's VOX page, the sound playing: BRIGHT, FILTER, RESO, RELEASE |
+| 60-63 | HOME's ALIVE page: SINGS (the sound playing), BLOOMS, SWELLS, TRAVELS |
+| 81-83 | The kick: DROP, DECAY, CLICK |
+| 44-46 | The kick: TUNE, DRIVE, DUCK |
+| 119 | The kick: BY ITSELF |
+| 3 | MORPH (64: at the scene; above, toward the next; below, toward the one before) |
+| 9 | SCENE: 0-15 the first, 16-31 the second, and so on (it glides there, as PRESET does) |
+| 118 | A/B: where the sound sits between A and B (with both kept) |
 
-A throw set by a CC stays where the DAW puts it; it does not drift back. The FX page's switches (the delay
-TIME, INTERVAL, PING-PONG) spread their steps over 0 to 127. The macros (14-17) are MIDI's own: each 0% as
+A throw set by a CC stays where the DAW puts it; it does not drift back. Settings of a few steps (the FX
+page's switches, the kick's TUNE and BY ITSELF, ALIVE's four) spread their steps over 0 to 127. So everything
+HOME's pages, the kick, MORPH, PRESET and A/B do can be recorded in the DAW and played back, whatever page the
+FM-1 shows. A PRESET move sends both SCENE's CC and its program change. The macros (14-17) are MIDI's own: each 0% as
 made, with the journey.
 
 **The knobs as a controller.** With SYSTEM's **KNOBS** set to CONTROLLER, HOME's seven knobs control other
