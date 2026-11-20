@@ -1,0 +1,47 @@
+# SYSTEM > KNOBS: CONTROLLER. On HOME the seven knobs are a MIDI controller: K1-K4 CC 74-77, SELECT 78,
+# ALGO 79, PRESETS 80, each its value 0..127 (two a click), on the MIDI channel; Penumbra's sound, scene and
+# page stay as they are. The holds, and every other page, are Penumbra's. The values are kept.
+autoplay 0
+wait 300
+tap GLO
+turn SELECT 5
+tap SEL
+expect knobs 1
+tap HOME
+expect view 0
+turn K1 3
+expect ctl0 6
+expect cc_out74 6
+expect shape11 75
+turn K4 10
+expect cc_out77 20
+turn SELECT 4
+expect cc_out78 8
+expect scene 1
+turn ALGO 5
+expect cc_out79 10
+expect hpage 0
+expect set_bpm 90
+turn PRESET 2
+expect cc_out80 4
+wait 200
+expect travelling 0
+expect scene 1
+shot controller.png
+# a hold is Penumbra's: a drone key held, K2 its TONE
+key b0 down
+turn K2 2
+key b0 up
+expect ctl1 0
+# another page: Penumbra's (FX's REVERB DECAY)
+tap FX
+turn K1 2
+expect ctl0 6
+expect fx0 95
+tap HOME
+tap SAVE
+reboot
+wait 300
+expect knobs 1
+expect ctl3 20
+expect ctl6 4

@@ -494,6 +494,7 @@ pitch. Only the WARP throw bends them. Each scene can move the reverb further wi
 | MIDI CHANNEL | VOX's notes, the CCs and program changes, 1-16, or off; the black keys use the next channel (section 9) |
 | MIDI NOTES OUT | Sends the notes played |
 | MIDI CC OUT | Sends the CCs and program changes as things change |
+| KNOBS | PENUMBRA, or CONTROLLER: on HOME the seven knobs are a MIDI controller (section 9) |
 | 2ND CORE | Uses the FM-1's second processor core; applies at the next power-on |
 | DRONE CORE | Which core runs the drone voices; SPLIT balances itself |
 | OUTPUT LEVEL | NORMAL, or LOUD (6 dB hotter) |
@@ -585,6 +586,25 @@ sends its CC (MIDI CC OUT), so the DAW can record the moves. A CC coming in is n
 A throw set by a CC stays where the DAW puts it; it does not drift back. The FX page's switches (the delay
 TIME, INTERVAL, PING-PONG) spread their steps over 0 to 127. The macros (14-17) are MIDI's own: each 0% as
 made, with the journey.
+
+**The knobs as a controller.** With SYSTEM's **KNOBS** set to CONTROLLER, HOME's seven knobs control other
+instruments and plugins in the DAW instead of Penumbra. Each keeps its own value from 0 to 127 and sends it
+as a CC on the MIDI channel, whether or not MIDI CC OUT is on:
+
+| Knob | CC |
+| --- | --- |
+| K1, K2, K3, K4 | 74, 75, 76, 77 |
+| SELECT | 78 |
+| ALGO | 79 |
+| PRESETS | 80 |
+
+- Penumbra's sound, scene and page stay as they are while the knobs turn, and Penumbra never takes these CCs
+  itself, so nothing echoes back.
+- HOME's knob strip shows each knob's CC and value, and the bottom line SELECT's, ALGO's and PRESETS'.
+- The holds (FX, a key held) and every other page are Penumbra's as always, so its sound can still be shaped,
+  and SYSTEM reached, with KNOBS on CONTROLLER.
+- The values are kept with the settings, so the DAW and the knobs agree after a power-off.
+- Each click moves a value two steps; a knob spinning quickly goes further, as everywhere.
 
 **Program changes**, both ways:
 

@@ -202,11 +202,12 @@ static void midi_ctl_send(int status, int d1, int d2)
 
 /* ================================================================ settings === */
 /* SYSTEM's rows: a setting, its choices, and what a change does */
-enum { R_CLKOUT, R_CLKIN, R_MIDICH, R_NOTESOUT, R_CCOUT, R_CORES, R_DRNCORE, R_OUTLOUD, R_USBFULL, R_AUTOPLAY,
+enum { R_CLKOUT, R_CLKIN, R_MIDICH, R_NOTESOUT, R_CCOUT, R_KNOBS, R_CORES, R_DRNCORE, R_OUTLOUD, R_USBFULL, R_AUTOPLAY,
        R_BEND, R_SLEEP, R_RESET, R_ABOUT, NROWS };
 static const char *const ROW_N[NROWS] = {"MIDI CLOCK OUT", "FOLLOW CLOCK IN", "MIDI CHANNEL", "MIDI NOTES OUT",
-                                         "MIDI CC OUT", "2ND CORE", "DRONE CORE", "OUTPUT LEVEL", "USB AUDIO",
+                                         "MIDI CC OUT", "KNOBS", "2ND CORE", "DRONE CORE", "OUTPUT LEVEL", "USB AUDIO",
                                          "PLAY AT POWER-ON", "BEND RANGE", "SLEEP", "RESET SOUND", "ABOUT"};
+static const char *const KNOBS_N[] = {"PENUMBRA", "CONTROLLER"};   /* (CONTROLLER: on HOME, fixed CCs out) */
 /* SLEEP: in so many minutes it lets everything go (this session's: not saved) */
 #define SLEEPS 5
 static const uint8_t SLEEP_MIN[SLEEPS] = {0, 20, 40, 60, 90};
@@ -229,6 +230,7 @@ static int row_get(int r)
     case R_MIDICH: return cfg.midi_ch;
     case R_NOTESOUT: return !(cfg.midi_quiet & 1u);
     case R_CCOUT: return !(cfg.midi_quiet & 2u);
+    case R_KNOBS: return cfg.knobs;
     case R_CORES: return !cfg.one_core;
     case R_DRNCORE: return cfg.drone_core;
     case R_OUTLOUD: return cfg.out_loud;
@@ -252,6 +254,7 @@ static void row_text(int r, char *b)
     case R_DRNCORE: put_s(b, CORE_N[v]); break;
     case R_OUTLOUD: put_s(b, LOUD_N[v]); break;
     case R_USBFULL: put_s(b, USB_N[v]); break;
+    case R_KNOBS: put_s(b, KNOBS_N[v ? 1 : 0]); break;
     case R_BEND: put_s(put_i(b, BEND_SEMIS[v]), " SEMITONES"); break;
     case R_SLEEP:
         if (v)
@@ -283,6 +286,7 @@ static void row_set(int r, int v)
     case R_DRNCORE: cfg.drone_core = (uint8_t)v; break;
     case R_OUTLOUD: cfg.out_loud = (uint8_t)v; break;
     case R_USBFULL: cfg.usb_full = (uint8_t)v; break;
+    case R_KNOBS: cfg.knobs = (uint8_t)v; break;
     case R_AUTOPLAY: cfg.autoplay = (uint8_t)v; break;
     case R_BEND: cfg.bend = (uint8_t)v; break;
     case R_SLEEP:                                 /* (now: from now) */
@@ -1906,6 +1910,32 @@ static void hk_turn(int k, int e)
     say(t, 0);
 }
 
+/* ------------------------------------------------------- CONTROLLER (KNOBS) --- */
+/* SYSTEM's KNOBS: CONTROLLER. On HOME (no hold, PLAY not held) the seven knobs are a MIDI controller: each keeps
+ * a value 0..127 (kept with the settings) and sends it as its own CC on the MIDI channel, whatever MIDI CC OUT
+ * says, and Penumbra's sound is left as it is. CCs Penumbra itself never takes, so nothing comes back to it.
+ * Every other page, and the holds, are Penumbra's as ever */
+enum { CT_K1, CT_K2, CT_K3, CT_K4, CT_SELECT, CT_ALGO, CT_PRESET, CT_N };
+static const uint8_t CTL_CC[CT_N] = {74, 75, 76, 77, 78, 79, 80};
+static const char *const CTL_N[CT_N] = {"KNOB 1", "KNOB 2", "KNOB 3", "KNOB 4", "SELECT", "ALGO", "PRESETS"};
+static int ctl_on(void)
+{
+    return cfg.knobs && ui.view == V_HOME && layer() == L_PAGE && !(ui.btn >> B_PLAY & 1u);
+}
+static void ctl_turn(int c, int e)
+{
+    char t[40];
+    const int v = clamp_i(cfg.ctl[c] + 2 * e * ui.mult, 0, 127);
+    if (v != cfg.ctl[c]) {
+        cfg.ctl[c] = (uint8_t)v;
+        changed();
+        if (cfg.midi_ch)
+            engine_midi_send(0xB0 | (cfg.midi_ch - 1), CTL_CC[c], v);
+    }
+    put_i(put_s(put_i(put_s(put_s(t, CTL_N[c]), "  CC "), CTL_CC[c]), "  "), v);
+    say(t, cfg.midi_ch ? 0 : "  (MIDI CHANNEL OFF)");
+}
+
 static void home_page_turn(int e)                 /* ALGO on HOME: the next knob page (round and round) */
 {
     char t[48], *q;
@@ -2072,14 +2102,18 @@ static void input(void)
     }
     if ((e = plat_enc(EN_SELECT)) != 0 && (e = knob_take(EN_SELECT, e, now)) != 0) {
         ui.touch_t = now;
-        if (layer() == L_SOUND)
+        if (ctl_on())
+            ctl_turn(CT_SELECT, e);               /* KNOBS: CONTROLLER, on HOME */
+        else if (layer() == L_SOUND)
             ab_turn(e);                           /* ENV held: A to B */
         else
             select_turn(e);
     }
     if ((e = plat_enc(EN_ALGO)) != 0 && (e = knob_take(EN_ALGO, e, now)) != 0) {           /* the tempo, wherever you are (SHAPE: the voice's level) */
         ui.touch_t = now;
-        if (ui.btn >> B_PLAY & 1u) {              /* PLAY held: the loop's speed */
+        if (ctl_on()) {
+            ctl_turn(CT_ALGO, e);
+        } else if (ui.btn >> B_PLAY & 1u) {       /* PLAY held: the loop's speed */
             const looper_t *l = engine_looper_state();
             int s = clamp_i((int)l->speed + (e > 0 ? 1 : -1), LP_HALF, LP_DOUBLE);
             ui.used |= 1u << B_PLAY;
@@ -2118,7 +2152,9 @@ static void input(void)
     if ((e = plat_enc(EN_PRESET)) != 0 && (e = knob_take(EN_PRESET, e, now)) != 0) {         /* the scenes (on JOURNEY: the list) */
         char v[24];
         ui.touch_t = now;
-        if (ui.view == V_JOURNEY) {
+        if (ctl_on()) {
+            ctl_turn(CT_PRESET, e);
+        } else if (ui.view == V_JOURNEY) {
             ui.jrow = (uint8_t)clamp_i(ui.jrow + e, 0, JROWS - 1);
             jrow_name(ui.jrow, v);
             say(v, 0);
@@ -2131,6 +2167,10 @@ static void input(void)
     for (i = EN_K1; i <= EN_K4; i++)
         if ((e = plat_enc(i)) != 0 && (e = knob_take(i, e, now)) != 0) {
             ui.touch_t = now;
+            if (ctl_on()) {
+                ctl_turn(CT_K1 + i - EN_K1, e);
+                continue;
+            }
             switch (layer()) {
             case L_DRONE: drone_knob(i - EN_K1, e); break;
             case L_VSOUND: vsound_knob(i - EN_K1, e); break;
@@ -3219,6 +3259,20 @@ static void draw_knobs(void)
     switch (ui.view) {
     case V_HOME: {                                /* the page ALGO chose, its name and where it is of the five */
         int x;
+        if (cfg.knobs) {                          /* KNOBS: CONTROLLER: each knob its CC and value; the left three below */
+            char nm[12], sap[28];
+            for (k = 0; k < 4; k++) {
+                put_i(put_s(nm, "CC "), CTL_CC[CT_K1 + k]);
+                put_i(a, cfg.ctl[CT_K1 + k]);
+                cell_arc(k, nm, a, (float)cfg.ctl[CT_K1 + k] / 127.0f, 0, C_AMB);
+            }
+            x = cv_text(6, 64, &FONT_XS, "CONTROLLER", C_AMB);
+            put_i(put_s(put_i(put_s(put_i(put_s(sap, "SEL "), cfg.ctl[CT_SELECT]), "  ALGO "), cfg.ctl[CT_ALGO]), "  PRE "),
+                  cfg.ctl[CT_PRESET]);
+            text_r(234, 64, &FONT_XS, sap, C_DIM);
+            (void)x;
+            break;
+        }
         for (k = 0; k < 4; k++) {
             int mx, v = hk_get(k, &mx);
             hk_text(k, a);

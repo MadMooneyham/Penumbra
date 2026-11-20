@@ -2,8 +2,8 @@
 # headphones, line out) fall silent, gliding; when it lets go, or with no computer, they play as FULL.
 wait 1500
 tap GLO
-turn SELECT 8
-expect row 8
+turn SELECT 9
+expect row 9
 tap SEL
 tap SEL
 expect set_usb 2

@@ -547,6 +547,11 @@ static int expect(const char *what, const char *val)
         got = cfg.clk_out;
     else if (!strcmp(what, "set_midi_ch"))
         got = cfg.midi_ch;
+    else if (!strcmp(what, "knobs"))                /* KNOBS: 0 PENUMBRA, 1 CONTROLLER */
+        got = cfg.knobs;
+    else if (!strncmp(what, "ctl", 3) && what[3] >= '0' && what[3] <= '6')   /* ctlN: CONTROLLER's knob N's value
+                                                                              * (0-3 K1-K4, 4 SELECT, 5 ALGO, 6 PRESETS) */
+        got = cfg.ctl[what[3] - '0'];
     else if (!strcmp(what, "set_usb"))              /* USB AUDIO: 0 MASTER, 1 FULL, 2 USB ONLY */
         got = cfg.usb_full;
     else if (!strcmp(what, "set_bpm"))

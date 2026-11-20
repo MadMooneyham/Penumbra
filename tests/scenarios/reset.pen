@@ -49,7 +49,7 @@ expect perf2 40
 tap GLO
 turn ALGO 5
 expect set_bpm 95
-turn SELECT 12
+turn SELECT 13
 tap SEL
 wait 100
 expect vs1.7 12

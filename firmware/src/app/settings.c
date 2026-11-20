@@ -38,6 +38,9 @@ int settings_load(void)
             s.fx[i] = i < 8 ? u.b[SET_V3_FX + i] : FX_DEF[i];
         for (i = 0; i < (int)sizeof s.rsv2; i++)
             s.rsv2[i] = 0;
+        for (i = 0; i < (int)sizeof s.ctl; i++)
+            s.ctl[i] = 0;
+        s.knobs = 0;
         s.format = SET_FORMAT;
     } else if (n != (int)sizeof s || s.magic != SET_MAGIC || s.format != SET_FORMAT) {
         settings_defaults();                     /* none, or another firmware's */
@@ -52,6 +55,9 @@ int settings_load(void)
     s.bend %= BEND_RANGES;
     s.midi_quiet &= 3u;
     s.sound_lock &= 1u;
+    s.knobs &= 1u;
+    for (i = 0; i < 7; i++)
+        s.ctl[i] &= 0x7Fu;
     if (s.usb_full > 2)
         s.usb_full = 0;
     if (s.home_page > 5)

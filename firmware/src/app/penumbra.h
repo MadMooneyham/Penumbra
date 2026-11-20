@@ -33,9 +33,12 @@ typedef struct {
                                           * (0, and a spare byte to 1.4: it brings its own sound, gliding in) */
     uint8_t home_page;                   /* HOME's knob page (ALGO there): 0 DRONE, VOX, MOTION, SPACE, MIX, 5 ALIVE
                                           * (a spare byte to 1.6: DRONE) */
-    uint8_t rsv[2];
+    uint8_t knobs;                       /* 1: CONTROLLER, on HOME the seven knobs send fixed CCs (ui.c CTL_CC) and
+                                          * leave Penumbra be; 0 (a spare byte to 1.8): PENUMBRA, as ever */
+    uint8_t rsv[1];
     uint8_t fx[EF_N];                   /* the FX page (engine.h EF_*) */
-    uint8_t rsv2[28 - EF_N];
+    uint8_t ctl[7];                      /* CONTROLLER: each knob's value, 0..127 (K1-K4, SELECT, ALGO, PRESET) */
+    uint8_t rsv2[28 - EF_N - 7];
 } settings_t;
 
 extern settings_t cfg;
