@@ -30,7 +30,7 @@ and more like a mixing desk in a night sky: shaping, throwing and steering a sou
 
 The silence between the notes is part of it.
 
-Version 1.8 · identity `FM-1_73010800` · GPL-3.0
+Version 1.9 · identity `FM-1_73010900` · GPL-3.0
 
 **[Play it in the browser](https://madmooneyham.github.io/Penumbra/emu/)** (the same code the FM-1 runs) ·
 **[Cheat sheet](https://madmooneyham.github.io/Penumbra/cheatsheet/)** (one printable page)
@@ -93,7 +93,7 @@ Penumbra is slow, and much of what it does best unfolds over a few minutes.
 - **The easy way:** install it in one click from [The Firmware Hub](https://thefirmwarehub.com/).
 - **In the browser:** the [web installer](https://madmooneyham.github.io/Penumbra/install/) writes it over USB
   (Chrome or Edge).
-- **By hand:** download `penumbra-1.8.fwsc` from this repository's
+- **By hand:** download `penumbra-1.9.fwsc` from this repository's
   [Releases](https://github.com/MadMooneyham/Penumbra/releases), and write it with an FM-1 firmware installer.
 
 Penumbra carries the update loader, so you can always go back to another firmware or to M-VAVE's own. If an
@@ -126,7 +126,7 @@ setting, is in the **[manual](MANUAL.md)**. Its last section is a one-page cheat
   bars, and each scene can name where the sound sits between A and B. The journey playing, with its loop and its
   A/B, survives a power cut.
 - **With a DAW**: USB audio and MIDI. A tight clock in (and song position) or out, VOX's notes and the black
-  keys both ways, 44 controls on CCs both ways (automate them, or record your moves), program changes for the
+  keys both ways, 66 controls on CCs both ways (automate them, or record your moves), and KNOBS: CONTROLLER, the knobs as a MIDI controller, program changes for the
   scenes and journeys.
 - **Extras**: a SLEEP timer, USB ONLY (the FM-1's own outputs silent while a computer takes its USB audio),
   backups, and screen-reader support.
