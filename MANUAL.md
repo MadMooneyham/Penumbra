@@ -1,6 +1,6 @@
 # Penumbra manual
 
-Penumbra 1.9 for the M-VAVE FM-1, by Lunar Eclipse Forge.
+Penumbra 1.10 for the M-VAVE FM-1, by Lunar Eclipse Forge.
 
 Penumbra is an ambient space-drone synth that plays itself. What it does best comes from shaping and
 moving the sound while it plays: turning HOME's knobs, throwing the effects, holding a voice to reshape it,
