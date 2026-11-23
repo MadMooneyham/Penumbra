@@ -494,7 +494,7 @@ pitch. Only the WARP throw bends them. Each scene can move the reverb further wi
 | MIDI CHANNEL | VOX's notes, the CCs and program changes, 1-16, or off; the black keys use the next channel (section 9) |
 | MIDI NOTES OUT | Sends the notes played |
 | MIDI CC OUT | Sends the CCs and program changes as things change |
-| KNOBS | PENUMBRA, or CONTROLLER: on HOME the seven knobs are a MIDI controller (section 9) |
+| KNOBS | PENUMBRA, or CC ABSOLUTE or CC RELATIVE: on HOME the seven knobs are a MIDI controller (section 9) |
 | 2ND CORE | Uses the FM-1's second processor core; applies at the next power-on |
 | DRONE CORE | Which core runs the drone voices; SPLIT balances itself |
 | OUTPUT LEVEL | NORMAL, or LOUD (6 dB hotter) |
@@ -598,9 +598,17 @@ HOME's pages, the kick, MORPH, PRESET and A/B do can be recorded in the DAW and 
 FM-1 shows. A PRESET move sends both SCENE's CC and its program change. The macros (14-17) are MIDI's own: each 0% as
 made, with the journey.
 
-**The knobs as a controller.** With SYSTEM's **KNOBS** set to CONTROLLER, HOME's seven knobs control other
-instruments and plugins in the DAW instead of Penumbra. Each keeps its own value from 0 to 127 and sends it
-as a CC on the MIDI channel, whether or not MIDI CC OUT is on:
+**The knobs as a controller.** With SYSTEM's **KNOBS** set to CC ABSOLUTE or CC RELATIVE, HOME's seven knobs
+control other instruments and plugins in the DAW instead of Penumbra, each on its own CC on the MIDI channel,
+whether or not MIDI CC OUT is on:
+
+- **CC RELATIVE** sends each turn as how far and which way (binary offset: 65 and up clockwise, 63 and down
+  back), so the DAW's control moves from wherever it is, with no end on the FM-1's side. In the DAW's MIDI
+  mapping this is called relative binary offset (Ableton: Relative (Bin Offset); REAPER: Relative 2). The
+  knob strip shows each knob's last turn.
+- **CC ABSOLUTE** keeps a value from 0 to 127 for each knob and sends it. A DAW that sends the CC back (its
+  controller feedback) moves the knob's value too, so they agree after the mouse or automation has moved it;
+  without that, the FM-1's value is where the knob stops. The knob strip shows each value.
 
 | Knob | CC |
 | --- | --- |
@@ -609,13 +617,12 @@ as a CC on the MIDI channel, whether or not MIDI CC OUT is on:
 | ALGO | 79 |
 | PRESETS | 80 |
 
-- Penumbra's sound, scene and page stay as they are while the knobs turn, and Penumbra never takes these CCs
-  itself, so nothing echoes back.
-- HOME's knob strip shows each knob's CC and value, and the bottom line SELECT's, ALGO's and PRESETS'.
+- Penumbra's sound, scene and page stay as they are while the knobs turn; Penumbra takes these CCs for
+  nothing else.
 - The holds (FX, a key held) and every other page are Penumbra's as always, so its sound can still be shaped,
-  and SYSTEM reached, with KNOBS on CONTROLLER.
-- The values are kept with the settings, so the DAW and the knobs agree after a power-off.
-- Each click moves a value two steps; a knob spinning quickly goes further, as everywhere.
+  and SYSTEM reached, with the knobs as a controller.
+- ABSOLUTE's values are kept with the settings. A click moves a value two steps, RELATIVE one; a knob
+  spinning quickly goes further, as everywhere.
 
 **Program changes**, both ways:
 

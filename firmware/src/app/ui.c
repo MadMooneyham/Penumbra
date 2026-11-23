@@ -88,6 +88,7 @@ typedef struct {
     uint8_t vheld;                     /* VOX's sound keys held (bit s) */
     uint8_t bheld;                     /* BLOOM's key held */
     uint8_t kheld;                     /* the kick's key held */
+    int8_t ctl_last[7];                /* KNOBS: CC RELATIVE: each knob's last turn, + or - steps (the screen's) */
     uint8_t bvel[11];                  /* each black key's velocity as MIDI last pressed it (the hands: 110) */
     uint16_t wheld;                    /* white keys held (bit w) */
     uint32_t used;                     /* buttons held as a hold this press: they do not act when let go */
@@ -207,7 +208,7 @@ enum { R_CLKOUT, R_CLKIN, R_MIDICH, R_NOTESOUT, R_CCOUT, R_KNOBS, R_CORES, R_DRN
 static const char *const ROW_N[NROWS] = {"MIDI CLOCK OUT", "FOLLOW CLOCK IN", "MIDI CHANNEL", "MIDI NOTES OUT",
                                          "MIDI CC OUT", "KNOBS", "2ND CORE", "DRONE CORE", "OUTPUT LEVEL", "USB AUDIO",
                                          "PLAY AT POWER-ON", "BEND RANGE", "SLEEP", "RESET SOUND", "ABOUT"};
-static const char *const KNOBS_N[] = {"PENUMBRA", "CONTROLLER"};   /* (CONTROLLER: on HOME, fixed CCs out) */
+static const char *const KNOBS_N[] = {"PENUMBRA", "CC ABSOLUTE", "CC RELATIVE"};   /* (on HOME, fixed CCs out: a value, or each turn) */
 /* SLEEP: in so many minutes it lets everything go (this session's: not saved) */
 #define SLEEPS 5
 static const uint8_t SLEEP_MIN[SLEEPS] = {0, 20, 40, 60, 90};
@@ -219,7 +220,7 @@ static const char *const USB_N[] = {"MASTER", "FULL", "USB ONLY"};   /* (USB ONL
 
 static int row_n(int r)                           /* choices; 0: not a setting */
 {
-    return r == R_MIDICH ? 17 : r == R_DRNCORE || r == R_USBFULL ? 3 : r == R_BEND ? BEND_RANGES : r == R_SLEEP ? SLEEPS
+    return r == R_MIDICH ? 17 : r == R_DRNCORE || r == R_USBFULL || r == R_KNOBS ? 3 : r == R_BEND ? BEND_RANGES : r == R_SLEEP ? SLEEPS
            : r == R_ABOUT || r == R_RESET ? 0 : 2;
 }
 static int row_get(int r)
@@ -254,7 +255,7 @@ static void row_text(int r, char *b)
     case R_DRNCORE: put_s(b, CORE_N[v]); break;
     case R_OUTLOUD: put_s(b, LOUD_N[v]); break;
     case R_USBFULL: put_s(b, USB_N[v]); break;
-    case R_KNOBS: put_s(b, KNOBS_N[v ? 1 : 0]); break;
+    case R_KNOBS: put_s(b, KNOBS_N[v % 3]); break;
     case R_BEND: put_s(put_i(b, BEND_SEMIS[v]), " SEMITONES"); break;
     case R_SLEEP:
         if (v)
@@ -1977,10 +1978,14 @@ static void hk_turn(int k, int e)
 }
 
 /* ------------------------------------------------------- CONTROLLER (KNOBS) --- */
-/* SYSTEM's KNOBS: CONTROLLER. On HOME (no hold, PLAY not held) the seven knobs are a MIDI controller: each keeps
- * a value 0..127 (kept with the settings) and sends it as its own CC on the MIDI channel, whatever MIDI CC OUT
- * says, and Penumbra's sound is left as it is. CCs Penumbra itself never takes, so nothing comes back to it.
- * Every other page, and the holds, are Penumbra's as ever */
+/* SYSTEM's KNOBS: CC ABSOLUTE or CC RELATIVE. On HOME (no hold, PLAY not held) the seven knobs are a MIDI
+ * controller, each its own CC on the MIDI channel, whatever MIDI CC OUT says, and Penumbra's sound is left as it
+ * is. ABSOLUTE: each keeps a value 0..127 (kept with the settings) and sends it; a DAW sending the CC back moves
+ * the value too, so the two agree. RELATIVE: each turn sends only how far and which way (binary offset: 64 + n
+ * clockwise, 64 - n back), so the DAW's own value moves from wherever it is, with no end on the FM-1's side.
+ * Penumbra itself takes these CCs for nothing else. Every other page, and the holds, are Penumbra's as ever */
+#define KN_ABS 1
+#define KN_REL 2
 enum { CT_K1, CT_K2, CT_K3, CT_K4, CT_SELECT, CT_ALGO, CT_PRESET, CT_N };
 static const uint8_t CTL_CC[CT_N] = {74, 75, 76, 77, 78, 79, 80};
 static const char *const CTL_N[CT_N] = {"KNOB 1", "KNOB 2", "KNOB 3", "KNOB 4", "SELECT", "ALGO", "PRESETS"};
@@ -1992,6 +1997,15 @@ static void ctl_turn(int c, int e)
 {
     char t[40];
     const int v = clamp_i(cfg.ctl[c] + 2 * e * ui.mult, 0, 127);
+    if (cfg.knobs == KN_REL) {                    /* how far and which way: a step a click, faster spun further */
+        const int n = clamp_i((e < 0 ? -e : e) * ui.mult, 1, 63);
+        ui.ctl_last[c] = (int8_t)(e > 0 ? n : -n);
+        if (cfg.midi_ch)
+            engine_midi_send(0xB0 | (cfg.midi_ch - 1), CTL_CC[c], e > 0 ? 64 + n : 64 - n);
+        put_sgn(put_s(put_i(put_s(put_s(t, CTL_N[c]), "  CC "), CTL_CC[c]), "  "), ui.ctl_last[c]);
+        say(t, cfg.midi_ch ? 0 : "  (MIDI CHANNEL OFF)");
+        return;
+    }
     if (v != cfg.ctl[c]) {
         cfg.ctl[c] = (uint8_t)v;
         changed();
@@ -2033,6 +2047,12 @@ static void midi_take(void)                       /* what MIDI brought, applied 
                 if (CCMAP[c].cc == d1) {
                     cc_set(c, d2);
                     ui.cc_sent[c] = (uint8_t)cc_get(c);
+                }
+            for (c = 0; c < CT_N; c++)            /* KNOBS: CC ABSOLUTE: the DAW's value back, so the knob goes on from
+                                                   * there (its mouse, its automation) */
+                if (CTL_CC[c] == d1 && cfg.knobs == KN_ABS && cfg.ctl[c] != d2) {
+                    cfg.ctl[c] = (uint8_t)d2;
+                    changed();
                 }
         } else if (ty == 0xC0) {
             if (d1 < PC_PRESET && d1 < eng_jr.nscenes) {
@@ -3339,12 +3359,23 @@ static void draw_knobs(void)
         int x;
         if (cfg.knobs) {                          /* KNOBS: CONTROLLER: each knob its CC and value; the left three below */
             char nm[12], sap[28];
-            for (k = 0; k < 4; k++) {
+            const int rel = cfg.knobs == KN_REL;
+            for (k = 0; k < 4; k++) {             /* (RELATIVE: no value of its own; its last turn, the arc from the top) */
+                const int last = ui.ctl_last[CT_K1 + k];
                 put_i(put_s(nm, "CC "), CTL_CC[CT_K1 + k]);
-                put_i(a, cfg.ctl[CT_K1 + k]);
-                cell_arc(k, nm, a, (float)cfg.ctl[CT_K1 + k] / 127.0f, 0, C_AMB);
+                if (rel)
+                    put_sgn(a, last);
+                else
+                    put_i(a, cfg.ctl[CT_K1 + k]);
+                cell_arc(k, nm, a, rel ? 0.5f + (float)clamp_i(last, -8, 8) * (0.5f / 8.0f) : (float)cfg.ctl[CT_K1 + k] / 127.0f,
+                         rel, C_AMB);
             }
-            x = cv_text(6, 64, &FONT_XS, "CONTROLLER", C_AMB);
+            x = cv_text(6, 64, &FONT_XS, rel ? "CC RELATIVE" : "CC ABSOLUTE", C_AMB);
+            if (rel) {
+                text_r(234, 64, &FONT_XS, "SEL  ALGO  PRE: TURNS", C_DIM);
+                (void)x;
+                break;
+            }
             put_i(put_s(put_i(put_s(put_i(put_s(sap, "SEL "), cfg.ctl[CT_SELECT]), "  ALGO "), cfg.ctl[CT_ALGO]), "  PRE "),
                   cfg.ctl[CT_PRESET]);
             text_r(234, 64, &FONT_XS, sap, C_DIM);

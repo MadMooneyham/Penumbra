@@ -55,7 +55,8 @@ int settings_load(void)
     s.bend %= BEND_RANGES;
     s.midi_quiet &= 3u;
     s.sound_lock &= 1u;
-    s.knobs &= 1u;
+    if (s.knobs > 2)
+        s.knobs = 0;
     for (i = 0; i < 7; i++)
         s.ctl[i] &= 0x7Fu;
     if (s.usb_full > 2)
