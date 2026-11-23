@@ -10,6 +10,9 @@
  *   0x52 WRITE    part, off16, total16, bytes-> status, part, have16   (in order from 0, into RAM)
  *   0x53 COMMIT   part                       -> status, part           (checked, then saved)
  *   0x54 RESTART  ()                         -> status; the unit starts again with what was restored
+ *   0x55 JOURNEY  dest, off16, total16, bytes-> status, dest, have16   (the journey editor's: one journey_t, in
+ *                                               order from 0; the last chunk in, it goes into user slot dest
+ *                                               (0..7, saved) or, dest 0x7F, plays now; no restart)
  * status: 0 ok, 1 not a part, 2 nothing saved, 3 out of order, 4 not one this firmware takes, 5 not saved.
  * The parts: the settings, the journey playing (and its A/B), the user journeys, the loop, the sounds; never
  * the panel's calibration (the unit's own). From the first WRITE nothing is saved over the restore; 20 s
@@ -22,12 +25,15 @@ static void bk_restart(void);                            /* the platform's: star
 #define BK_PROTO 1u
 #define BK_CHUNK 256u
 #define BK_IDLE_MS 20000u
-enum { BK_HELLO = 0x50, BK_READ, BK_WRITE, BK_COMMIT, BK_RESTART };
+enum { BK_HELLO = 0x50, BK_READ, BK_WRITE, BK_COMMIT, BK_RESTART, BK_JOURNEY };
+#define BK_JPLAY 0x7Fu
 enum { BS_OK, BS_PART, BS_EMPTY, BS_ORDER, BS_BAD, BS_FLASH };
 static const uint8_t BK_PARTS[] = {OBJ_SET, OBJ_WORK, OBJ_USER, OBJ_LOOP, OBJ_SOUNDS};
 #define BK_NPARTS (sizeof BK_PARTS)
 
 static uint8_t bk_buf[PLAT_STORE_MAX] PEN_POOL;          /* the part read, or the part coming in */
+static union { journey_t j; uint8_t b[sizeof(journey_t)]; } bk_j;   /* JOURNEY's, coming in */
+static struct { int dest; uint32_t have; } bkj = {-1, 0};
 static uint8_t bk_msg[8 + 8 + BK_CHUNK], bk_out[2 + (8 + 8 + BK_CHUNK) * 8 / 7 + 2], bk_in[560];
 static struct {
     int cached;                                          /* the part in bk_buf as read (-1: none) */
@@ -237,13 +243,57 @@ static void bk_commit(const uint8_t *b, uint32_t n)
     bk_reply(BK_COMMIT, BS_OK, part, 0);
 }
 
+static void bk_journey(const uint8_t *b, uint32_t n)
+{
+    uint32_t dest, off, total, k;
+    int r;
+    if (n < 5u)
+        return;
+    dest = b[0];
+    off = b[1] | (uint32_t)b[2] << 8;
+    total = b[3] | (uint32_t)b[4] << 8;
+    n -= 5u;
+    if (dest != BK_JPLAY && dest >= JR_USER) {
+        bk_reply(BK_JOURNEY, BS_PART, dest, 0);
+        return;
+    }
+    if (off == 0) {
+        bkj.dest = (int)dest;
+        bkj.have = 0;
+    }
+    if (bkj.dest != (int)dest || off != bkj.have || total != sizeof bk_j.b || off + n > total) {
+        bk_reply(BK_JOURNEY, total != sizeof bk_j.b ? BS_BAD : BS_ORDER, dest, bkj.dest == (int)dest ? bkj.have : 0);
+        return;
+    }
+    for (k = 0; k < n; k++)
+        bk_j.b[off + k] = b[5 + k];
+    bkj.have += n;
+    if (bkj.have < total) {
+        bk_reply(BK_JOURNEY, BS_OK, dest, bkj.have);
+        return;
+    }
+    bkj.dest = -1;
+    r = journey_put(dest == BK_JPLAY ? -1 : (int)dest, &bk_j.j);
+    bk_reply(BK_JOURNEY, r == 0 ? BS_OK : r == 1 ? BS_BAD : BS_FLASH, dest, total);
+    if (r == 0) {
+        if (dest == BK_JPLAY) {
+            ui_say("JOURNEY IN", "PLAYING NOW");
+        } else {
+            char t[8] = "USER ";
+            t[5] = (char)('1' + dest);
+            t[6] = 0;
+            ui_say("JOURNEY IN", t);
+        }
+    }
+}
+
 int bk_frame(const uint8_t *p, uint32_t n)
 {
     uint32_t d, s = 0, i, len;
     if (n < 8u || p[0] != 0x00)                          /* (00 59 packed: 00 32 ..; HELLO's 7 bytes in 8) */
         return 0;
     d = bk_unpack7(p, n, bk_in, sizeof bk_in);
-    if (d < 7u || d > sizeof bk_in || bk_in[1] != 0x59 || bk_in[2] < BK_HELLO || bk_in[2] > BK_RESTART)
+    if (d < 7u || d > sizeof bk_in || bk_in[1] != 0x59 || bk_in[2] < BK_HELLO || bk_in[2] > BK_JOURNEY)
         return 0;
     len = bk_in[3] | (uint32_t)bk_in[4] << 8 | (uint32_t)bk_in[5] << 16;
     if (len + 7u != d)
@@ -258,6 +308,7 @@ int bk_frame(const uint8_t *p, uint32_t n)
     case BK_READ: bk_read(bk_in + 6, len); break;
     case BK_WRITE: bk_write(bk_in + 6, len); break;
     case BK_COMMIT: bk_commit(bk_in + 6, len); break;
+    case BK_JOURNEY: bk_journey(bk_in + 6, len); break;
     default:
         bk_reply(BK_RESTART, BS_OK, 0, 0);
         bk.restart = 1;

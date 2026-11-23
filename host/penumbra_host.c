@@ -28,6 +28,7 @@
  */
 #define PEN_HOST 1
 #define _POSIX_C_SOURCE 199309L                  /* clock_gettime */
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -555,6 +556,10 @@ static int expect(const char *what, const char *val)
         got = eng_jr.scene[(atoi(what + 5) - 1) % JR_SCENES].root;
     else if (!strcmp(what, "srow"))                 /* SCENE's field shown */
         got = ui.srow;
+    else if (!strcmp(what, "ssel"))                 /* SCENE, SCENES: the scene shown (0..; SCENES: nscenes, the row for a scene more) */
+        got = ui.ssel;
+    else if (!strcmp(what, "bring_on"))             /* SCENES: K3 has picked a scene to bring in */
+        got = ui.bring_on;
     else if (!strcmp(what, "morph"))                /* MORPH: how far toward the next (or the one before), % */
         got = (int)(engine_jr()->mamt * 100.0f + 0.5f);
     else if (!strcmp(what, "knobs"))                /* KNOBS: 0 PENUMBRA, 1 CONTROLLER */
@@ -743,14 +748,44 @@ static int expect(const char *what, const char *val)
 
 #ifndef PEN_WEB
 extern uint8_t knobs_exact;
+/* --presets: the preset journeys as the site's journey editor reads them (web/journey/presets.json; the tests
+ * check it is this firmware's): each journey_t's bytes, and where its fields are */
+static int dump_presets(void)
+{
+    int i;
+    uint32_t k;
+    printf("{\n  \"what\": \"Penumbra's preset journeys, as the firmware makes them (host/penumbra_host --presets)\",\n");
+    printf("  \"format\": %u, \"size\": %u, \"scenes_max\": %d, \"name_len\": %d,\n", (unsigned)JR_FORMAT,
+           (unsigned)sizeof(journey_t), JR_SCENES, JR_NAME);
+    printf("  \"at\": {\"name\": %u, \"nscenes\": %u, \"travel\": %u, \"scene\": %u, \"scene_size\": %u, \"root\": %u, "
+           "\"scale\": %u, \"stays\": %u, \"skip\": %u},\n",
+           (unsigned)offsetof(journey_t, name), (unsigned)offsetof(journey_t, nscenes), (unsigned)offsetof(journey_t, travel),
+           (unsigned)offsetof(journey_t, scene), (unsigned)sizeof(scene_t), (unsigned)offsetof(scene_t, root),
+           (unsigned)offsetof(scene_t, scale), (unsigned)offsetof(scene_t, stays), (unsigned)offsetof(scene_t, skip));
+    printf("  \"presets\": [\n");
+    for (i = 0; i < JR_PRESETS; i++) {
+        journey_t j;
+        const uint8_t *b = (const uint8_t *)&j;
+        jr_preset(i, &j);
+        printf("    {\"name\": \"%s\", \"hex\": \"", jr_preset_name(i));
+        for (k = 0; k < sizeof j; k++)
+            printf("%02x", b[k]);
+        printf("\"}%s\n", i + 1 < JR_PRESETS ? "," : "");
+    }
+    printf("  ]\n}\n");
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     FILE *sc;
     char line[512], out[400];
     const char *dir = argc > 2 ? argv[2] : ".";
     int lineno = 0, fails = 0;
+    if (argc == 2 && !strcmp(argv[1], "--presets"))
+        return dump_presets();
     if (argc < 2) {
-        fprintf(stderr, "usage: penumbra_host SCRIPT [OUTDIR]\n");
+        fprintf(stderr, "usage: penumbra_host SCRIPT [OUTDIR]  |  penumbra_host --presets\n");
         return 2;
     }
     sc = fopen(argv[1], "r");

@@ -57,6 +57,8 @@ else
     echo "  skip update-path tests (no build/penumbra.fwsc: run ./build.sh)"
 fi
 run host-build sh host/build_host.sh
+# the Journeys page's presets: this firmware's (build/host/penumbra_host --presets > web/journey/presets.json)
+run presets-json sh -c "build/host/penumbra_host --presets | cmp - web/journey/presets.json"
 for s in tests/scenarios/*.pen; do
     n=$(basename "$s" .pen)
     mkdir -p "build/scenarios/$n"
@@ -69,6 +71,7 @@ if command -v emcc >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
     run emu-host build/host/penumbra_host tests/emu/emu.pen build/scenarios/emu
     run emu node tests/host/emu_test.mjs build/emu/penumbra.wasm build/scenarios/emu/emu.wav
     run backup node tests/host/backup_test.mjs build/emu/penumbra.wasm
+    run journey-web node tests/host/journey_web_test.mjs build/emu/penumbra.wasm
 else
     echo "  skip emu (needs emcc and node: the Emscripten SDK)"
 fi

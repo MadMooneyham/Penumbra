@@ -1,0 +1,369 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only
+     Penumbra's Journeys page: a journey's scenes gathered from any journey, put in order, each with how long it
+     stays, then into a user slot on the FM-1 or playing now (Web MIDI with SysEx: Chrome or Edge), or a file.
+     The journey's bytes are journey.js's; the link is ../backup/backup.js's (the FM-1's side: backup.c, JOURNEY). -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Penumbra Journeys</title>
+<meta name="description" content="Make a Penumbra journey: scenes from any journey, in any order, each for its own time or skipped, then onto the M-VAVE FM-1.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
+<style>
+:root { --ground: #07080f; --ink: #ecebf6; --muted: #8a8fae; --rule: #23263a; --accent: #ff9646; --card: #10121e; --on: #1d0e03;
+        --scene: #7fa9ff; --dim: #4a4f6a; color-scheme: dark; }
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) { --ground: #f3f2f8; --ink: #15162a; --muted: #555a78; --rule: #d6d6e4; --accent: #b0520c; --card: #fff; --on: #fff;
+                                   --scene: #2f5fc4; --dim: #a5a8bd; color-scheme: light; }
+}
+:root[data-theme="light"] { --ground: #f3f2f8; --ink: #15162a; --muted: #555a78; --rule: #d6d6e4; --accent: #b0520c; --card: #fff; --on: #fff;
+                            --scene: #2f5fc4; --dim: #a5a8bd; color-scheme: light; }
+:root[data-theme="dark"] { --ground: #07080f; --ink: #ecebf6; --muted: #8a8fae; --rule: #23263a; --accent: #ff9646; --card: #10121e; --on: #1d0e03;
+                           --scene: #7fa9ff; --dim: #4a4f6a; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { background: var(--ground); color: var(--ink); margin: 0; padding: 28px 16px 48px;
+       font: 400 16px/1.55 "Barlow", "Helvetica Neue", Arial, sans-serif; }
+main { max-width: 52rem; margin: 0 auto; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: .4rem 1.2rem; margin: 0 0 1.2rem; }
+h1 { font: 700 2rem/1.1 "Barlow Semi Condensed", "Barlow", sans-serif; margin: 0; letter-spacing: .02em; }
+h1 a { color: inherit; text-decoration: none; }
+header p { margin: 0; color: var(--muted); }
+header nav { margin-left: auto; display: flex; flex-wrap: wrap; gap: .3rem 1rem; }
+h2 { font: 600 1.15rem "Barlow Semi Condensed", "Barlow", sans-serif; margin: 0 0 .5rem; }
+h3 { font: 600 1rem "Barlow Semi Condensed", "Barlow", sans-serif; margin: 0; letter-spacing: .03em; }
+a { color: var(--accent); }
+p { margin: 0 0 .8rem; }
+.muted { color: var(--muted); }
+.small { color: var(--muted); font-size: .9rem; }
+.card { margin: 1.2rem 0 0; padding: 1rem 1.2rem; border: 1px solid var(--rule); border-radius: 10px; background: var(--card); }
+button { font: 600 1rem "Barlow Semi Condensed", "Barlow", sans-serif; letter-spacing: .03em; padding: .5em 1.2em;
+         border-radius: 999px; border: 0; background: var(--accent); color: var(--on); cursor: pointer; }
+button.quiet { background: transparent; color: var(--ink); border: 1px solid var(--rule); }
+button.icon { background: transparent; color: var(--muted); border: 1px solid var(--rule); padding: .2em .55em; border-radius: 6px; font-size: .95rem; }
+button.icon:hover:not(:disabled) { color: var(--ink); }
+button:disabled { opacity: .4; cursor: default; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+select, input[type="text"], input[type="number"] { font: inherit; color: var(--ink); background: var(--ground); border: 1px solid var(--rule);
+                                                    border-radius: 6px; padding: .3em .5em; }
+input[type="file"] { font: inherit; font-size: .92rem; color: var(--muted); max-width: 100%; }
+.row { display: flex; flex-wrap: wrap; gap: .6rem 1rem; align-items: center; }
+.grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 0 1.2rem; align-items: start; }
+@media (max-width: 760px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+label.f { display: flex; flex-direction: column; gap: .15rem; font-size: .9rem; color: var(--muted); }
+/* the journey: a scene a row */
+ol.scenes { list-style: none; margin: .8rem 0 0; padding: 0; }
+ol.scenes li { display: grid; grid-template-columns: 1.6rem minmax(0, 1fr) auto auto; gap: .2rem .6rem; align-items: center;
+               padding: .5rem .5rem .5rem .6rem; margin: 0 0 .4rem; border: 1px solid var(--rule); border-left: 3px solid var(--scene);
+               border-radius: 8px; background: var(--ground); }
+ol.scenes li.skipped { border-left-color: var(--dim); }
+ol.scenes li.skipped .key { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--dim); }
+ol.scenes li.drag { opacity: .4; }
+ol.scenes li.over { border-color: var(--accent); }
+ol.scenes .n { font: 700 1.1rem "Barlow Semi Condensed", sans-serif; color: var(--muted); cursor: grab; text-align: center; }
+ol.scenes .key { font-weight: 600; }
+ol.scenes .from { color: var(--muted); font-size: .85rem; }
+ol.scenes .moves { display: flex; gap: .3rem; }
+.summary { margin: .6rem 0 0; }
+/* the scenes to bring in */
+.lib details { border-top: 1px solid var(--rule); padding: .4rem 0; }
+.lib details:first-of-type { border-top: 0; }
+.lib summary { cursor: pointer; display: flex; justify-content: space-between; gap: .5rem; }
+.lib summary span { color: var(--muted); font-size: .85rem; }
+.lib ul { list-style: none; padding: 0; margin: .3rem 0 0; }
+.lib li { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .15rem 0 .15rem .4rem; }
+.lib li .k { font-size: .95rem; }
+.status { min-height: 1.55em; margin: .6rem 0 0; }
+.alert { font-weight: 600; margin: .6rem 0 0; }
+.alert:empty { display: none; }
+progress { width: 100%; height: 6px; margin: .6rem 0 0; accent-color: var(--accent); }
+progress[hidden] { display: none; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1><a href="../" title="Penumbra home">Penumbra</a></h1>
+  <p>journeys</p>
+  <nav aria-label="Penumbra pages"><a href="../emu/">Play</a><a href="../install/">Install</a><a href="../backup/">Backup</a><a href="../cheatsheet/">Cheat sheet</a><a href="https://github.com/MadMooneyham/Penumbra/blob/main/MANUAL.md">Manual</a></nav>
+</header>
+
+<p>A journey of one's own: up to eight scenes from any journey, in any order, each staying for its own time or
+  skipped. It keeps the sound of the journey it starts from. It goes into a user slot on the FM-1, or plays there
+  straight away, or stays here as a file.</p>
+<p class="muted">The FM-1 is reached over USB-MIDI, in Chrome or Edge (Web MIDI), with Penumbra 1.12 or later on it.
+  Without it, the page still makes journeys from the presets and from files. Nothing leaves this computer.</p>
+
+<section class="card" aria-labelledby="fm1-h">
+  <h2 id="fm1-h">The FM-1</h2>
+  <div class="row">
+    <button id="connect" type="button">Connect</button>
+    <span id="who" class="muted">Not connected: the presets and files are here anyway.</span>
+  </div>
+</section>
+
+<section class="card" aria-labelledby="start-h">
+  <h2 id="start-h">Start from</h2>
+  <div class="row">
+    <label class="f">A journey (its sound and its scenes)
+      <select id="base"></select></label>
+    <button id="open" type="button" class="quiet">Start from it</button>
+    <label class="f">or a journey file
+      <input type="file" id="file" accept=".penumbra-journey,application/json"></label>
+  </div>
+</section>
+
+<div class="grid">
+<section class="card" aria-labelledby="j-h">
+  <h2 id="j-h">The journey</h2>
+  <div class="row">
+    <label class="f">Name
+      <input type="text" id="name" maxlength="11" placeholder="USER and its slot" autocomplete="off" spellcheck="false"></label>
+    <label class="f">TRAVELS (the journey's own)
+      <select id="travel"></select></label>
+  </div>
+  <ol class="scenes" id="scenes" aria-label="The journey's scenes, in order"></ol>
+  <p class="summary small" id="summary"></p>
+  <p class="small">A scene's own time moves the journey on even with TRAVELS by hand. A skipped scene stays in the
+    journey, and travelling, PRESETS and MORPH pass it by. The number drags a scene to another place.</p>
+</section>
+
+<section class="card lib" aria-labelledby="lib-h">
+  <h2 id="lib-h">Scenes to bring in</h2>
+  <p class="small">Each one goes after the last, up to eight.</p>
+  <div id="lib"></div>
+</section>
+</div>
+
+<section class="card" aria-labelledby="send-h">
+  <h2 id="send-h">Onto the FM-1</h2>
+  <div class="row">
+    <label class="f">User slot
+      <select id="slot"></select></label>
+    <button id="put" type="button" disabled>Save in the slot</button>
+    <button id="play" type="button" class="quiet" disabled>Play it now</button>
+  </div>
+  <p class="small">Saving in a slot replaces what that slot held. Playing it now leaves the slots as they are: SAVE on a
+    JOURNEY user slot keeps it, as with any journey.</p>
+  <h2 style="margin-top:1rem">As a file</h2>
+  <div class="row"><button id="save" type="button" class="quiet">Save as a file</button></div>
+  <progress id="bar" max="1" value="0" hidden aria-label="How far it has got"></progress>
+  <p class="status" id="status" role="status"></p>
+  <p class="alert" id="alert" role="alert"></p>
+</section>
+</main>
+
+<script type="module">
+import * as B from "../backup/backup.js";
+import * as J from "./journey.js";
+const $ = (id) => document.getElementById(id);
+const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids); return e; };
+const status = (t) => { $("status").textContent = t; };
+const alert = (t) => { $("alert").textContent = t; };
+const bar = (v) => { $("bar").hidden = v === null; if (v !== null) $("bar").value = v; };
+
+let L = null, presets = [], user = [], playing = null, dev = null, j = null, from = [], busy = false, bpm = 90;
+const sources = () => [
+  ...presets.map((p, i) => ({ id: `p${i}`, name: p.name, what: "preset", bytes: p.bytes })),
+  ...(playing ? [{ id: "now", name: playing.name, what: "playing on the FM-1", bytes: playing.bytes }] : []),
+  ...user.map((u, i) => u && { id: `u${i}`, name: u.name, what: `USER ${i + 1}`, bytes: u.bytes }).filter(Boolean),
+];
+
+const denied = "MIDI with SysEx was not allowed. The site's settings, by the address bar, can allow it.";
+const noMidi = "This browser has no Web MIDI with SysEx. Chrome and Edge do.";
+const notFound = "No FM-1 with Penumbra answered. It shows up here when it is connected by USB (a data cable, "
+  + "straight to the computer) and no other app has its MIDI port open.";
+
+// ---- what the FM-1 keeps: the user slots and the journey playing
+async function readFM1() {
+  const got = await B.readAll(dev.link);
+  user = [];
+  const u = got.parts[9];
+  for (let i = 0; i < 8; i++) {
+    const b = u && u.length >= (i + 1) * L.size ? u.slice(i * L.size, (i + 1) * L.size) : null;
+    user.push(b && J.isJourney(L, b) ? { name: new J.Journey(L, b).name, bytes: b } : null);
+  }
+  const w = got.parts[8];
+  playing = w && J.isJourney(L, w) ? { name: new J.Journey(L, w).name, bytes: w.slice(0, L.size) } : null;
+}
+$("connect").addEventListener("click", async () => {
+  if (busy) return;
+  busy = true; alert("");
+  try {
+    if (!navigator.requestMIDIAccess) throw new Error(noMidi);
+    let access;
+    try { access = await navigator.requestMIDIAccess({ sysex: true }); } catch { throw new Error(denied); }
+    if (dev && dev.link.close) dev.link.close();
+    status("Looking for the FM-1...");
+    dev = await B.findFM1(access);
+    if (!dev) throw new Error(notFound);
+    if (dev.hello.journeyFormat !== L.format) {
+      const v = dev.hello.version;
+      dev.link.close(); dev = null;
+      throw new Error(`The FM-1 has Penumbra ${v}, whose journeys are another format: this page is for Penumbra with format ${L.format} (1.12 on).`);
+    }
+    status(`Reading Penumbra ${dev.hello.version}...`);
+    await readFM1();
+    $("who").textContent = `Connected: Penumbra ${dev.hello.version}, ${user.filter(Boolean).length} of 8 user slots holding a journey.`;
+    $("connect").textContent = "Read it again";
+    status("");
+    fillSources(); fillSlots(); drawLib(); sendable();
+  } catch (e) {
+    status(""); alert(e.message || String(e));
+  } finally { busy = false; }
+});
+
+// ---- the lists
+function fillSources() {
+  const keep = $("base").value;
+  $("base").replaceChildren(...sources().map((s) => el("option", { value: s.id, textContent: `${s.name} (${s.what})` })));
+  if (keep && [...$("base").options].some((o) => o.value === keep)) $("base").value = keep;
+}
+function fillSlots() {
+  const keep = $("slot").value || "0";
+  $("slot").replaceChildren(...Array.from({ length: 8 }, (_, i) =>
+    el("option", { value: String(i), textContent: `USER ${i + 1}${dev ? (user[i] ? `: ${user[i].name}` : ": empty") : ""}` })));
+  $("slot").value = keep;
+}
+$("travel").replaceChildren(...J.TRAVEL_BARS.map((b, i) => el("option", { value: String(i), textContent: b ? `Every ${b} bars` : "By hand" })));
+
+function drawLib() {
+  const box = $("lib");
+  const open = new Set([...box.querySelectorAll("details[open]")].map((d) => d.dataset.id));
+  box.replaceChildren();
+  for (const s of sources()) {
+    let jr;
+    try { jr = new J.Journey(L, s.bytes); } catch { continue; }
+    const ul = el("ul");
+    jr.scenes.forEach((sc, i) => {
+      const b = el("button", { type: "button", className: "icon", textContent: "Add",
+                               disabled: !j || j.scenes.length >= L.max });
+      b.setAttribute("aria-label", `Add ${s.name} scene ${i + 1}, ${J.sceneKey(L, sc)}`);
+      b.addEventListener("click", () => {
+        if (j.add(sc)) { from.push(`${s.name} ${i + 1}`); edited(); }
+      });
+      ul.append(el("li", {}, el("span", { className: "k", textContent: `${i + 1}  ${J.sceneKey(L, sc)}` }), b));
+    });
+    const d = el("details", {}, el("summary", {}, el("h3", { textContent: s.name }), el("span", { textContent: s.what })), ul);
+    d.dataset.id = s.id;
+    if (open.has(s.id)) d.open = true;
+    box.append(d);
+  }
+}
+
+// ---- the journey
+function start(jr, label) {
+  j = jr;
+  from = j.scenes.map((_, i) => `${label} ${i + 1}`);
+  $("name").value = j.name;
+  $("travel").value = String(j.travel);
+  draw(); drawLib(); sendable();
+}
+function edited() { draw(); drawLib(); }
+let dragFrom = -1;
+function draw() {
+  const ol = $("scenes");
+  ol.replaceChildren();
+  j.scenes.forEach((sc, i) => {
+    const stay = J.sceneStay(L, sc);
+    const sel = el("select");
+    sel.setAttribute("aria-label", `Scene ${i + 1}: how long it stays`);
+    [-1, ...J.STAY_BARS.keys()].forEach((v) => sel.append(el("option", { value: String(v), textContent: J.stayName(v) })));
+    sel.value = String(stay);
+    sel.addEventListener("change", () => { j.setStay(i, +sel.value); draw(); });
+    const up = el("button", { type: "button", className: "icon", textContent: "↑", disabled: i === 0 });
+    const dn = el("button", { type: "button", className: "icon", textContent: "↓", disabled: i === j.scenes.length - 1 });
+    const rm = el("button", { type: "button", className: "icon", textContent: "×", disabled: j.scenes.length < 2 });
+    up.setAttribute("aria-label", `Scene ${i + 1} earlier`);
+    dn.setAttribute("aria-label", `Scene ${i + 1} later`);
+    rm.setAttribute("aria-label", `Take scene ${i + 1} out`);
+    const mv = (to) => { if (j.move(i, to)) { const [f] = from.splice(i, 1); from.splice(to, 0, f); draw(); } };
+    up.addEventListener("click", () => mv(i - 1));
+    dn.addEventListener("click", () => mv(i + 1));
+    rm.addEventListener("click", () => { if (j.remove(i)) { from.splice(i, 1); edited(); } });
+    const n = el("span", { className: "n", textContent: String(i + 1), title: "Drag to another place" });
+    const li = el("li", { className: stay < 0 ? "skipped" : "", draggable: true },
+      n, el("span", {}, el("span", { className: "key", textContent: J.sceneKey(L, sc) }), el("br"),
+                         el("span", { className: "from", textContent: from[i] ? `from ${from[i]}` : "" })),
+      sel, el("span", { className: "moves" }, up, dn, rm));
+    li.addEventListener("dragstart", (e) => { dragFrom = i; li.classList.add("drag"); e.dataTransfer.effectAllowed = "move"; });
+    li.addEventListener("dragend", () => { li.classList.remove("drag"); dragFrom = -1; });
+    li.addEventListener("dragover", (e) => { if (dragFrom >= 0) { e.preventDefault(); li.classList.add("over"); } });
+    li.addEventListener("dragleave", () => li.classList.remove("over"));
+    // (the drop: the dragged scene to this place)
+    li.ondrop = (e) => { e.preventDefault(); li.classList.remove("over"); const f = dragFrom; dragFrom = -1;
+                         if (f >= 0 && j.move(f, i)) { const [x] = from.splice(f, 1); from.splice(i, 0, x); draw(); } };
+    ol.append(li);
+  });
+  const p = j.playing(), m = J.roundMinutes(j, bpm);
+  $("summary").replaceChildren(`${j.scenes.length} of ${L.max} scenes, ${p} playing. `,
+    m === null ? "Some scenes move on only by hand (TRAVELS by hand, AS TRAVELS)." : `Once round, travelling by itself: about ${m < 10 ? m.toFixed(1) : Math.round(m)} minutes at `,
+    ...(m === null ? [] : [bpmInput(), " BPM."]));
+}
+function bpmInput() {
+  const i = el("input", { type: "number", min: 40, max: 240, value: bpm, style: "width:4.2em" });
+  i.setAttribute("aria-label", "Tempo, BPM");
+  i.addEventListener("change", () => { bpm = Math.max(40, Math.min(240, +i.value || 90)); draw(); });
+  return i;
+}
+$("name").addEventListener("input", () => { if (j) j.name = $("name").value; });
+$("name").addEventListener("change", () => { if (j) { j.name = $("name").value; $("name").value = j.name; } });
+$("travel").addEventListener("change", () => { if (j) { j.travel = +$("travel").value; draw(); } });
+
+$("open").addEventListener("click", () => {
+  const s = sources().find((x) => x.id === $("base").value);
+  if (!s) return;
+  try { start(new J.Journey(L, s.bytes), s.name); alert(""); status(`Started from ${s.name}.`); }
+  catch (e) { alert(e.message); }
+});
+$("file").addEventListener("change", async () => {
+  const f = $("file").files[0];
+  if (!f) return;
+  try { const jr = J.fromFile(L, await f.text()); start(jr, jr.name || "the file"); alert(""); status(`Opened ${f.name}.`); }
+  catch (e) { alert(e.message); }
+});
+
+// ---- out
+function sendable() { $("put").disabled = $("play").disabled = !dev || !j; }
+async function send(dest) {
+  if (busy || !dev || !j) return;
+  busy = true; alert(""); bar(0);
+  const slot = dest === B.JPLAY ? -1 : dest;
+  try {
+    status("Sending...");
+    await B.putJourney(dev.link, dest, j.toBytes(), bar);
+    status(slot < 0 ? "Playing on the FM-1 now, from its first scene." : `Saved in USER ${slot + 1}.`);
+    if (slot >= 0) user[slot] = { name: j.name || `USER ${slot + 1}`, bytes: j.toBytes() };
+    fillSources(); fillSlots(); drawLib();
+  } catch (e) {
+    status("");
+    alert(e.code === "journey" ? `The FM-1 did not take it: ${e.message}.` : e.message || String(e));
+  } finally { bar(null); busy = false; }
+}
+$("put").addEventListener("click", () => send(+$("slot").value));
+$("play").addEventListener("click", () => send(B.JPLAY));
+$("save").addEventListener("click", () => {
+  if (!j) return;
+  const name = J.fileName(j);
+  const url = URL.createObjectURL(new Blob([J.toFile(j)], { type: "application/json" }));
+  const a = el("a", { href: url, download: name });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  status(`Saved as ${name}.`);
+});
+
+// ---- the presets, then the first of them
+try {
+  ({ layout: L, presets } = J.readPresets(await (await fetch("presets.json")).json()));
+  fillSources(); fillSlots();
+  start(new J.Journey(L, presets[0].bytes), presets[0].name);
+  j.name = ""; $("name").value = "";
+} catch (e) {
+  alert(`The presets did not load (${e.message}).`);
+}
+</script>
+</body>
+</html>

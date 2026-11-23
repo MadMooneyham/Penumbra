@@ -76,7 +76,7 @@ footer { margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--rule); 
 <div class="sheet">
 <header>
   <h1>PENUMBRA</h1>
-  <span class="sub">1.11 · an ambient space-drone synth for the M-VAVE FM-1 · cheat sheet</span>
+  <span class="sub">1.12 · an ambient space-drone synth for the M-VAVE FM-1 · cheat sheet</span>
   <nav class="links" aria-label="Penumbra pages"><a href="../emu/">Play it in the browser</a><a href="https://github.com/MadMooneyham/Penumbra/blob/main/MANUAL.md">Manual</a><a href="../backup/">Backup</a><a href="penumbra-cheatsheet.pdf">PDF</a></nav>
 </header>
 
@@ -235,7 +235,7 @@ footer { margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--rule); 
       <table>
         <tbody>
           <tr><td><b>FX</b></td><td>REVERB · REVERB 2 · DELAY · DELAY 2, four knobs a row (SELECT the row)</td></tr>
-          <tr><td><b>EDIT</b></td><td>SCENE: SELECT field, K1 scene, K2–K4 value; STAYS, PLAYS, BRING IN · SEL stores · SEL+K1 moves</td></tr>
+          <tr><td><b>EDIT</b></td><td>SCENE: SELECT field, K1 scene, K2–K4 value · SEL stores. Again: SCENES, K1 stays/skip, K2 move, K3 bring in, K4 travels</td></tr>
           <tr><td><b>LFO</b></td><td>JOURNEY: 7 presets, 8 user slots, each with its sound · again: SOUNDS, a library of 8</td></tr>
           <tr><td><b>GLO</b></td><td>SYSTEM: clock, MIDI, KNOBS (CC 74–80 on HOME, absolute or relative), USB audio, SLEEP, RESET · again: BENCH</td></tr>
         </tbody>
@@ -269,7 +269,7 @@ footer { margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--rule); 
     return e;
   }
   const ROW1 = [["FX", "FX", "held: throws"], ["SEL", "choose", "HOME: LOOP"], ["ENV", "SHAPE", "held: A/B"],
-                ["LFO", "JOURNEY", "again: SOUNDS"], ["EDIT", "SCENE", ""], ["GLO", "SYSTEM", "again: BENCH"]];
+                ["LFO", "JOURNEY", "again: SOUNDS"], ["EDIT", "SCENE", "again: SCENES"], ["GLO", "SYSTEM", "again: BENCH"]];
   const ROW2 = [["HOME", "HOME", ""], ["SAVE", "save", "in a hold: keep"], ["ARP", "FREEZE", ""],
                 ["SEQ", "clock", "start / stop"], ["PLAY", "loop", "play / stop"], ["REC", "loop", "rec / dub"]];
   const btns = document.getElementById("btns");

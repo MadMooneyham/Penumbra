@@ -387,6 +387,37 @@ int journey_slot_save(int slot)
     return plat_store_save(OBJ_USER, jslot, sizeof jslot);
 }
 
+/* a journey from the site's journey editor (backup.c's JOURNEY): upgraded if older, every field in range, then
+ * into the user slot (saved; its name its own, else USER N) or, slot < 0, playing now (A/B and the loop as they
+ * are). 0 done, 1 not a journey this firmware takes, 2 not saved */
+int journey_put(int slot, const journey_t *in)
+{
+    journey_t j = *in;
+    journey_upgrade(&j);
+    if (!jr_valid(&j) || slot >= JR_USER)
+        return 1;
+    journey_sane(&j);
+    j.at = 0;
+    if (!j.name[0] || j.name[0] == ' ') {
+        const char *u = slot < 0 ? "JOURNEY" : "USER ";
+        int k = 0;
+        while (*u)
+            j.name[k++] = *u++;
+        if (slot >= 0)
+            j.name[k++] = (char)('1' + slot);
+        while (k < JR_NAME)
+            j.name[k++] = 0;
+    }
+    if (slot < 0) {
+        j.mode = eng_jr.mode;
+        eng_jr = j;
+        engine_journey_loaded();
+        return 0;
+    }
+    jslot[slot] = j;
+    return plat_store_save(OBJ_USER, jslot, sizeof jslot) ? 2 : 0;
+}
+
 int journey_slot_open(int slot)
 {
     if (!journey_slot_used(slot))

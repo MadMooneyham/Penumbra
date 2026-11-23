@@ -34,7 +34,7 @@ wait 3000
 turn K4 -4
 expect kick_auto 0
 tap EDIT
-turn SELECT 15
+turn SELECT 13
 turn K2 1
 expect kick_land 1
 shot lands.png

@@ -4,7 +4,8 @@
 // in base64, named by what it is. Used by the Backup page (Web MIDI), the emulator (its worklet), and
 // tests/host/backup_test.mjs (node, against the browser build).
 
-export const HELLO = 0x50, READ = 0x51, WRITE = 0x52, COMMIT = 0x53, RESTART = 0x54;
+export const HELLO = 0x50, READ = 0x51, WRITE = 0x52, COMMIT = 0x53, RESTART = 0x54, JOURNEY = 0x55;
+export const JPLAY = 0x7F;                                     // JOURNEY's dest: playing now (0..7 a user slot)
 export const CHUNK = 256;
 // the parts, in the order a restore writes them (the unit starts again after the last)
 export const PARTS = [
@@ -46,7 +47,7 @@ export function frame(cmd, body = []) {
 export function parse(f) {
   if (f.length < 4 || f[0] !== 0xF0 || f[f.length - 1] !== 0xF7) return null;
   const d = unpack7(Array.from(f.slice(1, -1)));
-  if (d.length < 7 || d[0] !== 0 || d[1] !== 0x59 || d[2] < HELLO || d[2] > RESTART) return null;
+  if (d.length < 7 || d[0] !== 0 || d[1] !== 0x59 || d[2] < HELLO || d[2] > JOURNEY) return null;
   const n = d[3] | (d[4] << 8) | (d[5] << 16);
   if (n + 7 > d.length) return null;
   const body = d.slice(6, 6 + n);
@@ -167,6 +168,21 @@ export async function writeAll(link, parts, progress = () => {}) {
     try { await link.ask(RESTART, [], 1000, 1); } catch { /* it may already be starting again */ }
   }
   return results;
+}
+
+// one journey (its bytes, journey_t) into user slot dest (0..7, saved) or playing now (JPLAY); no restart.
+// The answer's status: 0 ok, else STATUS's
+export async function putJourney(link, dest, bytes, progress = () => {}) {
+  const n = bytes.length;
+  for (let off = 0; off < n;) {
+    const k = Math.min(CHUNK, n - off);
+    const b = await link.ask(JOURNEY, [dest, off & 0xFF, off >> 8, n & 0xFF, n >> 8, ...bytes.slice(off, off + k)], 4000);
+    const have = b[2] | (b[3] << 8);
+    if (b[0] === 0 && have === off + k) { off += k; progress(off / n); }
+    else if (b[0] === 3 && off) off = 0;
+    else throw fail("journey", STATUS[b[0]] || String(b[0]));
+  }
+  return 0;
 }
 
 // ---- the file

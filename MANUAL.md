@@ -1,6 +1,6 @@
 # Penumbra manual
 
-Penumbra 1.11 for the M-VAVE FM-1, by Lunar Eclipse Forge.
+Penumbra 1.12 for the M-VAVE FM-1, by Lunar Eclipse Forge.
 
 Penumbra is an ambient space-drone synth that plays itself. What it does best comes from shaping and
 moving the sound while it plays: turning HOME's knobs, throwing the effects, holding a voice to reshape it,
@@ -215,25 +215,37 @@ moves to its next scene after that many bars in each, round and round, for as lo
 with a **STAYS** of its own stays that long instead (and moves on even with TRAVELS by hand). PRESET and MORPH
 still move it by hand, and the count starts again from wherever that leaves it.
 
-**A journey of one's own.** On SCENE:
+**A journey of one's own: SCENES (EDIT twice).** The whole journey on one page, a scene a row: its number,
+its key, and how long it stays. The scene playing has an amber mark; a skipped one is dim. After the last
+row, while there are fewer than eight, a row for a scene more.
 
-- **STAYS**: how long the scene plays when the journey travels by itself: AS TRAVELS, or 4, 8, 16, 32, 64 or
-  128 BARS of its own.
-- **PLAYS**: YES, or SKIPPED. A skipped scene stays in the journey, but travelling, PRESET and MORPH pass it
-  by; SCENE still opens it, and turning it back to YES brings it back.
-- **BRING IN**: a scene of any journey, a preset's or a user slot's. K2 picks the journey, K3 its scene, and
-  SEL twice brings it in over the scene shown.
-- **SEL held, K1 turned** moves the scene shown earlier or later; the scene playing plays on.
+| Control | What it does |
+| --- | --- |
+| SELECT | The scene |
+| K1 STAYS | How long the scene plays when the journey travels by itself: SKIPPED, AS TRAVELS, or 4, 8, 16, 32, 64 or 128 BARS of its own |
+| K2 MOVE | The scene earlier or later; the scene playing plays on |
+| K3 BRING IN | A scene of any journey, the presets' and then the user slots', one after another; the row shows it in amber |
+| K4 TRAVELS | The journey's own: BY HAND, or every 8 to 64 bars |
+| SEL | With a scene picked on K3: it comes in over the scene shown, or after the last. Otherwise: SCENE, the scene shown's sound |
+| EDIT | Back to SCENE |
+
+A skipped scene stays in the journey, but travelling, PRESET and MORPH pass it by; SCENE and MIDI still open
+it. A scene with its own STAYS moves on even with TRAVELS by hand.
 
 So up to eight scenes from anywhere, in any order, each for its own time or skipped, make a journey; SAVE on
 a JOURNEY user slot keeps it, and a backup file carries it to another FM-1.
+
+**The Journeys page** on the site (madmooneyham.github.io/Penumbra/journey/) does the same at a desk, in Chrome
+or Edge with the FM-1 connected by USB: a journey to start from (its sound comes with it), scenes added from any
+journey, dragged into order, each with its time or skipped, a name and TRAVELS. It goes into a user slot or plays
+straight away, with no restart, or is kept as a file. Without the FM-1 it works from the presets and files.
 
 **The sound can travel with the scenes.** With A and B kept (ENV held, section 3), a scene's SOUND A-B names
 a place between them. Moving to that scene glides the sound there, as MORPH and PRESET glide everything else,
 so each scene has its own colour of the sound. A scene set to STAYS leaves the sound where it is. Neither of
 these writes to the FM-1's memory as it moves, so a journey can travel all night.
 
-**SCENE (EDIT)** edits the scenes:
+**SCENE (EDIT)** edits a scene's sound (EDIT again: SCENES):
 
 - SELECT picks the field.
 - K1 picks the scene.
@@ -255,11 +267,8 @@ these writes to the FM-1's memory as it moves, so a journey can travel all night
 | WIND | The wind's level |
 | WIND COLOUR | The wind's colour |
 | SOUND A-B | Where the sound sits between A and B in this scene (STAYS: the scene leaves the sound alone) |
-| STAYS | How long it plays, travelling by itself: AS TRAVELS, or 4 to 128 BARS of its own |
-| PLAYS | YES, or SKIPPED (passed by) |
 | TRAVELS | The whole journey's, not the scene's: BY HAND, or on to the next scene EVERY 8, 16, 32 or 64 BARS |
 | LANDS | The whole journey's too: QUIETLY, or A KICK as each new scene's key comes in |
-| BRING IN | A scene of any journey over the scene shown (K2 the journey, K3 its scene, SEL twice) |
 
 **JOURNEY (LFO)** lists the seven presets and eight user slots:
 
@@ -673,7 +682,7 @@ whether or not MIDI CC OUT is on:
 | REC | Loop: record, play, overdub, keep |
 | PLAY | Loop: stop / play; held: undo; held + ALGO: speed |
 | REC + PLAY | Clear the loop |
-| EDIT | SCENE, ROOM, HALO (SEL: store the moment) |
+| EDIT | SCENE, ROOM, HALO (SEL: store the moment); again: SCENES, the journey's order |
 | LFO | JOURNEY (SEL: open; SAVE: into a user slot); again: SOUNDS |
 | GLO | SYSTEM, then BENCH |
 | SAVE | Save now; in a hold: keep it |

@@ -48,8 +48,8 @@ static const int8_t KEY_WHITE[NKEYS] = {0, -1, 1, -1, 2, -1, 3, 4, -1, 5, -1, 6,
 static const int8_t KEY_BLACK[NKEYS] = {-1, 0, -1, 1, -1, 2, -1, -1, 3, -1, 4, -1, -1, 5, -1, 6, -1, 7, -1, -1, 8, -1, 9, -1, -1, 10, -1};
 static uint8_t BLACK_KEY[11], WHITE_KEY[16];
 
-enum { V_HOME, V_SHAPE, V_SCENE, V_FX, V_JOURNEY, V_SYSTEM, V_BENCH, V_SOUNDS, V_LOOP, NVIEWS };
-static const char *const VIEW_N[NVIEWS] = {"HOME", "SHAPE", "SCENE", "FX", "JOURNEY", "SYSTEM", "BENCH", "SOUNDS", "LOOP"};
+enum { V_HOME, V_SHAPE, V_SCENE, V_FX, V_JOURNEY, V_SYSTEM, V_BENCH, V_SOUNDS, V_LOOP, V_SCENES, NVIEWS };
+static const char *const VIEW_N[NVIEWS] = {"HOME", "SHAPE", "SCENE", "FX", "JOURNEY", "SYSTEM", "BENCH", "SOUNDS", "LOOP", "SCENES"};
 
 #define HELP_MS 600u                       /* held this long, a button says what it does instead */
 #define HELP_HOLD_MS 1500u                 /* (FX, a hold too: later, and not once the knobs have moved) */
@@ -89,8 +89,8 @@ typedef struct {
     uint8_t bheld;                     /* BLOOM's key held */
     uint8_t kheld;                     /* the kick's key held */
     int8_t ctl_last[7];                /* KNOBS: CC RELATIVE: each knob's last turn, + or - steps (the screen's) */
-    uint8_t bring_j, bring_s;          /* SCENE's BRING IN: the journey (presets, then user slots), its scene */
-    uint32_t bring_until;              /* its SEL asked: again before this brings it in (0: not asked) */
+    uint8_t bring_j, bring_s;          /* SCENES' BRING IN (K3): the journey (presets, then user slots), its scene */
+    uint8_t bring_on;                  /* K3 turned on the scene shown: SEL brings that one in */
     uint8_t bvel[11];                  /* each black key's velocity as MIDI last pressed it (the hands: 110) */
     uint16_t wheld;                    /* white keys held (bit w) */
     uint32_t used;                     /* buttons held as a hold this press: they do not act when let go */
@@ -361,27 +361,9 @@ static const char *const MACRO_N[NMACROS] = {"DRONE", "VOX", "SPACE", "TONE"};
 /* (SOUND A-B: where the sound is between A and B in this scene, gliding there with it; TRAVELS: the whole
  * journey's, not the scene's: it moves on by itself) */
 enum { SF_KEY, SF_SCALE, SF_PEDAL, SF_VOICING, SF_BRIGHT, SF_REG, SF_SPACE, SF_ROOM, SF_HALO, SF_WIND, SF_COLOUR,
-       SF_SOUND, SF_STAYS, SF_PLAYS, SF_TRAVEL, SF_LAND, SF_BRING, NSF };
+       SF_SOUND, SF_TRAVEL, SF_LAND, NSF };
 static const char *const SF_N[NSF] = {"KEY", "SCALE", "DRONE ROOT", "VOICING", "VOX BRIGHTNESS", "VOX REGISTER",
-                                      "SPACE", "ROOM", "HALO", "WIND", "WIND COLOUR", "SOUND A-B", "STAYS", "PLAYS",
-                                      "TRAVELS", "LANDS", "BRING IN"};
-/* BRING IN: a scene of any journey (the presets, then the user slots that hold one), over the scene shown */
-#define BRING_N (JR_PRESETS + JR_USER)
-static const journey_t *bring_src(int j)
-{
-    static journey_t tmp;
-    if (j < JR_PRESETS) {
-        jr_preset(j, &tmp);
-        return &tmp;
-    }
-    return journey_slot(j - JR_PRESETS);
-}
-static const char *bring_name(int j) { return j < JR_PRESETS ? jr_preset_name(j) : journey_slot_name(j - JR_PRESETS); }
-static void bring_text(char *b)
-{
-    const journey_t *s = bring_src(ui.bring_j % BRING_N);
-    put_i(put_s(put_s(b, bring_name(ui.bring_j % BRING_N)), " "), s ? ui.bring_s % s->nscenes + 1 : 1);
-}
+                                      "SPACE", "ROOM", "HALO", "WIND", "WIND COLOUR", "SOUND A-B", "TRAVELS", "LANDS"};
 static uint8_t *sf_ptr(scene_t *s, int f)
 {
     switch (f) {
@@ -396,11 +378,8 @@ static uint8_t *sf_ptr(scene_t *s, int f)
     case SF_HALO: return &s->halo;
     case SF_WIND: return &s->tex;
     case SF_SOUND: return &s->blend;
-    case SF_STAYS: return &s->stays;
-    case SF_PLAYS: return &s->skip;
     case SF_TRAVEL: return &eng_jr.travel;
     case SF_LAND: return &eng_jr.kick_land;
-    case SF_BRING: return &ui.bring_j;
     default: return &s->colour;
     }
 }
@@ -425,14 +404,6 @@ static void sf_text(const scene_t *s, int f, char *b)
             put_s(b, "BY HAND");
         break;
     case SF_LAND: put_s(b, eng_jr.kick_land ? "A KICK" : "QUIETLY"); break;   /* (the journey's: each new key, a kick) */
-    case SF_STAYS:
-        if (s->stays && s->stays < JR_STAY_N)
-            put_s(put_i(b, JR_STAY_BARS[s->stays]), " BARS");
-        else
-            put_s(b, "AS TRAVELS");
-        break;
-    case SF_PLAYS: put_s(b, s->skip ? "SKIPPED" : "YES"); break;
-    case SF_BRING: bring_text(b); break;
     case SF_ROOM:
     case SF_HALO: put_spct(b, *sf_ptr((scene_t *)s, f) - 64); break;
     default: put_pct(b, *sf_ptr((scene_t *)s, f)); break;
@@ -451,9 +422,6 @@ static void sf_turn(int f, int e)
     case SF_REG: *p = (uint8_t)clamp_i(*p + e, 2, 6); break;
     case SF_TRAVEL: *p = (uint8_t)clamp_i(*p + (e > 0 ? 1 : -1), 0, JR_TRAVEL_N - 1); break;
     case SF_LAND: *p = (uint8_t)(e > 0); break;
-    case SF_STAYS: *p = (uint8_t)clamp_i(*p + (e > 0 ? 1 : -1), 0, JR_STAY_N - 1); break;
-    case SF_PLAYS: *p = (uint8_t)(e < 0); break;   /* (right: it plays; left: SKIPPED) */
-    case SF_BRING: return;                        /* (bring_turn's: K2 the journey, K3 its scene) */
     default: *p = (uint8_t)clamp_i(*p + 2 * e * ui.mult, 0, 127); break;
     }
     changed_jr();
@@ -462,49 +430,143 @@ static void sf_turn(int f, int e)
     say(t, 0);
 }
 
-static void bring_turn(int k, int e)              /* BRING IN: K2 the journey (the empty slots passed by), K3 its scene */
+/* SCENES (EDIT again): the journey, a scene a row, and a row after the last for a scene more (eight at most).
+ * SELECT: the scene. K1: how long it STAYS when the journey travels by itself: SKIPPED (travelling, PRESETS and
+ * MORPH pass it by; SCENE and MIDI still open it), AS TRAVELS, or 4 .. 128 BARS of its own (it moves on even with
+ * TRAVELS by hand). K2: it moves earlier or later (the scene playing plays on). K3: a scene of any journey (the
+ * presets, then the user slots that hold one), and SEL brings it in over the scene shown, or after the last.
+ * K4: TRAVELS, the journey's. SEL, nothing picked: SCENE, the scene shown's sound */
+#define BRING_N (JR_PRESETS + JR_USER)
+static const journey_t *bring_src(int j)
 {
-    char b[32];
-    if (k == 1) {
-        int j = ui.bring_j % BRING_N, n;
-        for (n = 0; n < BRING_N; n++) {
-            j = wrap_i(j + (e > 0 ? 1 : -1), BRING_N);
-            if (bring_src(j))
-                break;
-        }
-        ui.bring_j = (uint8_t)j;
-        ui.bring_s = 0;
-    } else if (k == 2) {
-        const journey_t *s = bring_src(ui.bring_j % BRING_N);
-        ui.bring_s = (uint8_t)wrap_i(ui.bring_s + (e > 0 ? 1 : -1), s && s->nscenes ? s->nscenes : 1);
-    } else {
+    static journey_t tmp;
+    if (j < JR_PRESETS) {
+        jr_preset(j, &tmp);
+        return &tmp;
+    }
+    return journey_slot(j - JR_PRESETS);
+}
+static const char *bring_name(int j) { return j < JR_PRESETS ? jr_preset_name(j) : journey_slot_name(j - JR_PRESETS); }
+static void bring_text(char *b)                   /* "ECLIPSE 3" (b: 24 at least) */
+{
+    const journey_t *s = bring_src(ui.bring_j % BRING_N);
+    put_i(put_s(put_s(b, bring_name(ui.bring_j % BRING_N)), " "), s && s->nscenes ? ui.bring_s % s->nscenes + 1 : 1);
+}
+static void bring_key(char *b)                    /* the picked scene's key: "D DORIAN" */
+{
+    const journey_t *s = bring_src(ui.bring_j % BRING_N);
+    const scene_t *sc = s && s->nscenes ? &s->scene[ui.bring_s % s->nscenes] : 0;
+    if (sc)
+        put_s(put_s(put_s(b, jr_root_name(sc->root)), " "), jr_scale_name(sc->scale));
+    else
+        b[0] = 0;
+}
+static void bring_step(int dir)                   /* K3: the next scene of them all, journey after journey */
+{
+    const journey_t *s = bring_src(ui.bring_j % BRING_N);
+    int j = ui.bring_j % BRING_N, i = (int)ui.bring_s + dir, n;
+    if (!ui.bring_on)                             /* (the first turn: the one picked last, as it was) */
+        i = ui.bring_s;
+    if (s && i >= 0 && i < s->nscenes) {
+        ui.bring_s = (uint8_t)i;
         return;
     }
-    ui.bring_until = 0;
-    bring_text(b);
-    say("BRING IN ", b);
+    for (n = 0; n < BRING_N; n++) {               /* (the empty slots passed by) */
+        j = wrap_i(j + dir, BRING_N);
+        if ((s = bring_src(j)) != 0 && s->nscenes)
+            break;
+    }
+    ui.bring_j = (uint8_t)j;
+    ui.bring_s = (uint8_t)(s && dir < 0 ? s->nscenes - 1 : 0);
 }
-static void bring_ask(void)                       /* SEL on BRING IN: once asks, again brings it over the scene shown */
+static int scn_rows(void) { return eng_jr.nscenes < JR_SCENES ? eng_jr.nscenes + 1 : eng_jr.nscenes; }
+static void stays_text(const scene_t *s, char *b)
 {
-    const journey_t *src = bring_src(ui.bring_j % BRING_N);
-    const int to = ui.ssel % (eng_jr.nscenes ? eng_jr.nscenes : 1);
-    char b[32], t[48];
-    bring_text(b);
-    if (!src) {
+    if (s->skip)
+        put_s(b, "SKIPPED");
+    else if (s->stays && s->stays < JR_STAY_N)
+        put_s(put_i(b, JR_STAY_BARS[s->stays]), " BARS");
+    else
+        put_s(b, "AS TRAVELS");
+}
+static void scenes_row(int i, char *name, char *val)   /* a row: "3  D DORIAN", "16 BARS" (name: 32) */
+{
+    if (i >= eng_jr.nscenes) {
+        put_s(name, "+ A SCENE MORE");
+        val[0] = 0;
+        return;
+    }
+    put_s(put_s(put_s(put_s(put_i(name, i + 1), "  "), jr_root_name(eng_jr.scene[i].root)), " "),
+          jr_scale_name(eng_jr.scene[i].scale));
+    stays_text(&eng_jr.scene[i], val);
+}
+static void scenes_knob(int k, int e)
+{
+    const int n = eng_jr.nscenes;
+    char b[24], c[24], t[64];
+    if (k == 3) {                                 /* K4: TRAVELS */
+        sf_turn(SF_TRAVEL, e);
+        return;
+    }
+    if (k == 2) {                                 /* K3: a scene to bring in */
+        bring_step(e > 0 ? 1 : -1);
+        ui.bring_on = 1;
+        bring_text(b);
+        bring_key(c);
+        put_s(put_s(put_s(put_s(t, b), ", "), c), ui.ssel < n ? ". SEL BRINGS IT IN" : ". SEL ADDS IT");
+        say(t, 0);
+        return;
+    }
+    if (ui.ssel >= n) {
+        say("A SCENE MORE: K3 PICKS ONE", 0);
+        return;
+    }
+    if (k == 0) {                                 /* K1: STAYS, SKIPPED below AS TRAVELS */
+        scene_t *s = &eng_jr.scene[ui.ssel];
+        int v = s->skip ? -1 : s->stays < JR_STAY_N ? s->stays : 0;
+        v = clamp_i(v + (e > 0 ? 1 : -1), -1, JR_STAY_N - 1);
+        s->skip = (uint8_t)(v < 0);
+        s->stays = (uint8_t)(v < 0 ? 0 : v);
+        changed_jr();
+        stays_text(s, b);
+        put_s(put_s(put_i(put_s(t, "SCENE "), ui.ssel + 1), ": "), b);
+        say(t, 0);
+    } else if (k == 1) {                          /* K2: earlier or later */
+        const int to = clamp_i(ui.ssel + (e > 0 ? 1 : -1), 0, n - 1);
+        if (to != ui.ssel) {
+            engine_scene_swap(ui.ssel, to);
+            ui.ssel = (uint8_t)to;
+            changed_jr();
+        }
+        say_n("NOW SCENE ", ui.ssel + 1);
+    }
+}
+static void set_view(int v);
+static void scenes_sel(void)                      /* SEL: the scene picked in, or SCENE, the scene shown's sound */
+{
+    const int n = eng_jr.nscenes, to = ui.ssel < n ? ui.ssel : n;
+    const journey_t *src;
+    char b[24], t[48];
+    if (!ui.bring_on) {
+        if (ui.ssel >= n)
+            say("A SCENE MORE: K3 PICKS ONE", 0);
+        else
+            set_view(V_SCENE);
+        return;
+    }
+    src = bring_src(ui.bring_j % BRING_N);
+    if (!src || !src->nscenes || to >= JR_SCENES) {
         warn("NOTHING TO BRING IN", 0);
         return;
     }
-    if (!ui.bring_until || (int32_t)(ui.bring_until - plat_ms()) <= 0) {
-        ui.bring_until = plat_ms() + 3000u;       /* (as RESET's) */
-        put_i(put_s(put_s(put_s(t, "SEL AGAIN: "), b), " OVER SCENE "), to + 1);
-        warn(t, 0);
-        return;
-    }
-    ui.bring_until = 0;
     eng_jr.scene[to] = src->scene[ui.bring_s % src->nscenes];
     eng_jr.scene[to].skip = 0;                    /* (brought in: it plays) */
+    if (to >= n)
+        eng_jr.nscenes = (uint8_t)(n + 1);
+    ui.bring_on = 0;
     changed_jr();
-    put_s(put_s(put_i(put_s(t, "SCENE "), to + 1), ": "), b);
+    bring_text(b);
+    put_s(put_s(put_i(put_s(t, to >= n ? "ADDED: SCENE " : "SCENE "), to + 1), ": "), b);
     say(t, 0);
 }
 
@@ -512,10 +574,6 @@ static void store_scene(void)
 {
     scene_t s;
     int n = eng_jr.nscenes;
-    if (ui.srow == SF_BRING) {                    /* (SEL on BRING IN: that, not the moment) */
-        bring_ask();
-        return;
-    }
     jr_scene_now(engine_jr(), &s);
     s.skip = 0;                                   /* (the moment, stored: it plays) */
     if (n < JR_SCENES) {
@@ -1383,6 +1441,7 @@ static void set_view(int v)
     if (ui.view == V_BENCH && engine_load_testing())
         engine_load_test(0);                      /* the load test is the BENCH page's */
     ui.view = (uint8_t)v;
+    ui.bring_on = 0;                              /* (SCENES' pick: that page's) */
     ann_say(VIEW_N[v], 0, ANN_NOW);
 }
 
@@ -1393,7 +1452,7 @@ static const uint8_t FXROW_EF[NFXROWS] = {EF_RV_DECAY, EF_RV_MOD, EF_DL_TIME, EF
 
 static const char *const HELP[NB] = {
     [B_FX] = "FX. HELD: THROWS, ALGO WARP", [B_SEL] = "THE PAGE'S. HOME: THE LOOP", [B_ENV] = "SHAPE. HELD: A/B",
-    [B_LFO] = "JOURNEYS, SOUNDS",   [B_EDIT] = "SCENE: KEY, DRONE", [B_GLO] = "SYSTEM, BENCH",
+    [B_LFO] = "JOURNEYS, SOUNDS",   [B_EDIT] = "SCENE. AGAIN: THE SCENES", [B_GLO] = "SYSTEM, BENCH",
     [B_HOME] = "HOME",              [B_SAVE] = "SAVE. IN A HOLD: KEEP IT", [B_ARP] = "FREEZE THE NOTES HELD",
     [B_SEQ] = "CLOCK: START, STOP", [B_REC] = "LOOP: RECORD, LAYER",
     [B_OCTDN] = "WHITE KEYS DOWN",  [B_OCTUP] = "WHITE KEYS UP"};   /* (PLAY held: the undo) */
@@ -1453,10 +1512,17 @@ static void button(int i)
             set_view(V_SHAPE);
         }
         break;
-    case B_EDIT:
-        if (ui.view != V_SCENE)
+    case B_EDIT:                                  /* SCENE, and again SCENES, and back */
+        if (ui.view == V_SCENE) {
+            set_view(V_SCENES);
+        } else if (ui.view == V_SCENES) {
+            if (ui.ssel >= eng_jr.nscenes)        /* (the row for a scene more: the last) */
+                ui.ssel = (uint8_t)(eng_jr.nscenes ? eng_jr.nscenes - 1 : 0);
+            set_view(V_SCENE);
+        } else {
             ui.ssel = engine_jr()->cur;
-        set_view(V_SCENE);
+            set_view(V_SCENE);
+        }
         break;
     case B_SEQ:
         if (eng_clock.playing)
@@ -1499,6 +1565,8 @@ static void button(int i)
             say(on ? "LOAD TEST ON" : "LOAD TEST OFF", 0);
         } else if (ui.view == V_SCENE)
             store_scene();
+        else if (ui.view == V_SCENES)
+            scenes_sel();
         else if (ui.view == V_JOURNEY)
             journey_sel();
         else if (ui.view == V_SOUNDS)
@@ -1720,6 +1788,15 @@ static void select_turn(int e)
         put_s(put_s(put_s(t, SF_N[ui.srow]), " "), v);
         ann_say(t, 0, ANN_NOW);
         break;
+    case V_SCENES: {
+        char n[32];
+        ui.ssel = (uint8_t)clamp_i(ui.ssel + e, 0, scn_rows() - 1);
+        ui.bring_on = 0;
+        scenes_row(ui.ssel, n, v);
+        put_s(put_s(put_s(t, n), v[0] ? ", " : ""), v);
+        ann_say(t, 0, ANN_NOW);
+        break;
+    }
     case V_FX:
         ui.fxrow = (uint8_t)clamp_i(ui.fxrow + e, 0, NFXROWS - 1);
         ann_say(FXROW_N[ui.fxrow], 0, ANN_NOW);
@@ -1779,26 +1856,15 @@ static void knob_turn(int k, int e)
         say(cfg.sound_lock ? "SOUND LOCKED: IT STAYS" : "SOUND: EACH JOURNEY'S OWN", 0);
         break;
     case V_SCENE:
-        if (k == 0 && (ui.btn >> B_SEL & 1u)) {   /* SEL held, K1: the scene shown moves earlier or later */
-            const int n = eng_jr.nscenes ? eng_jr.nscenes : 1, to = clamp_i(ui.ssel + (e > 0 ? 1 : -1), 0, n - 1);
-            ui.used |= 1u << B_SEL;               /* (SEL let go: no storing) */
-            if (to != ui.ssel) {
-                engine_scene_swap(ui.ssel, to);
-                ui.ssel = (uint8_t)to;
-                changed_jr();
-            }
-            put_s(put_i(put_s(t, "MOVED: NOW SCENE "), ui.ssel + 1), "");
-            say(t, 0);
-        } else if (k == 0) {
+        if (k == 0) {
             int n = eng_jr.nscenes ? eng_jr.nscenes : 1;
             ui.ssel = (uint8_t)clamp_i(ui.ssel + e, 0, n - 1);
             say_n("SCENE ", ui.ssel + 1);
-        } else if (ui.srow == SF_BRING) {
-            bring_turn(k, e);
         } else {
             sf_turn(ui.srow, e);
         }
         break;
+    case V_SCENES: scenes_knob(k, e); break;
     case V_FX: {
         int i = fx_of(ui.fxrow, k), step = engine_fx_max(i) < 127 ? 1 : 2;
         cfg.fx[i] = (uint8_t)clamp_i(cfg.fx[i] + (engine_fx_max(i) <= 2 ? (e > 0 ? 1 : -1) : step * e * ui.mult), 0,
@@ -2621,7 +2687,8 @@ static struct { uint8_t x, y, lvl, tw, rate, ph, warm; } hz_star[HZ_NSTAR];
 static uint16_t page_col(void)                     /* each page's own colour: its corona and its selection */
 {
     switch (ui.view) {
-    case V_SCENE: return RGB(120, 170, 255);
+    case V_SCENE:
+    case V_SCENES: return RGB(120, 170, 255);
     case V_FX: return RGB(63, 193, 201);
     case V_JOURNEY: return RGB(169, 139, 255);
     case V_SOUNDS: return RGB(230, 120, 190);
@@ -3244,6 +3311,40 @@ static void draw_scene(void)
     }
 }
 
+/* SCENES: a row a scene, the one playing lit, a skipped one dim; the scene picked to bring in shown in its place */
+static void draw_scenes(void)
+{
+    const jrun_t *r = engine_jr();
+    const int rows = scn_rows(), top = list_top(ui.ssel, rows, ROWS_SHOWN);
+    int i;
+    for (i = top; i < rows && i < top + ROWS_SHOWN; i++) {
+        const int y = 2 + (i - top) * ROW_H, sel = i == ui.ssel, cy = vc(&FONT_S, y, ROW_H - 2);
+        char n[32], v[24];
+        uint16_t cn, cv;
+        if (sel && ui.bring_on) {
+            char w[24];
+            bring_text(w);
+            put_s(put_s(n, i < eng_jr.nscenes ? "IN: " : "ADD: "), w);
+            bring_key(v);
+            cn = cv = C_AMB;
+        } else {
+            scenes_row(i, n, v);
+            if (i >= eng_jr.nscenes)
+                cn = C_DIM, cv = C_DIM;
+            else if (eng_jr.scene[i].skip)
+                cn = C_DIM, cv = C_DIM;
+            else
+                cn = sel ? C_HI : C_GRAY, cv = i == r->cur ? C_AMB : sel ? C_HI : C_GRAY;
+        }
+        if (sel)
+            sel_band(y, ROW_H - 2);
+        if (i == r->cur && i < eng_jr.nscenes)
+            cv_rect(3, y + 4, 3, ROW_H - 10, C_AMB);   /* (the scene playing) */
+        cv_text(10, cy, &FONT_S, n, cn);
+        text_r(230, cy, &FONT_S, v, cv);
+    }
+}
+
 /* FX: the four rows, each its name and its four values (the knob strip names the selected row's) */
 static void draw_fx(void)
 {
@@ -3352,6 +3453,7 @@ static void draw_main(void)
     case V_HOME: draw_home(); break;
     case V_SHAPE: draw_shape(); break;
     case V_SCENE: draw_scene(); break;
+    case V_SCENES: draw_scenes(); break;
     case V_FX: draw_fx(); break;
     case V_JOURNEY: draw_journey(); break;
     case V_SOUNDS: draw_sounds(); break;
@@ -3563,14 +3665,44 @@ static void draw_knobs(void)
         cv_rect(60, 24, 1, 28, C_LINE);
         text_c(120, 20, &FONT_XS, SF_N[ui.srow], C_GRAY);
         text_c(120, 38, &FONT_S, b, C_AMB);
-        if (ui.srow == SF_BRING) {                /* BRING IN: K2 the journey, K3 its scene, SEL over the scene shown */
-            cell(3, "SEL", "BRING", C_AMB);
-            hint("K2: JOURNEY   K3: ITS SCENE", 0);
-        } else {
-            cell(3, "SEL", "STORE", C_DIM);
-            hint("SELECT: FIELD   KNOBS 2-4: CHANGE", "SEL+K1: MOVE");
-        }
+        cell(3, "SEL", "STORE", C_DIM);
+        hint("SELECT: FIELD   KNOBS 2-4: CHANGE", "EDIT: SCENES");
         break;
+    case V_SCENES: {                              /* K1 STAYS, K2 MOVE, K3 BRING IN, K4 TRAVELS */
+        const int has = ui.ssel < eng_jr.nscenes;
+        char w[24];
+        if (has)
+            stays_text(&eng_jr.scene[ui.ssel], a);
+        else
+            put_s(a, "-");
+        cell(0, "STAYS", a, has ? (eng_jr.scene[ui.ssel].skip ? C_GRAY : C_HI) : C_DIM);
+        if (has)
+            put_i(put_s(put_i(b, ui.ssel + 1), " OF "), eng_jr.nscenes);
+        else
+            put_s(b, "-");
+        cell(1, "MOVE", b, has ? C_HI : C_DIM);
+        if (ui.bring_on)
+            bring_text(w);
+        else
+            put_s(w, "ANY");
+        while (text_w(&FONT_S, w) > 56 && w[0] && w[1]) {   /* (the cell's width: the journey's name cut) */
+            int i = 0;
+            while (w[i])
+                i++;
+            w[i - 1] = 0;
+        }
+        cell(2, "BRING IN", w, ui.bring_on ? C_AMB : C_DIM);
+        if (eng_jr.travel)
+            put_s(put_i(c, JR_TRAVEL_BARS[eng_jr.travel % JR_TRAVEL_N]), " BARS");
+        else
+            put_s(c, "BY HAND");
+        cell(3, "TRAVELS", c, C_HI);
+        if (ui.bring_on)
+            hint(has ? "SEL: BRING IT IN" : "SEL: ADD IT", "EDIT: SCENE");
+        else
+            hint(has ? "SEL: ITS SOUND" : "K3: A SCENE MORE", "EDIT: SCENE");
+        break;
+    }
     case V_FX:
         for (k = 0; k < 4; k++) {
             const int f = fx_of(ui.fxrow, k), mx = engine_fx_max(f);
@@ -3641,7 +3773,7 @@ static void draw_knobs(void)
 /* ------------------------------------------------------------------- lights --- */
 static void leds(void)
 {
-    static const uint8_t VIEW_BTN[NVIEWS] = {B_HOME, B_ENV, B_EDIT, B_FX, B_LFO, B_GLO, B_GLO, B_LFO};
+    static const uint8_t VIEW_BTN[NVIEWS] = {B_HOME, B_ENV, B_EDIT, B_FX, B_LFO, B_GLO, B_GLO, B_LFO, 0, B_EDIT};
     const looper_t *l = engine_looper_state();
     uint32_t btn = 1u << VIEW_BTN[ui.view], keys = 0, kdim = 0;
     int i;
@@ -3722,6 +3854,12 @@ static void speak_where(void)
         sf_text(scene_sel(), ui.srow, v);
         q = put_s(put_s(put_s(put_s(put_i(put_s(q, "SCENE "), ui.ssel + 1), ". "), SF_N[ui.srow]), " "), v);
         break;
+    case V_SCENES: {
+        char n[32];
+        scenes_row(ui.ssel, n, v);
+        q = put_s(put_s(put_s(q, n), v[0] ? ", " : ""), v);
+        break;
+    }
     case V_FX:
         q = put_s(q, FXROW_N[ui.fxrow]);
         for (k = 0; k < 4; k++) {

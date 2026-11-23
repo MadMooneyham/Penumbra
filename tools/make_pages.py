@@ -9,6 +9,7 @@
   words/                         the screen reader's words files (fm1-reader), every one ever made
   cheatsheet/                    one printable page (web/cheatsheet), with its PDF
   backup/                        what the FM-1 keeps, to a file and back (web/backup; Chrome or Edge, Web MIDI)
+  journey/                       a journey of one's own, onto the FM-1 (web/journey; Web MIDI too)
   emu/                           Penumbra in the browser, when build/emu exists (web/emu/build.sh, first)
 
   tools/make_pages.py build/penumbra-0.7-beta.fwsc 0.7-beta OUT_DIR
@@ -62,7 +63,7 @@ voice sings, and it glides from scene to scene. It is played by shaping it: HOME
 the tides and the space; throws of shimmer and frozen rooms; a slow walk to the next scene. Every key is in
 tune, and loops follow each key change.</p>
 <p><a class="go" href="emu/">Play it in the browser</a> &nbsp; <a class="go" href="install/">Install __VERSION__</a></p>
-<p><a href="cheatsheet/">Cheat sheet</a> &nbsp;·&nbsp; <a href="backup/">Backup</a> &nbsp;·&nbsp; <a href="https://github.com/MadMooneyham/Penumbra/blob/main/MANUAL.md">Manual</a>
+<p><a href="cheatsheet/">Cheat sheet</a> &nbsp;·&nbsp; <a href="journey/">Journeys</a> &nbsp;·&nbsp; <a href="backup/">Backup</a> &nbsp;·&nbsp; <a href="https://github.com/MadMooneyham/Penumbra/blob/main/MANUAL.md">Manual</a>
 &nbsp;·&nbsp; <a href="firmware/__PKG__">Download the package</a> &nbsp;·&nbsp; <a href="https://github.com/MadMooneyham/Penumbra">Source</a></p>
 <p class="small">To go back to the official firmware, the installer can write it, or use M-VAVE's updater, M-UPGRADE,
 from <a href="https://www.m-vave.com/download">m-vave.com/download</a>. M-VAVE and FM-1 are trademarks of their owners.</p>
@@ -99,13 +100,14 @@ def main(pkg, version, out):
     shutil.copytree(SRC / "web" / "words", out / "words")
     shutil.copytree(SRC / "web" / "cheatsheet", out / "cheatsheet")
     shutil.copytree(SRC / "web" / "backup", out / "backup")
+    shutil.copytree(SRC / "web" / "journey", out / "journey")
     emu = SRC / "build" / "emu"
     if (emu / "penumbra.wasm").is_file():
         shutil.copytree(emu, out / "emu")
     else:
         print("note: no build/emu/penumbra.wasm (web/emu/build.sh, needs emcc): the site has no emulator")
     (out / ".nojekyll").write_text("")
-    print(f"site: {out}: index.html, install/ ({product}), firmware/{name} ({len(raw)} B), words/, cheatsheet/, backup/"
+    print(f"site: {out}: index.html, install/ ({product}), firmware/{name} ({len(raw)} B), words/, cheatsheet/, backup/, journey/"
           + (", emu/" if (out / "emu").is_dir() else ""))
 
 
