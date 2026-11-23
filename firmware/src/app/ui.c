@@ -94,6 +94,7 @@ typedef struct {
     uint32_t used;                     /* buttons held as a hold this press: they do not act when let go */
     float thr[4], bend[4];             /* THROWS 0..127 (PF_SHIMMER..; DIP -127..127), BENDS -64..64 (PF_BRIGHT..) */
     float warp;                        /* WARP (ALGO, FX held): -127 .. 127 */
+    float thr_base[4], warp_base;      /* where the throws rest (HOME's THROWS page, or kept): FX let go, back there */
     int16_t sent[PF_N];                /* what the engine has */
     uint8_t thr_kept, thr_back, bend_back;
     float pitch;                       /* PITCH (ALGO, a white key held): -127 .. 127 of the bend range */
@@ -981,15 +982,18 @@ static void perf_tick(void)                       /* let go: back, over BACK_S f
     float dt = fm_minf((float)(now - ui.perf_t) * 0.001f, 0.1f);
     int k, left;
     ui.perf_t = now;
-    if (ui.thr_back) {                            /* (DIP and WARP from either side) */
+    if (ui.thr_back) {                            /* (DIP and WARP from either side; to where they rest, HOME's THROWS) */
         float s = dt * (127.0f / BACK_S);
         for (k = left = 0; k < 4; k++) {
-            float x = ui.thr[k];
-            ui.thr[k] = x > s ? x - s : x < -s ? x + s : 0.0f;
-            left |= ui.thr[k] != 0.0f;
+            float x = ui.thr[k] - ui.thr_base[k];
+            ui.thr[k] = ui.thr_base[k] + (x > s ? x - s : x < -s ? x + s : 0.0f);
+            left |= ui.thr[k] != ui.thr_base[k];
         }
-        ui.warp = ui.warp > s ? ui.warp - s : ui.warp < -s ? ui.warp + s : 0.0f;
-        ui.thr_back = (uint8_t)(left || ui.warp != 0.0f);
+        {
+            float x = ui.warp - ui.warp_base;
+            ui.warp = ui.warp_base + (x > s ? x - s : x < -s ? x + s : 0.0f);
+        }
+        ui.thr_back = (uint8_t)(left || ui.warp != ui.warp_base);
     }
     if (ui.pitch_back) {
         float s = dt * (127.0f / BACK_S);
@@ -1199,14 +1203,30 @@ static void reset_now(int what)
         settings_apply();
         changed();
         for (k = 0; k < 4; k++)
-            ui.thr[k] = ui.bend[k] = 0.0f;
+            ui.thr[k] = ui.bend[k] = ui.thr_base[k] = 0.0f;
+        ui.warp_base = 0.0f;
         ui.pitch = ui.warp = 0.0f;
         ui.thr_kept = ui.thr_back = ui.bend_back = ui.pitch_kept = ui.pitch_back = 0;
         perf_send();
+        /* Penumbra as a new unit, its settings aside: the user journeys and the sound library empty, the loop gone,
+         * A and B gone, and the journey a new unit plays, all of it, its scenes too */
+        journey_slots_clear();
+        sound_slots_clear();
+        engine_looper(LOOPER_CLEAR);
+        {
+            uint8_t *z = (uint8_t *)&sound_ab;
+            uint32_t j;
+            for (j = 0; j < sizeof sound_ab; j++)
+                z[j] = 0;
+        }
+        ui.ab_goal = ui.ab_now = 0.0f;
+        ui.sdest = -1;
+        journey_open_preset(journey_first);
+        changed_as(D_SET | D_JR | D_LOOP);
     }
     changed_jr();
     if (all)
-        say("SOUND RESET", 0);
+        say("FACTORY SOUND", ": JOURNEYS, SOUNDS AND THE LOOP AS NEW");
     else
         say(kind == PK_VSOUND ? jr_vsound_name(eng_jr.vcur) : PAGE[(what - 1) % NPG].name, " RESET");   /* (VOX SINGS too) */
 }
@@ -1220,7 +1240,7 @@ static void reset_ask(int what)                   /* SEL: once asks, twice does 
     }
     ui.rs_what = (uint8_t)what;
     ui.rs_until = plat_ms() + RESET_MS;
-    put_s(put_s(t, "SEL AGAIN: RESET "), what == RS_ALL ? "ALL SOUND"
+    put_s(put_s(t, what == RS_ALL ? "SEL AGAIN: " : "SEL AGAIN: RESET "), what == RS_ALL ? "ALL JOURNEYS, SOUNDS, LOOP"
                                          : PAGE[(what - 1) % NPG].kind == PK_VSOUND ? jr_vsound_name(eng_jr.vcur)
                                                                             : PAGE[(what - 1) % NPG].name);
     warn(t, 0);
@@ -1781,10 +1801,10 @@ static void cc_set(int c, int v)                  /* a CC came: the control ther
     switch (m->kind) {
     case CK_MACRO: eng_jr.macro[m->i] = (uint8_t)v; changed_jr(); break;
     case CK_THROW:                                /* (held where it is put: no drift back) */
-        ui.thr[m->i] = m->i == 3 ? cc_signed(v) : (float)v;
+        ui.thr[m->i] = ui.thr_base[m->i] = m->i == 3 ? cc_signed(v) : (float)v;
         ui.thr_back = 0;
         break;
-    case CK_WARP: ui.warp = cc_signed(v); ui.thr_back = 0; break;
+    case CK_WARP: ui.warp = ui.warp_base = cc_signed(v); ui.thr_back = 0; break;
     case CK_TIDE: eng_jr.tide[m->i] = (uint8_t)v; changed_jr(); break;
     case CK_DMOTION: eng_jr.dmotion[m->i] = (uint8_t)v; changed_jr(); break;
     case CK_LEVEL:
@@ -1840,10 +1860,12 @@ static void cc_set(int c, int v)                  /* a CC came: the control ther
  * its drift, and how far the tides reach; SPACE the reverb's and the delay's return, the reverb's decay and
  * shimmer (the FX page's); MIX each part's level; ALIVE what plays by itself (the sound playing's singing,
  * BLOOM, the drone voices that come and go, travelling). All but SPACE are the journey's, saved with it.
- * (The tempo: ALGO on every other page) */
-enum { HP_DRONE, HP_VOX, HP_MOTION, HP_SPACE, HP_MIX, HP_ALIVE, HP_N };
-static const char *const HP_NAME[HP_N] = {"DRONE", "VOX", "MOTION", "SPACE", "MIX", "ALIVE"};
-enum { HK_SHAPE, HK_LEVEL, HK_FX, HK_TIDES, HK_SING, HK_BLOOM, HK_SWELLS, HK_TRAVEL };
+ * THROWS (after SPACE): FX's throws DIP, WARP, FEEDBACK and FREEZE, left where they are set (FX held throws from
+ * there, and let go they drift back there). (The tempo: ALGO on every other page) */
+enum { HP_DRONE, HP_VOX, HP_MOTION, HP_SPACE, HP_THROWS, HP_MIX, HP_ALIVE, HP_N };
+static const char *const HP_NAME[HP_N] = {"DRONE", "VOX", "MOTION", "SPACE", "THROWS", "MIX", "ALIVE"};
+enum { HK_SHAPE, HK_LEVEL, HK_FX, HK_TIDES, HK_SING, HK_BLOOM, HK_SWELLS, HK_TRAVEL, HK_THROW };
+#define HK_WARP 4                                     /* (HK_THROW's i: a throw 0..3, or WARP) */
 typedef struct { const char *name; uint8_t kind, i; } hknob_t;
 #define HKS(pg, k) ((pg) << 2 | (k))                  /* (a SHAPE page's knob) */
 static const hknob_t HKNOB[HP_N][4] = {
@@ -1854,6 +1876,7 @@ static const hknob_t HKNOB[HP_N][4] = {
     {{"SWEEP", HK_SHAPE, HKS(PG_DRONE2, 1)}, {"RATE", HK_SHAPE, HKS(PG_DRONE2, 0)}, {"DRIFT", HK_SHAPE, HKS(PG_DRONE2, 3)},
      {"TIDES", HK_TIDES, 0}},
     {{"REVERB", HK_FX, EF_RV_LEVEL}, {"DECAY", HK_FX, EF_RV_DECAY}, {"SHIMMER", HK_FX, EF_RV_SHIMMER}, {"DELAY", HK_FX, EF_DL_LEVEL}},
+    {{"DIP", HK_THROW, 3}, {"WARP", HK_THROW, HK_WARP}, {"FEEDBACK", HK_THROW, 1}, {"FREEZE", HK_THROW, 2}},
     {{"DRONE", HK_LEVEL, EV_DRONE}, {"VOX", HK_LEVEL, EV_VOX}, {"PULSE", HK_LEVEL, EV_PULSE}, {"TEXTURE", HK_LEVEL, EV_TEX}},
     {{"SINGS", HK_SING, 0}, {"BLOOMS", HK_BLOOM, 0}, {"SWELLS", HK_SWELLS, 0}, {"TRAVELS", HK_TRAVEL, 0}}};
 static int hk_signed(int k);
@@ -1878,13 +1901,20 @@ static int hk_get(int k, int *max)                /* the knob's value now, 0 .. 
     case HK_SING: *max = JR_SING_N - 1; return JR_SING(&eng_jr, eng_jr.vcur % JR_VSOUNDS);
     case HK_BLOOM: *max = JR_SING_N - 1; return eng_jr.bloom_auto;
     case HK_SWELLS: *max = ENG_DRONES; return popc5(eng_jr.dswell);
+    case HK_THROW:                                /* (DIP and WARP either way: 127 the middle of 0 .. 254) */
+        if (h->i == HK_WARP || h->i == 3) {
+            *max = 254;
+            return 127 + round_i(h->i == HK_WARP ? ui.warp : ui.thr[3]);
+        }
+        return clamp_i(round_i(ui.thr[h->i]), 0, 127);
     default: *max = JR_TRAVEL_N - 1; return eng_jr.travel;
     }
 }
 static int hk_signed(int k)                       /* an offset from as made: its arc fills from the top */
 {
     const hknob_t *h = hknob(k);
-    return h->kind == HK_SHAPE && (PAGE[h->i >> 2].sgn >> (h->i & 3) & 1u);
+    return (h->kind == HK_SHAPE && (PAGE[h->i >> 2].sgn >> (h->i & 3) & 1u)) ||
+           (h->kind == HK_THROW && (h->i == HK_WARP || h->i == 3));
 }
 
 static void hk_text(int k, char *b)               /* short, for the knob */
@@ -1899,6 +1929,12 @@ static void hk_text(int k, char *b)               /* short, for the knob */
     case HK_SWELLS: put_s(put_i(b, v), "/5"); break;
     case HK_TRAVEL: if (v) put_i(b, JR_TRAVEL_BARS[v % JR_TRAVEL_N]); else put_s(b, "-"); break;
     case HK_LEVEL: put_s(put_i(b, v), "%"); break;   /* (a level: its own number, 100% as made) */
+    case HK_THROW:
+        if (h->i == HK_WARP)
+            warp_text(b);
+        else
+            thr_text(h->i, b);
+        break;
     default: put_pct(b, v); break;
     }
 }
@@ -1927,6 +1963,14 @@ static void hk_turn(int k, int e)
         changed_jr();
         break;
     }
+    case HK_THROW:                                /* (where it rests: FX held throws from here, and comes back here) */
+        if (h->i == HK_WARP)
+            ui.warp = ui.warp_base = fm_clampf(ui.warp + 6.0f * (float)e * (float)ui.mult, -127.0f, 127.0f);
+        else
+            ui.thr[h->i] = ui.thr_base[h->i] =
+                fm_clampf(ui.thr[h->i] + 4.0f * (float)e * (float)ui.mult, h->i == 3 ? -127.0f : 0.0f, 127.0f);
+        ui.thr_back = 0;
+        break;
     case HK_FX: {
         const int mx = engine_fx_max(h->i);
         cfg.fx[h->i] = (uint8_t)clamp_i(cfg.fx[h->i] + (mx < 127 ? step : amt), 0, mx);

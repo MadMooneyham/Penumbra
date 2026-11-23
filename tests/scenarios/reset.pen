@@ -1,6 +1,7 @@
 # RESET: SHAPE's SEL (twice) puts the page shown back as made (DRONE with its voices' own; VOX's pages the
-# sound playing); SYSTEM > RESET SOUND (SEL twice) all of it: every page, the four VOX sounds, the FX page,
-# HOME's macros, a throw kept. The scenes, the tempo and the loop stay. Once alone does nothing.
+# sound playing); SYSTEM > RESET SOUND (SEL twice) Penumbra as a new unit, its settings aside: the journey a
+# new unit plays (all of it), the FX page, the user journeys and the sound library empty, the loop and A/B gone,
+# a throw kept let go. The tempo and SYSTEM's settings stay. Once alone does nothing.
 autoplay 0
 wait 300
 key b2 down
@@ -46,6 +47,24 @@ tap SAVE
 release FX
 wait 100
 expect perf2 40
+# things of the player's own: a user journey, a library sound, a loop, an A
+tap LFO
+turn PRESET 7
+tap SAVE
+expect slot1 1
+tap LFO
+tap SAVE
+expect snd1 1
+tap HOME
+tap REC
+tapkey w2
+tap REC
+wait 200
+expect looper 2
+press ENV
+tap OCT-
+release ENV
+expect ab_have 1
 tap GLO
 turn ALGO 5
 expect set_bpm 95
@@ -61,4 +80,10 @@ expect macro3 64
 expect perf2 0
 expect set_bpm 95
 expect nscenes 4
+expect slot1 0
+expect snd1 0
+expect ab_have 0
+expect journey 1
+wait 200
+expect looper 0
 expect clips 0

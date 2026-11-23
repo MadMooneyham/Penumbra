@@ -1,5 +1,5 @@
-# HOME's knob pages: ALGO there steps DRONE, VOX, MOTION, SPACE, MIX, ALIVE (round and round; kept across a
-# power cut), the knobs each page's, drawn as arcs (screenshots in build/scenarios/home_pages/)
+# HOME's knob pages: ALGO there steps DRONE, VOX, MOTION, SPACE, THROWS, MIX, ALIVE (round and round; kept
+# across a power cut), the knobs each page's, drawn as arcs (screenshots in build/scenarios/home_pages/)
 autoplay 0
 wait 500
 expect hpage 0
@@ -28,12 +28,27 @@ expect fx2 35
 shot space.png
 turn ALGO 1
 expect hpage 4
+# THROWS: DIP (left a low-pass), WARP, FEEDBACK, FREEZE, left where they are set; FX held throws from there,
+# and let go they drift back there, not to nothing
+turn K1 -5
+expect thr3 -20
+turn K2 3
+expect perf9 18
+shot throws.png
+press FX
+turn K4 -5
+expect thr3 -40
+release FX
+wait 3000
+expect thr3 -20
+turn ALGO 1
+expect hpage 5
 # MIX: the parts' levels
 turn K1 -5
 expect shape10 90
 shot mix.png
 turn ALGO 1
-expect hpage 5
+expect hpage 6
 # ALIVE: steps; SWELLS how many drone voices come and go (all five in ECLIPSE: down to two, the top two)
 turn K3 -3
 expect dswell 24
@@ -43,10 +58,10 @@ shot alive.png
 turn ALGO 1
 expect hpage 0
 turn ALGO -2
-expect hpage 4
+expect hpage 5
 tap SAVE
 powercut
 wait 300
-expect hpage 4
+expect hpage 5
 expect travel 2
 expect dswell 24

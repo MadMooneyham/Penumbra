@@ -71,6 +71,8 @@ int sound_slots_load(void);
 int sound_slot_used(int slot);
 const jr_sound_t *sound_slot(int slot);          /* 0: empty */
 int sound_slot_save(int slot);           /* the sound playing into the slot; 0 = saved */
+int sound_slots_clear(void);             /* every slot empty (RESET SOUND), saved */
+int journey_slots_clear(void);           /* every user journey slot empty (RESET SOUND), saved */
 int journey_slots_load(void);
 int journey_slot_used(int slot);
 const char *journey_slot_name(int slot);

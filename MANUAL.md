@@ -63,8 +63,8 @@ silent instead.
 
 ### The knob pages
 
-**HOME's four knobs** play one of six pages, and **ALGO** on HOME turns to the next, round and round. The knob
-strip shows the page's name, a dot for each of the six, and each knob as an arc of the corona filled to its
+**HOME's four knobs** play one of seven pages, and **ALGO** on HOME turns to the next, round and round. The knob
+strip shows the page's name, a dot for each of the seven, and each knob as an arc of the corona filled to its
 value (an offset from as made fills from the top, either way). The page stays chosen across a power-off.
 
 | Page | K1 | K2 | K3 | K4 |
@@ -73,12 +73,15 @@ value (an offset from as made fills from the top, either way). The page stays ch
 | **VOX** | BRIGHT | FILTER (low-pass to band-pass) | RESO | RELEASE |
 | **MOTION** | SWEEP (the drone's slow LFO over its filter) | RATE (that LFO, ~1 s to 100 s) | DRIFT (the drone voices' tuning wandering) | TIDES (how far the tide reaches the drone, VOX and the space) |
 | **SPACE** | REVERB (its return) | DECAY | SHIMMER | DELAY (its return) |
+| **THROWS** | DIP (the whole mix: left a low-pass, right a high-pass) | WARP (the delay's time bent) | FEEDBACK | FREEZE (the reverb held) |
 | **MIX** | DRONE level | VOX level | PULSE level (the kick and BLOOM) | TEXTURE level |
 | **ALIVE** | SINGS (how often the sound playing sings) | BLOOMS (BLOOM by itself) | SWELLS (how many drone voices come and go, the top ones first) | TRAVELS (on to the next scene every 8 to 64 bars) |
 
 - **DRONE, VOX and MOTION** are SHAPE's own settings (section 7), on HOME so they can be played. VOX's are the
   VOX sound playing; a VOX sound key (black 8-11) picks which.
 - **SPACE** is the FX page's own settings (section 8).
+- **THROWS** are FX's throws (section 3), left where they are set: DIP and WARP from the middle either way.
+  FX held still throws, from there, and let go they drift back there. They last until the power goes.
 - **ALIVE** moves a step a click: from nothing by itself to a lot, while the clock runs.
 - Everything but SPACE belongs to the journey, and is saved with it.
 
@@ -501,7 +504,7 @@ pitch. Only the WARP throw bends them. Each scene can move the reverb further wi
 | USB AUDIO | MASTER (follows the volume knob), FULL level, or USB ONLY (below) |
 | PLAY AT POWER-ON | Starts the clock and the drone at power-on |
 | BEND RANGE | The pitch bend's range: 2, 5, 7 or 12 semitones each way |
-| SLEEP | Off, or 20, 40, 60 or 90 minutes (below) |
+| RESET SOUND | SEL twice returns Penumbra to factory, its settings aside (below) |
 | RESET SOUND | SEL twice puts the whole sound back as made (below) |
 | ABOUT | The version |
 
@@ -518,13 +521,15 @@ headphone jack.
 
 SLEEP lasts only this session; it is not saved.
 
-**RESET SOUND** puts back as made:
+**RESET SOUND** returns Penumbra to how a new unit starts, its settings aside:
 
-- every SHAPE page, the drone voices (all five coming and going, as in ECLIPSE) and VOX's four sounds;
-- the FX page and the macros (CCs 14-17);
-- any throw or bend that is out.
+- the journey a new unit plays, TOTALITY, all of it: its scenes, its sound, its A and B;
+- the eight user journeys and the eight library sounds, emptied;
+- the loop, gone;
+- the FX page, the macros (CCs 14-17), and any throw or bend that is out.
 
-The scenes, the loop, the tempo, A and B, the sound library and the other settings stay.
+The tempo and SYSTEM's settings stay. The first SEL only asks. A [backup](https://madmooneyham.github.io/Penumbra/backup/)
+made first keeps the journeys and sounds, to put back afterwards.
 
 **BENCH**: GLO again from SYSTEM. It shows what each part of the sound costs the processor. SEL there runs
 a load test that sets every voice at its heaviest.

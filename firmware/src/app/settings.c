@@ -61,7 +61,7 @@ int settings_load(void)
         s.ctl[i] &= 0x7Fu;
     if (s.usb_full > 2)
         s.usb_full = 0;
-    if (s.home_page > 5)
+    if (s.home_page > 6)
         s.home_page = 0;
     for (i = 0; i < EF_N; i++)
         if (s.fx[i] > engine_fx_max(i))
@@ -315,6 +315,23 @@ int sound_slot_save(int slot)
     jr_sound_get(&eng_jr, &slib.s[slot]);
     slib.used[slot] = 1;
     return plat_store_save(OBJ_SOUNDS, &slib, sizeof slib);
+}
+int sound_slots_clear(void)                       /* (RESET SOUND: the library empty, as a new unit's) */
+{
+    uint8_t *z = (uint8_t *)&slib;
+    uint32_t k;
+    for (k = 0; k < sizeof slib; k++)
+        z[k] = 0;
+    slib.magic = SND_MAGIC;
+    return plat_store_save(OBJ_SOUNDS, &slib, sizeof slib);
+}
+int journey_slots_clear(void)                     /* (RESET SOUND: the user slots empty) */
+{
+    uint8_t *z = (uint8_t *)jslot;
+    uint32_t k;
+    for (k = 0; k < sizeof jslot; k++)
+        z[k] = 0;
+    return plat_store_save(OBJ_USER, jslot, sizeof jslot);
 }
 
 int journey_slots_load(void)
