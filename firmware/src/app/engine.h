@@ -133,6 +133,8 @@ void engine_loop_layer(int layer, int field, int value);   /* a kept layer's LEV
 void engine_freeze(void);                          /* the notes held keep sounding (again: they let go) */
 int engine_frozen(void);                           /* (main loop) notes frozen */
 void engine_travel(int scene);                     /* the scene glides there */
+void engine_scene_swap(int a, int b);              /* two scenes change places (SCENE: SEL held, K1); the one playing
+                                                    * plays on, wherever it now is */
 /* MIDI for a DAW. In: the channel's CCs and program changes, and the next channel's notes (the black keys),
  * for the UI to take (main loop); out (the audio ISR sends it, so nothing else writes the ring): a message
  * from the UI, and the white keys' notes as they sound (engine_midi_notes_out) */

@@ -12,7 +12,7 @@ expect fx10 0
 expect fx11 106
 expect fx14 1
 expect fx15 64
-expect jr_format 11
+expect jr_format 12
 expect journey 2
 expect scene 2
 expect room1 64

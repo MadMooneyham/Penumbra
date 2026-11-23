@@ -1,0 +1,48 @@
+# A journey of one's own (SCENE): each scene's STAYS (as TRAVELS, or 4 .. 128 bars of its own: it moves on even
+# with TRAVELS by hand), PLAYS (SKIPPED: travelling, PRESET and MORPH pass it by), BRING IN (a scene of any
+# journey over the scene shown, SEL twice), and SEL held with K1 moving the scene shown earlier or later.
+autoplay 0
+wait 300
+tap EDIT
+expect view 2
+turn SELECT 12
+expect srow 12
+turn K2 2
+expect stays1 2
+turn K1 1
+turn SELECT 1
+expect srow 13
+turn K2 -1
+expect skip2 1
+shot scene_plays.png
+tap HOME
+# scene 1 stays 8 bars (90 BPM: 21 s), then on to scene 3, scene 2 passed by
+tap SEQ
+wait 20000
+expect scene 1
+wait 15000
+expect scene 3
+# PRESET back: scene 1, past the skipped one
+turn PRESET -1
+wait 13000
+expect scene 1
+# BRING IN: PENUMBRA's second scene (its key D) over scene 4
+tap EDIT
+turn K1 3
+turn SELECT 3
+expect srow 16
+turn K2 1
+turn K3 1
+tap SEL
+expect sroot4 9
+tap SEL
+expect sroot4 2
+shot bring_in.png
+# SEL held, K1: scene 4 moves to be scene 3 (scene 3, in F, to 4)
+press SEL
+turn K1 -1
+release SEL
+expect sroot3 2
+expect sroot4 5
+expect skip2 1
+expect nscenes 4

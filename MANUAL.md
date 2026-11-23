@@ -210,9 +210,23 @@ A **journey** is a bank of up to eight scenes, with a sound of its own.
 too, and the key changes at the middle. Each preset journey keeps its drone's root from scene to scene, so
 the drone changes only its colour.
 
-**A journey can travel by itself.** With TRAVELS set (ALIVE on HOME, or SCENE's last field), the journey moves
-to its next scene after that many bars in each, round and round, for as long as the clock runs. PRESET and
-MORPH still move it by hand, and the count starts again from wherever that leaves it.
+**A journey can travel by itself.** With TRAVELS set (ALIVE on HOME, or SCENE's TRAVELS field), the journey
+moves to its next scene after that many bars in each, round and round, for as long as the clock runs. A scene
+with a **STAYS** of its own stays that long instead (and moves on even with TRAVELS by hand). PRESET and MORPH
+still move it by hand, and the count starts again from wherever that leaves it.
+
+**A journey of one's own.** On SCENE:
+
+- **STAYS**: how long the scene plays when the journey travels by itself: AS TRAVELS, or 4, 8, 16, 32, 64 or
+  128 BARS of its own.
+- **PLAYS**: YES, or SKIPPED. A skipped scene stays in the journey, but travelling, PRESET and MORPH pass it
+  by; SCENE still opens it, and turning it back to YES brings it back.
+- **BRING IN**: a scene of any journey, a preset's or a user slot's. K2 picks the journey, K3 its scene, and
+  SEL twice brings it in over the scene shown.
+- **SEL held, K1 turned** moves the scene shown earlier or later; the scene playing plays on.
+
+So up to eight scenes from anywhere, in any order, each for its own time or skipped, make a journey; SAVE on
+a JOURNEY user slot keeps it, and a backup file carries it to another FM-1.
 
 **The sound can travel with the scenes.** With A and B kept (ENV held, section 3), a scene's SOUND A-B names
 a place between them. Moving to that scene glides the sound there, as MORPH and PRESET glide everything else,
@@ -241,8 +255,11 @@ these writes to the FM-1's memory as it moves, so a journey can travel all night
 | WIND | The wind's level |
 | WIND COLOUR | The wind's colour |
 | SOUND A-B | Where the sound sits between A and B in this scene (STAYS: the scene leaves the sound alone) |
+| STAYS | How long it plays, travelling by itself: AS TRAVELS, or 4 to 128 BARS of its own |
+| PLAYS | YES, or SKIPPED (passed by) |
 | TRAVELS | The whole journey's, not the scene's: BY HAND, or on to the next scene EVERY 8, 16, 32 or 64 BARS |
 | LANDS | The whole journey's too: QUIETLY, or A KICK as each new scene's key comes in |
+| BRING IN | A scene of any journey over the scene shown (K2 the journey, K3 its scene, SEL twice) |
 
 **JOURNEY (LFO)** lists the seven presets and eight user slots:
 

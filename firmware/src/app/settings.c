@@ -114,6 +114,9 @@ static void journey_sane(journey_t *j)          /* a loaded one: every field in 
             j->scene[i].pedal = 0;
         j->scene[i].room &= 0x7Fu;
         j->scene[i].halo &= 0x7Fu;
+        if (j->scene[i].stays >= JR_STAY_N)
+            j->scene[i].stays = 0;
+        j->scene[i].skip &= 1u;
     }
     for (i = 0; i < JR_DMOTION; i++)
         j->dmotion[i] &= 0x7Fu;
@@ -197,9 +200,14 @@ static void journey_upgrade(journey_t *j)
     }
     if (j->format <= 9u)
         jr_sing_default(j);                      /* (9 and before: the singers' places in the middle, as is) */
-    jr_kick_default(j);                          /* (10 and before: the kick as it was, by hand, no landing) */
-    j->kick[JR_KK_AUTO] = JR_KA_HAND;
-    j->kick_land = 0;
+    if (j->format <= 10u) {
+        jr_kick_default(j);                      /* (10 and before: the kick as it was, by hand, no landing) */
+        j->kick[JR_KK_AUTO] = JR_KA_HAND;
+        j->kick_land = 0;
+    }
+    for (k = 0; k < JR_SCENES; k++)              /* (11 and before: each scene as TRAVELS says, all of them playing;
+                                                  * their bytes were 0.15's, so cleared) */
+        j->scene[k].stays = j->scene[k].skip = 0;
     j->format = JR_FORMAT;
 }
 
@@ -354,6 +362,7 @@ int journey_slots_load(void)
 
 int journey_slot_used(int slot) { return slot >= 0 && slot < JR_USER && jr_valid(&jslot[slot]); }
 const char *journey_slot_name(int slot) { return journey_slot_used(slot) ? jslot[slot].name : "EMPTY"; }
+const journey_t *journey_slot(int slot) { return journey_slot_used(slot) ? &jslot[slot] : 0; }
 
 int journey_slot_save(int slot)
 {

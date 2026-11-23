@@ -89,6 +89,8 @@ typedef struct {
     uint8_t bheld;                     /* BLOOM's key held */
     uint8_t kheld;                     /* the kick's key held */
     int8_t ctl_last[7];                /* KNOBS: CC RELATIVE: each knob's last turn, + or - steps (the screen's) */
+    uint8_t bring_j, bring_s;          /* SCENE's BRING IN: the journey (presets, then user slots), its scene */
+    uint32_t bring_until;              /* its SEL asked: again before this brings it in (0: not asked) */
     uint8_t bvel[11];                  /* each black key's velocity as MIDI last pressed it (the hands: 110) */
     uint16_t wheld;                    /* white keys held (bit w) */
     uint32_t used;                     /* buttons held as a hold this press: they do not act when let go */
@@ -359,9 +361,27 @@ static const char *const MACRO_N[NMACROS] = {"DRONE", "VOX", "SPACE", "TONE"};
 /* (SOUND A-B: where the sound is between A and B in this scene, gliding there with it; TRAVELS: the whole
  * journey's, not the scene's: it moves on by itself) */
 enum { SF_KEY, SF_SCALE, SF_PEDAL, SF_VOICING, SF_BRIGHT, SF_REG, SF_SPACE, SF_ROOM, SF_HALO, SF_WIND, SF_COLOUR,
-       SF_SOUND, SF_TRAVEL, SF_LAND, NSF };
+       SF_SOUND, SF_STAYS, SF_PLAYS, SF_TRAVEL, SF_LAND, SF_BRING, NSF };
 static const char *const SF_N[NSF] = {"KEY", "SCALE", "DRONE ROOT", "VOICING", "VOX BRIGHTNESS", "VOX REGISTER",
-                                      "SPACE", "ROOM", "HALO", "WIND", "WIND COLOUR", "SOUND A-B", "TRAVELS", "LANDS"};
+                                      "SPACE", "ROOM", "HALO", "WIND", "WIND COLOUR", "SOUND A-B", "STAYS", "PLAYS",
+                                      "TRAVELS", "LANDS", "BRING IN"};
+/* BRING IN: a scene of any journey (the presets, then the user slots that hold one), over the scene shown */
+#define BRING_N (JR_PRESETS + JR_USER)
+static const journey_t *bring_src(int j)
+{
+    static journey_t tmp;
+    if (j < JR_PRESETS) {
+        jr_preset(j, &tmp);
+        return &tmp;
+    }
+    return journey_slot(j - JR_PRESETS);
+}
+static const char *bring_name(int j) { return j < JR_PRESETS ? jr_preset_name(j) : journey_slot_name(j - JR_PRESETS); }
+static void bring_text(char *b)
+{
+    const journey_t *s = bring_src(ui.bring_j % BRING_N);
+    put_i(put_s(put_s(b, bring_name(ui.bring_j % BRING_N)), " "), s ? ui.bring_s % s->nscenes + 1 : 1);
+}
 static uint8_t *sf_ptr(scene_t *s, int f)
 {
     switch (f) {
@@ -376,8 +396,11 @@ static uint8_t *sf_ptr(scene_t *s, int f)
     case SF_HALO: return &s->halo;
     case SF_WIND: return &s->tex;
     case SF_SOUND: return &s->blend;
+    case SF_STAYS: return &s->stays;
+    case SF_PLAYS: return &s->skip;
     case SF_TRAVEL: return &eng_jr.travel;
     case SF_LAND: return &eng_jr.kick_land;
+    case SF_BRING: return &ui.bring_j;
     default: return &s->colour;
     }
 }
@@ -402,6 +425,14 @@ static void sf_text(const scene_t *s, int f, char *b)
             put_s(b, "BY HAND");
         break;
     case SF_LAND: put_s(b, eng_jr.kick_land ? "A KICK" : "QUIETLY"); break;   /* (the journey's: each new key, a kick) */
+    case SF_STAYS:
+        if (s->stays && s->stays < JR_STAY_N)
+            put_s(put_i(b, JR_STAY_BARS[s->stays]), " BARS");
+        else
+            put_s(b, "AS TRAVELS");
+        break;
+    case SF_PLAYS: put_s(b, s->skip ? "SKIPPED" : "YES"); break;
+    case SF_BRING: bring_text(b); break;
     case SF_ROOM:
     case SF_HALO: put_spct(b, *sf_ptr((scene_t *)s, f) - 64); break;
     default: put_pct(b, *sf_ptr((scene_t *)s, f)); break;
@@ -420,6 +451,9 @@ static void sf_turn(int f, int e)
     case SF_REG: *p = (uint8_t)clamp_i(*p + e, 2, 6); break;
     case SF_TRAVEL: *p = (uint8_t)clamp_i(*p + (e > 0 ? 1 : -1), 0, JR_TRAVEL_N - 1); break;
     case SF_LAND: *p = (uint8_t)(e > 0); break;
+    case SF_STAYS: *p = (uint8_t)clamp_i(*p + (e > 0 ? 1 : -1), 0, JR_STAY_N - 1); break;
+    case SF_PLAYS: *p = (uint8_t)(e < 0); break;   /* (right: it plays; left: SKIPPED) */
+    case SF_BRING: return;                        /* (bring_turn's: K2 the journey, K3 its scene) */
     default: *p = (uint8_t)clamp_i(*p + 2 * e * ui.mult, 0, 127); break;
     }
     changed_jr();
@@ -428,11 +462,62 @@ static void sf_turn(int f, int e)
     say(t, 0);
 }
 
+static void bring_turn(int k, int e)              /* BRING IN: K2 the journey (the empty slots passed by), K3 its scene */
+{
+    char b[32];
+    if (k == 1) {
+        int j = ui.bring_j % BRING_N, n;
+        for (n = 0; n < BRING_N; n++) {
+            j = wrap_i(j + (e > 0 ? 1 : -1), BRING_N);
+            if (bring_src(j))
+                break;
+        }
+        ui.bring_j = (uint8_t)j;
+        ui.bring_s = 0;
+    } else if (k == 2) {
+        const journey_t *s = bring_src(ui.bring_j % BRING_N);
+        ui.bring_s = (uint8_t)wrap_i(ui.bring_s + (e > 0 ? 1 : -1), s && s->nscenes ? s->nscenes : 1);
+    } else {
+        return;
+    }
+    ui.bring_until = 0;
+    bring_text(b);
+    say("BRING IN ", b);
+}
+static void bring_ask(void)                       /* SEL on BRING IN: once asks, again brings it over the scene shown */
+{
+    const journey_t *src = bring_src(ui.bring_j % BRING_N);
+    const int to = ui.ssel % (eng_jr.nscenes ? eng_jr.nscenes : 1);
+    char b[32], t[48];
+    bring_text(b);
+    if (!src) {
+        warn("NOTHING TO BRING IN", 0);
+        return;
+    }
+    if (!ui.bring_until || (int32_t)(ui.bring_until - plat_ms()) <= 0) {
+        ui.bring_until = plat_ms() + 3000u;       /* (as RESET's) */
+        put_i(put_s(put_s(put_s(t, "SEL AGAIN: "), b), " OVER SCENE "), to + 1);
+        warn(t, 0);
+        return;
+    }
+    ui.bring_until = 0;
+    eng_jr.scene[to] = src->scene[ui.bring_s % src->nscenes];
+    eng_jr.scene[to].skip = 0;                    /* (brought in: it plays) */
+    changed_jr();
+    put_s(put_s(put_i(put_s(t, "SCENE "), to + 1), ": "), b);
+    say(t, 0);
+}
+
 static void store_scene(void)
 {
     scene_t s;
     int n = eng_jr.nscenes;
+    if (ui.srow == SF_BRING) {                    /* (SEL on BRING IN: that, not the moment) */
+        bring_ask();
+        return;
+    }
     jr_scene_now(engine_jr(), &s);
+    s.skip = 0;                                   /* (the moment, stored: it plays) */
     if (n < JR_SCENES) {
         eng_jr.scene[n] = s;
         eng_jr.nscenes = (uint8_t)(n + 1);
@@ -493,7 +578,9 @@ static void scene_step(int e)                      /* PRESET: the next scene, or
     const jrun_t *r = engine_jr();
     int n = eng_jr.nscenes ? eng_jr.nscenes : 1, from;
     from = ui.sdest >= 0 && (r->travelling || r->cur != ui.sdest) ? ui.sdest : r->cur;   /* (on the way: from there) */
-    scene_go(wrap_i(from + (e > 0 ? 1 : -1), n));
+    (void)n;
+    if (jr_next_playing(&eng_jr, from, e > 0 ? 1 : -1) != from)   /* (the next scene that plays: SKIPPED passed by) */
+        scene_go(jr_next_playing(&eng_jr, from, e > 0 ? 1 : -1));
 }
 
 /* JOURNEY's rows: the presets, then the user slots */
@@ -1614,7 +1701,7 @@ static void select_turn(int e)
         }
         engine_morph(e);
         if (r->mamt <= 0.0f)                      /* (setting out) */
-            say_n("MORPH TO SCENE ", wrap_i(r->cur + (e > 0 ? 1 : -1), n) + 1);
+            say_n("MORPH TO SCENE ", jr_next_playing(&eng_jr, r->cur, e > 0 ? 1 : -1) + 1);
         break;
     }
     case V_SYSTEM:
@@ -1692,10 +1779,22 @@ static void knob_turn(int k, int e)
         say(cfg.sound_lock ? "SOUND LOCKED: IT STAYS" : "SOUND: EACH JOURNEY'S OWN", 0);
         break;
     case V_SCENE:
-        if (k == 0) {
+        if (k == 0 && (ui.btn >> B_SEL & 1u)) {   /* SEL held, K1: the scene shown moves earlier or later */
+            const int n = eng_jr.nscenes ? eng_jr.nscenes : 1, to = clamp_i(ui.ssel + (e > 0 ? 1 : -1), 0, n - 1);
+            ui.used |= 1u << B_SEL;               /* (SEL let go: no storing) */
+            if (to != ui.ssel) {
+                engine_scene_swap(ui.ssel, to);
+                ui.ssel = (uint8_t)to;
+                changed_jr();
+            }
+            put_s(put_i(put_s(t, "MOVED: NOW SCENE "), ui.ssel + 1), "");
+            say(t, 0);
+        } else if (k == 0) {
             int n = eng_jr.nscenes ? eng_jr.nscenes : 1;
             ui.ssel = (uint8_t)clamp_i(ui.ssel + e, 0, n - 1);
             say_n("SCENE ", ui.ssel + 1);
+        } else if (ui.srow == SF_BRING) {
+            bring_turn(k, e);
         } else {
             sf_turn(ui.srow, e);
         }
@@ -1761,7 +1860,8 @@ static float cc_morph_now(void)                   /* MORPH: how far, -1 (the sce
     const int n = eng_jr.nscenes ? eng_jr.nscenes : 1;
     if (r->mamt <= 0.0f)
         return 0.0f;
-    return r->mto == (r->mbase + 1) % n ? r->mamt : -r->mamt;
+    (void)n;
+    return r->mdir > 0 ? r->mamt : -r->mamt;
 }
 static int cc_scene_now(void)                     /* the scene playing, or the one on its way to */
 {
@@ -2773,10 +2873,11 @@ static float ec_phase(int *dir)                   /* travelling or MORPHing: how
     *dir = -1;                                    /* (to the next scene: the moon goes left; to the one before, right) */
     if (r->travelling) {
         t = r->xf;
-        *dir = r->dest == (r->from + 1) % n ? -1 : 1;
+        *dir = r->dest == jr_next_playing(&eng_jr, r->from, 1) ? -1 : 1;   /* (skipped scenes passed by) */
+        (void)n;
     } else if (r->mamt > 0.0f) {
         t = r->mamt;
-        *dir = r->mto == (r->mbase + 1) % n ? -1 : 1;
+        *dir = r->mdir > 0 ? -1 : 1;
     }
     return 0.5f - 0.5f * fm_cosf(FM_TWO_PI * fm_clampf(t, 0.0f, 1.0f));   /* off most at the middle, where the key turns */
 }
@@ -3462,8 +3563,13 @@ static void draw_knobs(void)
         cv_rect(60, 24, 1, 28, C_LINE);
         text_c(120, 20, &FONT_XS, SF_N[ui.srow], C_GRAY);
         text_c(120, 38, &FONT_S, b, C_AMB);
-        cell(3, "SEL", "STORE", C_DIM);
-        hint("SELECT: FIELD   KNOBS 2-4: CHANGE", 0);
+        if (ui.srow == SF_BRING) {                /* BRING IN: K2 the journey, K3 its scene, SEL over the scene shown */
+            cell(3, "SEL", "BRING", C_AMB);
+            hint("K2: JOURNEY   K3: ITS SCENE", 0);
+        } else {
+            cell(3, "SEL", "STORE", C_DIM);
+            hint("SELECT: FIELD   KNOBS 2-4: CHANGE", "SEL+K1: MOVE");
+        }
         break;
     case V_FX:
         for (k = 0; k < 4; k++) {

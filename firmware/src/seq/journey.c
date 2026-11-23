@@ -26,7 +26,7 @@ const char *jr_voicing_name(int v) { return VOICING_N[(unsigned)v % NVOICINGS]; 
  * a space of its own (ROOM, HALO): a journey travels from one room to the next. (The unused fields keep
  * their old values.) */
 #define SCN(root, scale, prog, voc, room, bri, halo, spc, tex, col, pul, reg, dr, pen, ped) \
-    {root, scale, prog, voc, room, bri, halo, spc, tex, col, pul, reg, dr, pen, ped, 0}
+    {root, scale, 0, voc, room, bri, halo, spc, tex, col, pul, reg, dr, 0, ped, 0}   /* (prog, pen: 0.15's, unused: STAYS, PLAYS as made) */
 /* (a scene that names the sound's place between the journey's A and B: 1 A .. 127 B) */
 #define SCNB(root, scale, voc, room, bri, halo, spc, tex, col, reg, dr, ped, blend) \
     {root, scale, 0, voc, room, bri, halo, spc, tex, col, 0, reg, dr, 0, ped, blend}
@@ -62,6 +62,7 @@ static const preset_t PRESET[JR_PRESETS] = {
                               SCNB(2, SC_MIXOLYDIAN, VC_WARM, 84, 78, 80, 85, 40, 75, 4, 0x1F, 0, 72),
                               SCNB(2, SC_DORIAN, VC_OPEN, 70, 60, 60, 80, 55, 50, 4, 0x0F, 0, 26)}}};
 const uint8_t JR_TRAVEL_BARS[JR_TRAVEL_N] = {0, 8, 16, 32, 64};
+const uint8_t JR_STAY_BARS[JR_STAY_N] = {0, 4, 8, 16, 32, 64, 128};
 
 const char *jr_preset_name(int i) { return PRESET[(unsigned)i % JR_PRESETS].name; }
 
@@ -621,19 +622,44 @@ void jr_travel(jrun_t *r, int scene)
     r->mbase = r->mto = r->cur;
 }
 
+int jr_plays(const journey_t *j, int s)
+{
+    int k, n = nsc(j);
+    if (!j->scene[s % n].skip)
+        return 1;
+    for (k = 0; k < n; k++)                      /* (every one skipped: they all play, as if none were) */
+        if (!j->scene[k].skip)
+            return 0;
+    return 1;
+}
+int jr_next_playing(const journey_t *j, int from, int dir)
+{
+    int k, n = nsc(j);
+    for (k = 1; k < n; k++) {
+        int s = ((from + dir * k) % n + n) % n;
+        if (jr_plays(j, s))
+            return s;
+    }
+    return from;
+}
+
 void jr_morph(jrun_t *r, int detents)
 {
-    int n = nsc(r->j), dir;
+    int n = nsc(r->j), dir, to;
     if (!detents || n < 2 || r->travelling)
         return;
-    r->bars_here = 0;
-    if (r->mamt <= 0.0f) {                       /* setting out: this way */
+    if (r->mamt <= 0.0f) {                       /* setting out: this way, to the next scene that plays */
+        to = jr_next_playing(r->j, r->cur, detents > 0 ? 1 : -1);
+        if (to == r->cur)
+            return;                              /* (no other scene plays) */
         r->mbase = r->cur;
-        r->mto = (uint8_t)((r->cur + (detents > 0 ? 1 : n - 1)) % n);
+        r->mto = (uint8_t)to;
+        r->mdir = (int8_t)(detents > 0 ? 1 : -1);
     }
-    dir = r->mto == (r->mbase + 1) % n ? 1 : -1;
-    if (n == 2)                                  /* (two scenes: either way is the other) */
-        dir = detents > 0 ? 1 : -1;
+    r->bars_here = 0;
+    dir = r->mdir;
+    if (jr_next_playing(r->j, r->mbase, 1) == jr_next_playing(r->j, r->mbase, -1))
+        dir = detents > 0 ? 1 : -1;              /* (two scenes play: either way is the other) */
     r->mamt += (float)(detents * dir) * (1.0f / JR_MORPH_STEPS);
     if (r->mamt <= 0.0f) {
         r->mamt = 0.0f;
@@ -713,9 +739,18 @@ void jr_step(jrun_t *r, uint32_t n, const jr_sink_t *o)
         else
             o->bloom(o->ctx), r->bloom_wait = (uint8_t)(LO[r->j->bloom_auto] + rndn(&r->srng, N[r->j->bloom_auto]));
     }
-    if (r->j->travel && r->j->travel < JR_TRAVEL_N && !r->travelling && r->mamt <= 0.0f && r->j->nscenes > 1 &&
-        ++r->bars_here >= JR_TRAVEL_BARS[r->j->travel])   /* it travels by itself: on to the next scene */
-        jr_travel(r, (r->cur + 1) % r->j->nscenes);
+    {   /* it travels by itself: on to the next scene that plays, after this one's STAYS (or TRAVELS' bars). A
+         * scene with a STAYS of its own moves on even with TRAVELS by hand */
+        const scene_t *s = sc(r);
+        const int bars = s->stays && s->stays < JR_STAY_N ? JR_STAY_BARS[s->stays]
+                         : r->j->travel && r->j->travel < JR_TRAVEL_N ? JR_TRAVEL_BARS[r->j->travel] : 0;
+        if (bars && !r->travelling && r->mamt <= 0.0f && r->j->nscenes > 1 && ++r->bars_here >= bars) {
+            const int to = jr_next_playing(r->j, r->cur, 1);
+            if (to != r->cur)
+                jr_travel(r, to);
+            r->bars_here = 0;
+        }
+    }
     for (v = 0; v < JR_DRONES; v++)              /* a bar line: the voices that come and go, every 3 .. 18 bars */
         if (r->j->dswell >> v & 1u) {
             if (r->swell_wait[v]) {

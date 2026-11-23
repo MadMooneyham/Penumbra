@@ -37,7 +37,7 @@ wait 13000
 expect scene 3
 expect ab_t 92
 tap EDIT
-turn SELECT 12
+turn SELECT 14
 wait 100
 turn K2 -3
 wait 100

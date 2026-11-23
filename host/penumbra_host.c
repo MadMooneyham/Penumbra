@@ -547,6 +547,14 @@ static int expect(const char *what, const char *val)
         got = cfg.clk_out;
     else if (!strcmp(what, "set_midi_ch"))
         got = cfg.midi_ch;
+    else if (!strncmp(what, "stays", 5))            /* staysS, skipS, srootS: scene S's (1..) STAYS, SKIPPED, key */
+        got = eng_jr.scene[(atoi(what + 5) - 1) % JR_SCENES].stays;
+    else if (!strncmp(what, "skip", 4))
+        got = eng_jr.scene[(atoi(what + 4) - 1) % JR_SCENES].skip;
+    else if (!strncmp(what, "sroot", 5))
+        got = eng_jr.scene[(atoi(what + 5) - 1) % JR_SCENES].root;
+    else if (!strcmp(what, "srow"))                 /* SCENE's field shown */
+        got = ui.srow;
     else if (!strcmp(what, "morph"))                /* MORPH: how far toward the next (or the one before), % */
         got = (int)(engine_jr()->mamt * 100.0f + 0.5f);
     else if (!strcmp(what, "knobs"))                /* KNOBS: 0 PENUMBRA, 1 CONTROLLER */
@@ -953,6 +961,18 @@ int main(int argc, char **argv)
             memset(j.kick, 0, sizeof j.kick);
             j.kick_land = 0;
             j.sway[EV_DRONE] = 77;                    /* (its own: it must come over, not be converted) */
+            plat_store_save(OBJ_WORK, &j, sizeof j);
+            store_writes = 0;
+            held_btn = held_keys = 0;
+            boot();
+        } else if (!strcmp(cmd, "legacy18")) {        /* 1.8 .. 1.10's flash: the journey playing as format 11, its kick its
+                                                       * own, its scenes' STAYS and PLAYS bytes 0.15's leftovers */
+            journey_t j;
+            jr_preset(0, &j);
+            j.format = 11;
+            j.kick[JR_KK_DRIVE] = 77;
+            j.scene[0].stays = 7;
+            j.scene[1].skip = 1;
             plat_store_save(OBJ_WORK, &j, sizeof j);
             store_writes = 0;
             held_btn = held_keys = 0;

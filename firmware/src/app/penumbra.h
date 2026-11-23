@@ -76,6 +76,7 @@ int journey_slots_clear(void);           /* every user journey slot empty (RESET
 int journey_slots_load(void);
 int journey_slot_used(int slot);
 const char *journey_slot_name(int slot);
+const journey_t *journey_slot(int slot);  /* a user slot's journey (0: empty) */
 int journey_slot_save(int slot);         /* the one playing into the slot; 0 = saved */
 int journey_slot_open(int slot);         /* the slot's journey plays; 0 = done */
 void journey_open_preset(int i);          /* the preset plays, all of it: its scenes and its own sound */

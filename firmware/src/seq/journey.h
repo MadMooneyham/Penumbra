@@ -25,7 +25,9 @@
 #define JR_USER 8
 #define JR_DRONES 5
 #define JR_MAGIC 0x314A4E50u                    /* "PNJ1" */
-#define JR_FORMAT 11u                           /* 10 (1.6, 1.7): no kick of its own (TUNE, DRIVE, DUCK, by itself,
+#define JR_STAY_N 7                             /* a scene's STAYS: as TRAVELS, 4, 8, 16, 32, 64, 128 bars */
+#define JR_FORMAT 12u                           /* 11 (1.8 .. 1.10): no scene of its own length, none skipped (their
+                                                 * bytes 0.15's: cleared); 10 (1.6, 1.7): no kick of its own (TUNE, DRIVE, DUCK, by itself,
                                                  * landing); 9 (1.2 .. 1.5): no singers' places, nor BLOOM by itself; 8 (1.2's
                                                  * second and third betas): one SWAY for all and PAN 2's
                                                  * switches, no RATE; 7 (its first): no PAN 2; 6 (1.1): nor PAN or
@@ -55,7 +57,8 @@ enum { MAC_DRONE, MAC_VOX, MAC_SPACE, MAC_TONE, NMACROS };   /* HOME's knobs: 64
 typedef struct {
     uint8_t root;                               /* pitch class: 0 C .. 11 B */
     uint8_t scale;                              /* SC_* */
-    uint8_t prog;                               /* (0.15's chords: unused) */
+    uint8_t stays;                              /* how long it stays, travelling by itself: 0 as TRAVELS, else
+                                                 * JR_STAY_BARS[stays] bars (format 11 and before: 0.15's chords, unused) */
     uint8_t voicing;                            /* VC_*: how the drone's five voices stack */
     uint8_t room;                               /* the reverb's size and decay over the FX page's (64: as set) */
     uint8_t bright;
@@ -63,7 +66,8 @@ typedef struct {
     uint8_t space, tex, colour, pulse;          /* 0..127 (pulse: unused) */
     uint8_t reg;                                /* VOX's octave, less one: 2..6 (4: its root an octave over middle C's) */
     uint8_t drones;                             /* the drone voices PLAY latches (bit v) */
-    uint8_t penta;                              /* (unused) */
+    uint8_t skip;                               /* 1: SKIPPED, travelling, PRESET and MORPH pass it by (0: it plays)
+                                                 * (format 11 and before: unused) */
     uint8_t pedal;                              /* the drone's root: 0 the key's, else 1 + a pitch class in the key */
     uint8_t blend;                              /* the sound's place between A and B in this scene: 0 it stays as
                                                  * it is; 1 (A) .. 127 (B): it glides there with the scene */
@@ -167,6 +171,7 @@ typedef struct {
     float macro_s[NMACROS];
     /* MORPH: the way to the next scene (or the one before) by hand: mbase .. mto, mamt of the way */
     uint8_t mbase, mto;
+    int8_t mdir;                                /* MORPH's way: +1 toward the next scene that plays, -1 the one before */
     float mamt;
     uint32_t sig;                               /* the scene's key, scale, pedal and voicing: a change moves the drone */
     jr_out_t out;
@@ -178,6 +183,9 @@ void jr_preset(int i, journey_t *dst);
  * such a one brings its whole sound when it is opened. 0: it has not */
 int jr_preset_ab(int i, jr_sound_t *a, jr_sound_t *b);
 extern const uint8_t JR_TRAVEL_BARS[JR_TRAVEL_N];
+extern const uint8_t JR_STAY_BARS[JR_STAY_N];
+int jr_plays(const journey_t *j, int scene);      /* 1: the scene plays (not skipped; or every one is) */
+int jr_next_playing(const journey_t *j, int from, int dir);   /* the next scene that plays, dir +1 / -1 (from, if none) */
 const char *jr_preset_name(int i);
 void jr_sound_default(journey_t *j);             /* the sound as made (a preset's, an old journey's) */
 void jr_sing_default(journey_t *j);              /* no sound singing, each in the middle, still, as is; no BLOOM by itself */
