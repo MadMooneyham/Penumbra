@@ -34,8 +34,24 @@ export function sceneKey(L, s) { return `${ROOTS[s[L.root] % 12]} ${SCALES[s[L.s
 export function sceneStay(L, s) { return s[L.skip] ? -1 : (s[L.stays] < STAY_BARS.length ? s[L.stays] : 0); }   // -1 skipped
 export function stayName(v) { return v < 0 ? "Skipped" : v === 0 ? "As TRAVELS" : `${STAY_BARS[v]} bars`; }
 
+// a 1.11 / 1.12 journey (format 12, 316 bytes): the same fields, fewer; format 13 adds the drone voices' timing
+// and spare bytes after them, 0 for "as before" (as the firmware widens one: settings.c journey_widen)
+export const SIZE_12 = 316;
+export function widen(L, b) {
+  if (!b || b.length < SIZE_12 || L.format !== 13) return b;
+  const dv = new DataView(b.buffer, b.byteOffset, b.length);
+  if (dv.getUint32(0, true) !== MAGIC || dv.getUint16(4, true) !== 12 || dv.getUint16(6, true) !== SIZE_12) return b;
+  const w = new Uint8Array(L.size);
+  w.set(b.slice(0, SIZE_12));
+  const wv = new DataView(w.buffer);
+  wv.setUint16(4, L.format, true);
+  wv.setUint16(6, L.size, true);
+  return w;
+}
+
 export class Journey {
   constructor(L, bytes) {
+    bytes = widen(L, bytes);
     if (!isJourney(L, bytes)) throw new Error("Not a journey this editor knows (another Penumbra's format?)");
     this.L = L;
     this.bytes = Uint8Array.from(bytes.slice(0, L.size));

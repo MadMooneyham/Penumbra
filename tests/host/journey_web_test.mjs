@@ -76,6 +76,18 @@ check(!!w && new J.Journey(L, w).name === "MY NIGHT" && new J.Journey(L, w).scen
 const f = J.toFile(j), g = J.fromFile(L, f);
 check(same(g.toBytes(), bytes) && /^my-night\.penumbra-journey$/.test(J.fileName(j)), `the file: read back as made (${J.fileName(j)})`);
 
+// a 1.11 / 1.12 journey (format 12, 316 bytes): the page widens it, and the FM-1 takes it as it was sent too
+const old = bytes.slice(0, J.SIZE_12);
+new DataView(old.buffer).setUint16(4, 12, true);
+new DataView(old.buffer).setUint16(6, J.SIZE_12, true);
+const wide = new J.Journey(L, old);
+check(wide.name === "MY NIGHT" && wide.scenes.length === 3 && wide.toBytes().length === L.size, `a 1.12 journey: opened, widened to ${L.size} bytes`);
+await B.putJourney(link, 5, old);
+render(100);
+const u6 = store(9).slice(5 * L.size, 6 * L.size), dv6 = new DataView(u6.buffer);
+check(dv6.getUint16(4, true) === L.format && dv6.getUint16(6, true) === L.size && new J.Journey(L, u6).scenes[2][L.skip] === 1,
+      "a 1.12 journey sent as it was: into USER 6, format 13, its skipped scene kept");
+
 // what it must refuse
 const newer = bytes.slice(); newer[4] = 99;
 let r = null;

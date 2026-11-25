@@ -75,6 +75,30 @@ check(B.PARTS.every((p) => !back.parts[p.obj] || same(store(p.obj), back.parts[p
 render(3000);                                       // (nothing saved over it after it starts again)
 check(same(store(8), back.parts[8]) && same(store(0), back.parts[0]), "after starting again: the journey playing and the settings as restored");
 
+// a backup from 1.12 (its journeys 316 bytes, format 12): taken, and widened when the unit loads it
+{
+  const S12 = 316, w = store(8), js = w[6] | (w[7] << 8);
+  const old = (b) => { const o = b.slice(0, S12); o[4] = 12; o[5] = 0; o[6] = S12 & 0xFF; o[7] = S12 >> 8; return o; };
+  const w12 = new Uint8Array(S12 + (w.length - js));
+  w12.set(old(w)); w12.set(w.slice(js), S12);
+  const u = back.parts[9], u12 = new Uint8Array(8 * S12);
+  for (let i = 0; i < 8; i++) {
+    const s = u.slice(i * js, (i + 1) * js);
+    if (s[0] | s[1] | s[2] | s[3]) u12.set(old(s), i * S12);
+  }
+  const r3 = await B.writeAll(link, { 8: w12, 9: u12 });
+  check(r3[8] === 0 && r3[9] === 0, `a 1.12 backup: taken (${JSON.stringify(r3)})`);
+  render(3000);                                      // (it starts again by itself)
+  ex.web_buttons(1 << 7);
+  render(60);
+  ex.web_buttons(0);
+  render(200);
+  const w2 = store(8);
+  console.log(`     (the journey playing: ${w2.length} B, format ${w2[4]}, size ${w2[6] | (w2[7] << 8)}; was ${w.length} B)`);
+  check(w2.length === w.length && w2[4] === 13 && (w2[6] | (w2[7] << 8)) === js && same(w2.slice(8, 20), w.slice(8, 20)),
+        "a 1.12 backup: the journey playing, widened to format 13, its name kept");
+}
+
 // what it must refuse
 const set = back.parts[0].slice();
 set[0] ^= 0xFF;                                     // (another firmware's settings: another magic)

@@ -627,6 +627,12 @@ static int expect(const char *what, const char *val)
         got = eng_jr.vcur + 1;
     else if (!strncmp(what, "dvoice", 6))           /* dvoiceVF: drone voice V (1-5) field F (1 LEVEL .. 4 OCTAVE) */
         got = eng_jr.dvoice[(what[6] - '1') % ENG_DRONES][(what[7] - '1') % DV_N];
+    else if (!strncmp(what, "dtcyc", 5))            /* dtcycV, dtentV, dtholdV: drone voice V's CYCLE, ENTERS, HOLDS (JR_DT_*: indexes) */
+        got = eng_jr.dcycle[(atoi(what + 5) - 1) % ENG_DRONES];
+    else if (!strncmp(what, "dtent", 5))
+        got = eng_jr.dentry[(atoi(what + 5) - 1) % ENG_DRONES];
+    else if (!strncmp(what, "dthold", 6))
+        got = eng_jr.dhold[(atoi(what + 6) - 1) % ENG_DRONES];
     else if (!strncmp(what, "perf", 4))             /* perfN: the hands' move N (engine.h PF_*) the engine has */
         got = ui.sent[atoi(what + 4) % PF_N];
     else if (!strncmp(what, "dnote", 5))            /* dnoteV: drone voice V's note (MIDI), the journey's */
@@ -774,6 +780,25 @@ static int dump_presets(void)
     }
     printf("  ]\n}\n");
     return 0;
+}
+
+/* the legacy commands: a journey as 1.12 and before kept it, JR_SIZE_12 bytes (format 13's fields past them not
+ * there); the user slots so, eight in a row */
+static void legacy_work(journey_t *j)
+{
+    j->size = (uint16_t)JR_SIZE_12;
+    plat_store_save(OBJ_WORK, j, JR_SIZE_12);
+}
+static void legacy_slots(journey_t *s)
+{
+    static uint8_t b[JR_SIZE_12 * JR_USER];
+    int i;
+    for (i = 0; i < JR_USER; i++) {
+        if (s[i].magic == JR_MAGIC)
+            s[i].size = (uint16_t)JR_SIZE_12;
+        memcpy(b + i * JR_SIZE_12, &s[i], JR_SIZE_12);
+    }
+    plat_store_save(OBJ_USER, b, sizeof b);
 }
 
 int main(int argc, char **argv)
@@ -947,10 +972,10 @@ int main(int argc, char **argv)
             memset(j.pan, 0, sizeof j.pan);
             j.sway_rate = 0;                          /* (what was SWAY's byte) */
             j.at = 1;
-            plat_store_save(OBJ_WORK, &j, sizeof j);
+            legacy_work(&j);
             memset(slots, 0, sizeof slots);
             slots[0] = j;
-            plat_store_save(OBJ_USER, slots, sizeof slots);
+            legacy_slots(slots);
             store_writes = 0;
             held_btn = held_keys = 0;
             boot();
@@ -968,7 +993,7 @@ int main(int argc, char **argv)
             }
             j.pan[EV_VOX] = 20;
             j.sway_rate = 90;                         /* (its own PAN and SWAY: they must come over) */
-            plat_store_save(OBJ_WORK, &j, sizeof j);
+            legacy_work(&j);
             store_writes = 0;
             held_btn = held_keys = 0;
             boot();
@@ -981,10 +1006,10 @@ int main(int argc, char **argv)
             memset(j.pan, 0, sizeof j.pan);
             j.sway_rate = 0;                          /* (what was SWAY's byte) */
             j.tide[TD_RATE] = 30;                     /* (its own TIDES: they must come over) */
-            plat_store_save(OBJ_WORK, &j, sizeof j);
+            legacy_work(&j);
             memset(slots, 0, sizeof slots);
             slots[0] = j;
-            plat_store_save(OBJ_USER, slots, sizeof slots);
+            legacy_slots(slots);
             store_writes = 0;
             held_btn = held_keys = 0;
             boot();
@@ -996,7 +1021,7 @@ int main(int argc, char **argv)
             memset(j.kick, 0, sizeof j.kick);
             j.kick_land = 0;
             j.sway[EV_DRONE] = 77;                    /* (its own: it must come over, not be converted) */
-            plat_store_save(OBJ_WORK, &j, sizeof j);
+            legacy_work(&j);
             store_writes = 0;
             held_btn = held_keys = 0;
             boot();
@@ -1008,7 +1033,23 @@ int main(int argc, char **argv)
             j.kick[JR_KK_DRIVE] = 77;
             j.scene[0].stays = 7;
             j.scene[1].skip = 1;
-            plat_store_save(OBJ_WORK, &j, sizeof j);
+            legacy_work(&j);
+            store_writes = 0;
+            held_btn = held_keys = 0;
+            boot();
+        } else if (!strcmp(cmd, "legacy112")) {       /* 1.11 / 1.12's flash: format 12, JR_SIZE_12 bytes: the journey playing
+                                                       * (its scenes' STAYS and PLAYS its own), and user slot 3 */
+            static journey_t slots[JR_USER];
+            journey_t j;
+            jr_preset(1, &j);
+            j.format = 12;
+            j.scene[0].stays = 3;
+            j.scene[1].skip = 1;
+            j.travel = 2;
+            legacy_work(&j);
+            memset(slots, 0, sizeof slots);
+            slots[2] = j;
+            legacy_slots(slots);
             store_writes = 0;
             held_btn = held_keys = 0;
             boot();

@@ -1,0 +1,21 @@
+# A journey from 1.11 / 1.12 (format 12, 1.12's size): widened to format 13 and kept as it was, its scenes' own
+# STAYS and the skipped one, TRAVELS, a user slot too; each drone voice's timing as before (at once, as made).
+# Saved again, it is format 13's size, and comes back the same
+legacy112
+wait 300
+expect jr_format 13
+expect stays1 3
+expect skip2 1
+expect jtravel 2
+expect slot3 1
+expect dtcyc1 0
+expect dtent3 0
+expect dthold5 0
+tap SAVE
+wait 100
+reboot
+wait 300
+expect jr_format 13
+expect stays1 3
+expect skip2 1
+expect slot3 1

@@ -351,6 +351,21 @@ static void js_drone_release(void *x)
         if (dn.v[v].on)
             drone_trigger(&dn, v, 1.0f);         /* (latched: the key again lets it fall) */
 }
+/* a drone voice's key, or the journey: drone_trigger, and a swell with HOLDS bars stays up that long from now
+ * (at the tempo now), so it falls on a bar line */
+static void drone_hit(int v)
+{
+    const int h = JR_DT_HOLD[eng_jr.dhold[v % DRONE_VOICES] % JR_DT_HOLD_N];
+    drone_trigger(&dn, v, 1.0f);
+    if (h && dn.v[v].pot[DN_MODE] == DN_MODE_SWELL && dn.v[v].on)
+        dn.v[v].hold_left = (int32_t)((float)h * 4.0f * 60.0f / fm_maxf(tclock_tempo(&eng_clock), 20.0f) * 44100.0f);
+}
+static void js_drone_drop(void *x, int v)         /* a latched voice lets go (its HOLDS) */
+{
+    (void)x;
+    if (v >= 0 && v < DRONE_VOICES && dn.v[v].on && dn.v[v].pot[DN_MODE] == DN_MODE_HOLD)
+        drone_trigger(&dn, v, 1.0f);
+}
 static void js_drone_swell(void *x, int v)
 {
     (void)x;
@@ -359,7 +374,7 @@ static void js_drone_swell(void *x, int v)
     if (dn.v[v].pot[DN_MODE] != DN_MODE_SWELL)    /* (the clock's first step at power-on comes before the sound
                                                    * is applied: the journey's word is the one that counts) */
         drone_set(&dn, v, DN_MODE, DN_MODE_SWELL);
-    drone_trigger(&dn, v, 1.0f);
+    drone_hit(v);
 }
 /* whose a VOX note is (vox.h's owner): the same note of two owners is two voices, and only its owner lets
  * it go (a key let go does not end the loop's same note) */
@@ -391,7 +406,7 @@ static void js_bloom(void *x)                    /* BLOOM by itself: not the loo
     eng_blooms++;
     hit(PULSE_BLOOM, 0.6f);
 }
-static const jr_sink_t JSINK = {0, js_drone_note, js_drone_latch, js_drone_release, js_drone_swell, js_sing, js_bloom};
+static const jr_sink_t JSINK = {0, js_drone_note, js_drone_latch, js_drone_release, js_drone_swell, js_drone_drop, js_sing, js_bloom};
 
 /* VOX's notes, the hands' (keys, MIDI) and the looper's: counted for the tests and the screen's stars.
  * The looper keeps a note as its degree in the scene (jr_note_code), and plays it in the scene playing
@@ -1027,7 +1042,7 @@ static void drain(void)
         (void)c;
         r++;
         if (type == C_DRONE_KEY && !testing)
-            drone_trigger(&dn, (int)a, 1.0f);
+            drone_hit((int)a);
         else if (type == C_TEST)
             test_set((int)a);
         else if (type == C_PULSE) {

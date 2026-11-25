@@ -26,7 +26,8 @@
 #define JR_DRONES 5
 #define JR_MAGIC 0x314A4E50u                    /* "PNJ1" */
 #define JR_STAY_N 7                             /* a scene's STAYS: as TRAVELS, 4, 8, 16, 32, 64, 128 bars */
-#define JR_FORMAT 12u                           /* 11 (1.8 .. 1.10): no scene of its own length, none skipped (their
+#define JR_FORMAT 13u                           /* 12 (1.11, 1.12): JR_SIZE_12 bytes, no drone voices' timing (settings.c
+                                                 * widens it: each voice as before); 11 (1.8 .. 1.10): no scene of its own length, none skipped (their
                                                  * bytes 0.15's: cleared); 10 (1.6, 1.7): no kick of its own (TUNE, DRIVE, DUCK, by itself,
                                                  * landing); 9 (1.2 .. 1.5): no singers' places, nor BLOOM by itself; 8 (1.2's
                                                  * second and third betas): one SWAY for all and PAN 2's
@@ -110,6 +111,11 @@ typedef struct {
     uint8_t vsing, vsing_snd;                   /* (1.5's: one sound singing, at that level; settings.c moves it
                                                  * into sing, and they stay 0) */
     uint8_t kick_land;                          /* 1: a kick lands as each new scene's key comes in */
+    /* format 13 on (JR_SIZE_12 bytes before): */
+    uint8_t dcycle[JR_DRONES];                  /* each drone voice's CYCLE (JR_DT_*) */
+    uint8_t dentry[JR_DRONES];                  /* its ENTERS */
+    uint8_t dhold[JR_DRONES];                   /* its HOLDS */
+    uint8_t spare[33];                          /* room for what comes next, 0 (a format that takes them sets them) */
 } journey_t;
 _Static_assert(JR_DMOTION + JR_TIDE + 2 * JR_PAN + 2 + 4 * JR_VSOUNDS + 1 + JR_KICK == 40, "the kick: in the spare bytes");
 enum { JR_SG_HOW, JR_SG_PLACE, JR_SG_DRIFT, JR_SG_OCT };
@@ -140,6 +146,7 @@ typedef struct {
     void (*drone_latch)(void *ctx, uint32_t mask);        /* these voices on (the others as they are) */
     void (*drone_release)(void *ctx);                     /* every voice falls away */
     void (*drone_swell)(void *ctx, int voice);            /* a voice that comes and goes: in, then out */
+    void (*drone_drop)(void *ctx, int voice);             /* a latched voice lets go (its HOLDS ran out) */
     void (*sing)(void *ctx, int midi, int vel, int snd);  /* VOX singing by itself: a note on (vel 0: off) */
     void (*bloom)(void *ctx);                             /* BLOOM by itself */
 } jr_sink_t;
@@ -167,6 +174,7 @@ typedef struct {
         sing_w[JR_VSOUNDS];
     uint8_t bloom_wait;                         /* BLOOM by itself: bars to the next */
     uint16_t bars_here;                         /* bars in this scene (it travels by itself: on at JR_TRAVEL_BARS) */
+    uint16_t bars;                              /* bar lines since it started (the drone voices' ENTERS and CYCLE) */
     uint32_t srng;
     float macro_s[NMACROS];
     /* MORPH: the way to the next scene (or the one before) by hand: mbase .. mto, mamt of the way */
@@ -184,6 +192,16 @@ void jr_preset(int i, journey_t *dst);
 int jr_preset_ab(int i, jr_sound_t *a, jr_sound_t *b);
 extern const uint8_t JR_TRAVEL_BARS[JR_TRAVEL_N];
 extern const uint8_t JR_STAY_BARS[JR_STAY_N];
+/* each drone voice's timing (SHAPE's DRONE VOICES; ALGO with its key held: PLAYS). CYCLE, a voice that comes and goes
+ * (dswell): 0 now and then (every 3 .. 18 bars), else every JR_DT_CYCLE[c] bars on the bar line. ENTERS: 0 at once,
+ * else it comes in (held) or first swells JR_DT_ENTER[e] bars after the clock starts. HOLDS: 0 as made (a swell's
+ * own seconds; a held voice stays), else JR_DT_HOLD[h] bars: a swell stays up that long from its start, so it falls
+ * on a bar line, and a held voice lets go that long after it came in */
+#define JR_DT_CYC_N 6
+#define JR_DT_ENT_N 7
+#define JR_DT_HOLD_N 7
+extern const uint8_t JR_DT_CYCLE[JR_DT_CYC_N], JR_DT_ENTER[JR_DT_ENT_N], JR_DT_HOLD[JR_DT_HOLD_N];
+#define JR_SIZE_12 316u                         /* journey_t's size before format 13 (formats 5 .. 12) */
 int jr_plays(const journey_t *j, int scene);      /* 1: the scene plays (not skipped; or every one is) */
 int jr_next_playing(const journey_t *j, int from, int dir);   /* the next scene that plays, dir +1 / -1 (from, if none) */
 const char *jr_preset_name(int i);

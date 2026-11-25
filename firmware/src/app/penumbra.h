@@ -79,8 +79,9 @@ const char *journey_slot_name(int slot);
 const journey_t *journey_slot(int slot);  /* a user slot's journey (0: empty) */
 int journey_slot_save(int slot);         /* the one playing into the slot; 0 = saved */
 int journey_slot_open(int slot);         /* the slot's journey plays; 0 = done */
-int journey_put(int slot, const journey_t *j);   /* the site's journey editor's: into a user slot, or (slot < 0)
-                                          * playing now; 0 done, 1 not one this firmware takes, 2 not saved */
+int journey_put(int slot, const void *j, uint32_t n);   /* the site's journey editor's (n bytes: format 13's, or
+                                          * JR_SIZE_12's): into a user slot, or (slot < 0) playing now; 0 done, 1 not
+                                          * one this firmware takes, 2 not saved */
 void journey_open_preset(int i);          /* the preset plays, all of it: its scenes and its own sound */
 extern uint8_t journey_first;            /* the preset a new unit plays */
 

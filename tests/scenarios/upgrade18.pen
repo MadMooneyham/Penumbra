@@ -2,7 +2,7 @@
 # every scene as TRAVELS says and playing (the bytes STAYS and PLAYS took were 0.15's leftovers, cleared)
 legacy18
 wait 300
-expect jr_format 12
+expect jr_format 13
 expect kick_drive 77
 expect stays1 0
 expect skip2 0

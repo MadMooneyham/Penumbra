@@ -138,9 +138,16 @@ static void journey_sane(journey_t *j)          /* a loaded one: every field in 
         if (j->vsound[i][VS_BOCT] > 2)
             j->vsound[i][VS_BOCT] = 1;
     j->vcur %= JR_VSOUNDS;
-    for (i = 0; i < ENG_DRONES; i++)
+    for (i = 0; i < ENG_DRONES; i++) {
         if (j->dvoice[i][DV_OCT] > 2)
             j->dvoice[i][DV_OCT] = 1;
+        if (j->dcycle[i] >= JR_DT_CYC_N)
+            j->dcycle[i] = 0;
+        if (j->dentry[i] >= JR_DT_ENT_N)
+            j->dentry[i] = 0;
+        if (j->dhold[i] >= JR_DT_HOLD_N)
+            j->dhold[i] = 0;
+    }
     j->dswell &= (1u << ENG_DRONES) - 1u;
     if (j->vsing && j->vsing < JR_SING_N)        /* (1.5's one sound singing: into sing) */
         j->sing[JR_SG_HOW][j->vsing_snd % JR_VSOUNDS] = j->vsing;
@@ -205,10 +212,43 @@ static void journey_upgrade(journey_t *j)
         j->kick[JR_KK_AUTO] = JR_KA_HAND;
         j->kick_land = 0;
     }
-    for (k = 0; k < JR_SCENES; k++)              /* (11 and before: each scene as TRAVELS says, all of them playing;
+    if (j->format <= 11u)
+        for (k = 0; k < JR_SCENES; k++)          /* (11 and before: each scene as TRAVELS says, all of them playing;
                                                   * their bytes were 0.15's, so cleared) */
-        j->scene[k].stays = j->scene[k].skip = 0;
+            j->scene[k].stays = j->scene[k].skip = 0;
+    {   /* (12 and before: widened, journey_widen's; the drone voices' timing as before, and the spare, 0) */
+        uint8_t *z = (uint8_t *)j;
+        uint32_t i;
+        for (i = JR_SIZE_12; i < sizeof *j; i++)
+            z[i] = 0;
+    }
     j->format = JR_FORMAT;
+}
+
+/* a journey's bytes as kept (n of them at p) into a journey_t: format 13's as they are; JR_SIZE_12's (formats 5 ..
+ * 12: the same fields, fewer of them) widened, the rest 0 and its size this format's, for journey_upgrade. 0 done,
+ * -1 neither (nothing written) */
+static int journey_widen(journey_t *dst, const uint8_t *p, uint32_t n)
+{
+    uint8_t *d = (uint8_t *)dst;
+    uint32_t i;
+    if (n != sizeof *dst && n != JR_SIZE_12)
+        return -1;
+    if (d + n <= p || p + n <= d) {
+        for (i = 0; i < n; i++)
+            d[i] = p[i];
+    } else if (d < p) {
+        for (i = 0; i < n; i++)
+            d[i] = p[i];
+    } else {
+        for (i = n; i-- > 0;)                    /* (in place, further on: from the end) */
+            d[i] = p[i];
+    }
+    for (i = n; i < sizeof *dst; i++)
+        d[i] = 0;
+    if (n == JR_SIZE_12 && dst->size == JR_SIZE_12)
+        dst->size = (uint16_t)sizeof *dst;
+    return 0;
 }
 
 /* the journey playing (OBJ_WORK): the journey, then its A/B (1.0's: the journey alone, no A/B) */
@@ -240,19 +280,31 @@ static void sound_sane(jr_sound_t *s)              /* every value 0..127, the sw
 int journey_load_work(void)
 {
     journey_t *j = &work_buf.j;
-    int n = plat_store_load(OBJ_WORK, &work_buf, sizeof work_buf);
+    int n = plat_store_load(OBJ_WORK, &work_buf, sizeof work_buf), ab = 0;
     uint8_t *z = (uint8_t *)&sound_ab;
     uint32_t k;
     for (k = 0; k < sizeof sound_ab; k++)
         z[k] = 0;
-    if (n == (int)sizeof(journey_t) || n == (int)sizeof work_buf)
+    if (n == (int)(JR_SIZE_12 + sizeof(sound_ab_t))) {   /* 1.1 .. 1.12's: the journey JR_SIZE_12 long, its A/B after */
+        const uint8_t *s = (const uint8_t *)&work_buf + JR_SIZE_12;
+        uint8_t *d = (uint8_t *)&work_buf.ab;
+        for (k = sizeof(sound_ab_t); k-- > 0;)  /* (further on: from the end) */
+            d[k] = s[k];
+        journey_widen(j, (const uint8_t *)j, JR_SIZE_12);
+        n = (int)sizeof work_buf;
+    } else if (n == (int)JR_SIZE_12) {           /* 1.0's: the journey alone */
+        journey_widen(j, (const uint8_t *)j, JR_SIZE_12);
+        n = (int)sizeof(journey_t);
+    }
+    ab = n == (int)sizeof work_buf;
+    if (n == (int)sizeof(journey_t) || ab)
         journey_upgrade(j);
-    if ((n != (int)sizeof(journey_t) && n != (int)sizeof work_buf) || !jr_valid(j)) {
+    if ((n != (int)sizeof(journey_t) && !ab) || !jr_valid(j)) {
         journey_open_preset(journey_first);       /* none, or not this format: a new unit's journey plays */
         return -1;
     }
     journey_sane(j);
-    if (n == (int)sizeof work_buf) {              /* its A/B */
+    if (ab) {                                     /* its A/B */
         sound_ab = work_buf.ab;
         sound_ab.have &= 3u;
         sound_ab.t &= 0x7Fu;
@@ -347,6 +399,12 @@ int journey_slots_load(void)
     int i, n = plat_store_load(OBJ_USER, jslot, sizeof jslot);
     uint8_t *z = (uint8_t *)jslot;
     uint32_t k;
+    if (n == (int)(JR_SIZE_12 * JR_USER)) {      /* 1.12 and before: each JR_SIZE_12 long, widened in place from the
+                                                  * last (each one's new place is at or past its old) */
+        for (i = JR_USER; i-- > 0;)
+            journey_widen(&jslot[i], z + (uint32_t)i * JR_SIZE_12, JR_SIZE_12);
+        n = (int)sizeof jslot;
+    }
     if (n != (int)sizeof jslot) {
         for (k = 0; k < sizeof jslot; k++)
             z[k] = 0;
@@ -390,9 +448,11 @@ int journey_slot_save(int slot)
 /* a journey from the site's journey editor (backup.c's JOURNEY): upgraded if older, every field in range, then
  * into the user slot (saved; its name its own, else USER N) or, slot < 0, playing now (A/B and the loop as they
  * are). 0 done, 1 not a journey this firmware takes, 2 not saved */
-int journey_put(int slot, const journey_t *in)
+int journey_put(int slot, const void *src, uint32_t n)
 {
-    journey_t j = *in;
+    journey_t j;
+    if (journey_widen(&j, (const uint8_t *)src, n))
+        return 1;
     journey_upgrade(&j);
     if (!jr_valid(&j) || slot >= JR_USER)
         return 1;
@@ -434,7 +494,7 @@ int store_check(uint32_t obj, const void *src, uint32_t n)
 {
     const uint8_t *p = (const uint8_t *)src;
     union { journey_t j; uint8_t b[sizeof(journey_t)]; } u;
-    uint32_t k, i, cnt;
+    uint32_t k, i, cnt, stride;
     if (obj == OBJ_SET) {
         union { settings_t s; uint8_t b[sizeof(settings_t)]; } s;
         if (n != sizeof s.b)
@@ -452,14 +512,17 @@ int store_check(uint32_t obj, const void *src, uint32_t n)
         return n == sizeof(sound_lib_t) && m == SND_MAGIC ? 0 : -1;
     }
     if (obj == OBJ_WORK && (n == sizeof(journey_t) || n == sizeof(work_t)))
-        cnt = 1;
+        cnt = 1, stride = sizeof(journey_t);
+    else if (obj == OBJ_WORK && (n == JR_SIZE_12 || n == JR_SIZE_12 + sizeof(sound_ab_t)))
+        cnt = 1, stride = JR_SIZE_12;             /* (1.12 and before's: widened when loaded) */
     else if (obj == OBJ_USER && n == sizeof jslot)
-        cnt = JR_USER;
+        cnt = JR_USER, stride = sizeof(journey_t);
+    else if (obj == OBJ_USER && n == JR_SIZE_12 * JR_USER)
+        cnt = JR_USER, stride = JR_SIZE_12;
     else
         return -1;
     for (i = 0; i < cnt; i++) {
-        for (k = 0; k < sizeof u.b; k++)
-            u.b[k] = p[i * sizeof u.b + k];
+        journey_widen(&u.j, p + i * stride, stride);
         if (obj == OBJ_USER && u.j.magic != JR_MAGIC)
             continue;                                /* (an empty slot) */
         journey_upgrade(&u.j);

@@ -30,7 +30,7 @@ and more like a mixing desk in a night sky: shaping, throwing and steering a sou
 
 The silence between the notes is part of it.
 
-Version 1.12 · identity `FM-1_73011200` · GPL-3.0
+Version 1.13 · identity `FM-1_73011300` · GPL-3.0
 
 **[Play it in the browser](https://madmooneyham.github.io/Penumbra/emu/)** (the same code the FM-1 runs) ·
 **[Cheat sheet](https://madmooneyham.github.io/Penumbra/cheatsheet/)** (one printable page)
@@ -93,7 +93,7 @@ Penumbra is slow, and much of what it does best unfolds over a few minutes.
 - **The easy way:** install it in one click from [The Firmware Hub](https://thefirmwarehub.com/).
 - **In the browser:** the [web installer](https://madmooneyham.github.io/Penumbra/install/) writes it over USB
   (Chrome or Edge).
-- **By hand:** download `penumbra-1.12.fwsc` from this repository's
+- **By hand:** download `penumbra-1.13.fwsc` from this repository's
   [Releases](https://github.com/MadMooneyham/Penumbra/releases), and write it with an FM-1 firmware installer.
 
 Penumbra carries the update loader, so you can always go back to another firmware or to M-VAVE's own. If an

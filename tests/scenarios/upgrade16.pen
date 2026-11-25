@@ -2,7 +2,7 @@
 # as 1.2's betas' were), the kick as it was (on the root, DRIVE as made, no DUCK, by hand, no landing)
 legacy16
 wait 300
-expect jr_format 12
+expect jr_format 13
 expect sway0 77
 expect vsing3 2
 expect kick_tune 0

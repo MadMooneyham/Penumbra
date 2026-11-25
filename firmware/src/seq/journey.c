@@ -63,6 +63,23 @@ static const preset_t PRESET[JR_PRESETS] = {
                               SCNB(2, SC_DORIAN, VC_OPEN, 70, 60, 60, 80, 55, 50, 4, 0x0F, 0, 26)}}};
 const uint8_t JR_TRAVEL_BARS[JR_TRAVEL_N] = {0, 8, 16, 32, 64};
 const uint8_t JR_STAY_BARS[JR_STAY_N] = {0, 4, 8, 16, 32, 64, 128};
+const uint8_t JR_DT_CYCLE[JR_DT_CYC_N] = {0, 2, 4, 8, 16, 32};
+const uint8_t JR_DT_ENTER[JR_DT_ENT_N] = {0, 1, 2, 4, 8, 16, 32};
+const uint8_t JR_DT_HOLD[JR_DT_HOLD_N] = {0, 1, 2, 4, 8, 16, 32};
+_Static_assert(sizeof(journey_t) % 4u == 0 && sizeof(journey_t) == JR_SIZE_12 + 3u * JR_DRONES + 33u,
+               "format 13: JR_SIZE_12's bytes, then the drone voices' timing and the spare");
+static int dt_ent(const journey_t *j, int v) { return JR_DT_ENTER[j->dentry[v] % JR_DT_ENT_N]; }
+static int dt_cyc(const journey_t *j, int v) { return JR_DT_CYCLE[j->dcycle[v] % JR_DT_CYC_N]; }
+static int dt_hold(const journey_t *j, int v) { return JR_DT_HOLD[j->dhold[v] % JR_DT_HOLD_N]; }
+static uint32_t dt_late(const journey_t *j)       /* the voices that come in a few bars after the clock starts */
+{
+    uint32_t m = 0;
+    int v;
+    for (v = 0; v < JR_DRONES; v++)
+        if (dt_ent(j, v))
+            m |= 1u << v;
+    return m;
+}
 
 const char *jr_preset_name(int i) { return PRESET[(unsigned)i % JR_PRESETS].name; }
 
@@ -508,7 +525,7 @@ void jr_init(jrun_t *r, journey_t *j)
 void jr_start(jrun_t *r, const jr_sink_t *o)
 {
     const scene_t *s = sc(r);
-    const uint32_t held = (s->drones & 0x1Fu ? s->drones & 0x1Fu : 0x07u) & ~(uint32_t)r->j->dswell;
+    const uint32_t held = (s->drones & 0x1Fu ? s->drones & 0x1Fu : 0x07u) & ~(uint32_t)r->j->dswell & ~dt_late(r->j);
     int v;
     {                                            /* (set to sing: each its first note a few beats in, apart) */
         int s;
@@ -517,15 +534,19 @@ void jr_start(jrun_t *r, const jr_sink_t *o)
     }
     r->bloom_wait = (uint8_t)(2 + rndn(&r->srng, 4));
     r->bars_here = 0;
+    r->bars = 0;
     r->playing = 1;
     jr_tick(r, 0, o);
     drone_to_scene(r, 1, o);
     o->drone_latch(o->ctx, held);
     for (v = 0; v < JR_DRONES; v++)              /* the ones that come and go: the first soon */
         r->swell_wait[v] = (uint8_t)(1 + v + rndn(&r->srng, 3));
-    if (!held)                                   /* nothing held: the lowest one that comes and goes, at once */
+    for (v = 0; v < JR_DRONES; v++)              /* (one on a cycle from the start swells on the first bar line) */
+        if ((r->j->dswell >> v & 1u) && !dt_ent(r->j, v) && dt_cyc(r->j, v))
+            break;
+    if (!held && v == JR_DRONES)                 /* nothing held: the lowest one that comes and goes now and then, at once */
         for (v = 0; v < JR_DRONES; v++)
-            if (r->j->dswell >> v & 1u) {
+            if ((r->j->dswell >> v & 1u) && !dt_ent(r->j, v) && !dt_cyc(r->j, v)) {
                 o->drone_swell(o->ctx, v);
                 r->swell_wait[v] = (uint8_t)(3 + rndn(&r->srng, 16));
                 break;
@@ -751,8 +772,34 @@ void jr_step(jrun_t *r, uint32_t n, const jr_sink_t *o)
             r->bars_here = 0;
         }
     }
-    for (v = 0; v < JR_DRONES; v++)              /* a bar line: the voices that come and go, every 3 .. 18 bars */
-        if (r->j->dswell >> v & 1u) {
+    {   /* a bar line: the drone voices' timing. A held one with ENTERS comes in on its bar (if the scene holds it);
+         * one that comes and goes waits for its ENTERS, then swells on its CYCLE, or now and then (3 .. 18 bars) */
+        const scene_t *s = sc(r);
+        const uint32_t holds = s->drones & 0x1Fu ? s->drones & 0x1Fu : 0x07u;
+        const int b = r->bars;
+        if (r->bars < 0xFFFFu)
+            r->bars++;
+        for (v = 0; v < JR_DRONES; v++) {
+            const int ent = dt_ent(r->j, v), cyc = dt_cyc(r->j, v);
+            if (!(r->j->dswell >> v & 1u)) {
+                if (ent && b == ent && (holds >> v & 1u))
+                    o->drone_latch(o->ctx, 1u << v);
+                else if (dt_hold(r->j, v) && b == ent + dt_hold(r->j, v) && o->drone_drop)
+                    o->drone_drop(o->ctx, v);    /* (its HOLDS: it lets go, that many bars after it came in) */
+                continue;
+            }
+            if (b < ent)
+                continue;
+            if (cyc) {
+                if ((b - ent) % cyc == 0)
+                    o->drone_swell(o->ctx, v);
+                continue;
+            }
+            if (b == ent && ent) {               /* (now and then, after its ENTERS: the first swell on that bar) */
+                o->drone_swell(o->ctx, v);
+                r->swell_wait[v] = (uint8_t)(3 + rndn(&r->srng, 16));
+                continue;
+            }
             if (r->swell_wait[v]) {
                 r->swell_wait[v]--;
                 continue;
@@ -760,6 +807,7 @@ void jr_step(jrun_t *r, uint32_t n, const jr_sink_t *o)
             o->drone_swell(o->ctx, v);
             r->swell_wait[v] = (uint8_t)(3 + rndn(&r->srng, 16));
         }
+    }
 }
 
 void jr_scene_now(const jrun_t *r, scene_t *s)

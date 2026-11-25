@@ -81,8 +81,8 @@ python3 tools/fm1_install.py --info          # identity of the connected FM-1
 Or from the web installer, served from `localhost` (Web MIDI needs a secure context):
 
 ```
-./build.sh --release 1.12                         # the site wants a release build (identity FM-1_73XXYYZZ)
-python3 tools/make_pages.py build/penumbra-1.12.fwsc 1.12 build/pages
+./build.sh --release 1.13                         # the site wants a release build (identity FM-1_73XXYYZZ)
+python3 tools/make_pages.py build/penumbra-1.13.fwsc 1.13 build/pages
 cd build/pages && python3 -m http.server 8000
 # open http://localhost:8000/install/
 ```
@@ -93,8 +93,8 @@ The emulator is the simulator compiled to WebAssembly with [Emscripten](https://
 PATH: `source ~/emsdk/emsdk_env.sh`). Build it before the site, and `make_pages.py` puts it in `emu/`:
 
 ```
-PEN_VERSION=1.12 sh web/emu/build.sh               # -> build/emu/penumbra.wasm and its page
-python3 tools/make_pages.py build/penumbra-1.12.fwsc 1.12 build/pages
+PEN_VERSION=1.13 sh web/emu/build.sh               # -> build/emu/penumbra.wasm and its page
+python3 tools/make_pages.py build/penumbra-1.13.fwsc 1.13 build/pages
 ```
 
 `tests/run_tests.sh` checks the wasm against the simulator, sample for sample, when `emcc` and `node` are there,

@@ -261,8 +261,9 @@ static void bk_journey(const uint8_t *b, uint32_t n)
         bkj.dest = (int)dest;
         bkj.have = 0;
     }
-    if (bkj.dest != (int)dest || off != bkj.have || total != sizeof bk_j.b || off + n > total) {
-        bk_reply(BK_JOURNEY, total != sizeof bk_j.b ? BS_BAD : BS_ORDER, dest, bkj.dest == (int)dest ? bkj.have : 0);
+    if (bkj.dest != (int)dest || off != bkj.have || (total != sizeof bk_j.b && total != JR_SIZE_12) || off + n > total) {
+        bk_reply(BK_JOURNEY, total != sizeof bk_j.b && total != JR_SIZE_12 ? BS_BAD : BS_ORDER, dest,
+                 bkj.dest == (int)dest ? bkj.have : 0);
         return;
     }
     for (k = 0; k < n; k++)
@@ -273,7 +274,7 @@ static void bk_journey(const uint8_t *b, uint32_t n)
         return;
     }
     bkj.dest = -1;
-    r = journey_put(dest == BK_JPLAY ? -1 : (int)dest, &bk_j.j);
+    r = journey_put(dest == BK_JPLAY ? -1 : (int)dest, bk_j.b, total);
     bk_reply(BK_JOURNEY, r == 0 ? BS_OK : r == 1 ? BS_BAD : BS_FLASH, dest, total);
     if (r == 0) {
         if (dest == BK_JPLAY) {

@@ -94,7 +94,7 @@ progress[hidden] { display: none; }
 <p>A journey of one's own: up to eight scenes from any journey, in any order, each staying for its own time or
   skipped. It keeps the sound of the journey it starts from. It goes into a user slot on the FM-1, or plays there
   straight away, or stays here as a file.</p>
-<p class="muted">The FM-1 is reached over USB-MIDI, in Chrome or Edge (Web MIDI), with Penumbra 1.12 or later on it.
+<p class="muted">The FM-1 is reached over USB-MIDI, in Chrome or Edge (Web MIDI), with Penumbra 1.13 or later on it.
   Without it, the page still makes journeys from the presets and from files. Nothing leaves this computer.</p>
 
 <section class="card" aria-labelledby="fm1-h">
@@ -203,7 +203,7 @@ $("connect").addEventListener("click", async () => {
     if (dev.hello.journeyFormat !== L.format) {
       const v = dev.hello.version;
       dev.link.close(); dev = null;
-      throw new Error(`The FM-1 has Penumbra ${v}, whose journeys are another format: this page is for Penumbra with format ${L.format} (1.12 on).`);
+      throw new Error(`The FM-1 has Penumbra ${v}, whose journeys are another format: this page is for Penumbra 1.13 or later (the Install page updates it).`);
     }
     status(`Reading Penumbra ${dev.hello.version}...`);
     await readFM1();

@@ -1,0 +1,32 @@
+# DRONE VOICES' HOLDS (K4): a swell stays up that many bars from its start, so it falls on a bar line; a held
+# voice lets go that many bars after it came in. 90 BPM: a bar 2.7 s. Voice 1 held, letting go after 2 bars;
+# voice 2 swelling every 4 bars, holding 2 bars (longer than its own few seconds: still up at 4.5 s)
+autoplay 0
+wait 300
+dswell 0
+tap ENV
+turn SELECT 20
+expect page 12
+turn K4 2
+expect dthold1 2
+turn K1 1
+turn K2 3
+turn K4 2
+expect dtcyc2 2
+expect dthold2 2
+shot drone_holds.png
+tap HOME
+tap SEQ
+wait 1000
+expect playing 1
+expect drone1 1
+expect drone2 1
+wait 3500
+expect drone1 1
+expect drone2 1
+wait 2000
+expect drone1 0
+expect drone2 0
+wait 5000
+expect drone2 1
+expect drone1 0

@@ -1,6 +1,6 @@
 # Penumbra manual
 
-Penumbra 1.12 for the M-VAVE FM-1, by Lunar Eclipse Forge.
+Penumbra 1.13 for the M-VAVE FM-1, by Lunar Eclipse Forge.
 
 Penumbra is an ambient space-drone synth that plays itself. What it does best comes from shaping and
 moving the sound while it plays: turning HOME's knobs, throwing the effects, holding a voice to reshape it,
@@ -135,7 +135,7 @@ shaped.
 | Hold | K1 | K2 | K3 | K4 | Extra |
 | --- | --- | --- | --- | --- | --- |
 | **FX** | SHIMMER | FEEDBACK | FREEZE | DIP | Throws; ALGO: WARP |
-| A drone key (black 1-5) | LEVEL | TONE | DETUNE | OCTAVE | ALGO: HELD or SWELL |
+| A drone key (black 1-5) | LEVEL | TONE | DETUNE | OCTAVE | ALGO: HELD, AT TIMES, or EVERY 2 to 32 bars |
 | The kick's key (black 6) | DROP | DECAY | CLICK | TUNE | ALGO: by itself |
 | A VOX sound key (black 8-11) | BRIGHT | WAVE | FILTER | RELEASE | ALGO: it sings |
 | BLOOM's key (black 7) | LEVEL | LENGTH | HEIGHT | FIFTH | ALGO: by itself |
@@ -379,7 +379,33 @@ Each of the first five black keys is a drone voice. Each voice is one of two kin
   the key is let go, so holding the key to shape the voice does not toggle it (section 3). The other
   journeys start with most of their voices held.
 
-A voice's key held with **ALGO** turned switches it: left for HELD, right for SWELL.
+A voice's key held with **ALGO** turned sets how it plays, from left to right:
+
+| PLAYS | The voice |
+| --- | --- |
+| HELD | Latched on by its key, as above |
+| AT TIMES | Swells in now and then, every 3 to 18 bars, never quite the same |
+| EVERY 2, 4, 8, 16, 32 | Swells in on the bar line, every that many bars, counted from when the clock starts |
+
+With the key held, ENV then opens **DRONE VOICES** on that voice (SHAPE's last page), for when each one comes
+in:
+
+| Control | What it does |
+| --- | --- |
+| K1 VOICE | The voice the other knobs set (1 to 5); its row is lit |
+| K2 PLAYS | As above |
+| K3 ENTERS | AT ONCE, or 1, 2, 4, 8, 16 or 32 BARS after the clock starts. A held voice comes in on that bar; one that swells starts its swells there |
+| K4 HOLDS | A swell: AS MADE (its own few seconds), or it stays up 1, 2, 4, 8, 16 or 32 BARS from its start, so it falls on a bar line. A held voice: STAYS, or it lets go that many bars after it came in |
+| ALGO | The drone's level |
+
+The screen shows every voice's PLAYS, ENTERS and HOLDS, the one the knobs set lit, and a bead lit while a
+voice sounds. A swell from the voice's key holds for its HOLDS too.
+
+So a scene can build up and break down: voice 1 at once, voice 2 after 2 bars, voice 3 after 4 and letting go
+4 bars later, voice 4 swelling every 8 bars and holding 4, under half of each phrase. The bars follow the tempo,
+or the MIDI clock coming in, so with a drummer or a DAW they land on the downbeat. The timing is kept with the
+journey (user slots, backups and the Journeys page carry it), and journeys from before 1.13 play as they
+always did.
 
 The journey sets the drone's notes from the scene: its root (the *pedal*) and its voicing. The drone holds
 those notes the whole scene. On another scene only the notes that must change move: one voice at a time,
@@ -463,6 +489,7 @@ a LEVEL as 100% as made (up to 127%). Times, octaves and note lengths keep their
 | TIDES | RATE (8 s to 4 min a tide) | DRONE (how far it moves the drone's filter) | SPACE (the sends) | VOX (its brightness) |
 | PAN | DRONE | VOX | PULSE (and BLOOM) | TEXTURE |
 | PAN 2 | DRONE (how far it sways: STILL to 100%) | VOX | PULSE | TEXTURE |
+| DRONE VOICES | VOICE (1 to 5) | PLAYS (HELD, AT TIMES, EVERY 2 to 32 bars) | ENTERS (AT ONCE, after 1 to 32 bars) | HOLDS (AS MADE or STAYS, 1 to 32 bars) |
 
 **TIDES** is one slow swell under everything: the drone opens and closes, the space breathes in and out,
 VOX brightens and darkens, all on the same tide. On its page **ALGO** sets its SHAPE: from EVEN (a smooth
@@ -494,6 +521,8 @@ BLOOM's settings are under its own hold (black key 7). PULSE's level sets the ki
 - The VOX pages reset the VOX sound playing.
 - PULSE also resets BLOOM; PULSE 2 puts the kick back on the root, its DRIVE as made, no DUCK, by hand.
 - DRONE 2, TIDES, PAN and PAN 2 reset only their own page.
+- DRONE VOICES puts each voice's PLAYS back as the journey was made (held or at times), every one entering at
+  once and holding as made.
 
 The first press only asks, so nothing resets by accident.
 
@@ -672,8 +701,8 @@ whether or not MIDI CC OUT is on:
 | SELECT (HOME) | MORPH |
 | PRESET | Next or previous scene |
 | FX | FX page; held: throws (DIP both ways), + ALGO: WARP |
-| ENV | SHAPE, TIDES, PAN, PAN 2 (again: next page; SEL twice: reset); held: A/B |
-| Black 1-5 | Drone voices (held: shape; + ALGO: HELD or SWELL) |
+| ENV | SHAPE, TIDES, PAN, PAN 2, DRONE VOICES (again: next page; SEL twice: reset); held: A/B |
+| Black 1-5 | Drone voices (held: shape; + ALGO: how it plays, HELD, AT TIMES, EVERY 2 to 32 bars) |
 | Black 6 / 7 | Kick / BLOOM (held: shape; + ALGO: by itself) |
 | Black 8-11 | VOX sounds: GLASS, REED, HALO, LOW (held: shape; + ALGO: sings) |
 | White keys | VOX, in the key (held: bends; + ALGO: pitch) |

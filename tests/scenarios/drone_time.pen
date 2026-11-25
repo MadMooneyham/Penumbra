@@ -1,0 +1,52 @@
+# The drone voices' timing (SHAPE's DRONE VOICES, the last page; ALGO with a drone key held). PLAYS: HELD, now
+# and then, or every 2 .. 32 bars; ENTERS: at once, or 1 .. 32 bars after the clock starts. Kept in each voice's
+# OCTAVE byte's spare bits: the octave turns on its own, and the timing is saved with the journey.
+autoplay 0
+wait 300
+dswell 0
+tap ENV
+turn SELECT 20
+expect page 12
+# voice 3 held, entering after 4 bars (90 BPM: 10.7 s); voice 2 swelling every 4 bars, from the first bar
+turn K1 2
+turn K3 3
+expect dtent3 3
+expect dswell 0
+turn K1 -1
+turn K2 3
+expect dtcyc2 2
+expect dswell 2
+shot drone_voices.png
+tap HOME
+tap SEQ
+wait 1000
+expect playing 1
+expect drone1 1
+expect drone2 1
+expect drone3 0
+wait 8000
+expect drone3 0
+wait 3000
+expect drone3 1
+# ALGO with drone 4's key held: HELD, now and then, EVERY 2 BARS; ENV then opens DRONE VOICES on it
+key b3 down
+turn ALGO 2
+key b3 up
+expect dtcyc4 1
+expect dswell 10
+tap ENV
+expect page 12
+# drone 3's octave up from its hold: its timing stays
+tap HOME
+key b2 down
+turn K4 1
+key b2 up
+expect dvoice34 2
+expect dtent3 3
+tap SAVE
+reboot
+wait 300
+expect dtent3 3
+expect dtcyc2 2
+expect dtcyc4 1
+expect dvoice34 2

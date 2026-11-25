@@ -1,41 +1,63 @@
-# The knobs as on the FM-1 (their detents): from rest the first click only wakes a knob, so a detent that
-# snaps on by itself changes nothing; a click straight back within a quarter second is the snap, not taken;
-# turning, every click counts, a step a click. Only a knob that keeps spinning fast goes further: four quick
-# clicks in a row (under 70 ms apart) two steps a click, ten three. Choosing (SELECT's rows) is a step a click.
-# (HOME's DRONE page: K1 the drone's FILTER, two a step)
+# The knobs as on the FM-1 (their detents): every click counts, the first after a rest too, so a knob answers at
+# once. Only a click straight back within 80 ms of the last is not taken: a detent springing back by itself, not
+# a hand (a turn back a tenth of a second later counts). Only a knob that keeps spinning fast goes further: four
+# quick clicks in a row (under 70 ms apart) two steps a click, ten three. Choosing (SELECT's rows) is a step a
+# click. (HOME's DRONE page: K1 the drone's FILTER, two a step)
 knobs real
 autoplay 0
 wait 300
 expect shape11 75
 turn K1 1
+expect shape11 77
 wait 800
-expect shape11 75
 turn K1 3 200
+expect shape11 83
 wait 800
-expect shape11 79
+# one too far and straight back, by hand: both count
 turn K1 1 100
 turn K1 -1 100
+expect shape11 83
 wait 800
-expect shape11 79
+# a detent springing back 30 ms after the click: not taken
+turn K1 1 30
+turn K1 -1 30
+expect shape11 85
+wait 800
 turn K1 -1 1000
 turn K1 -1 1000
+expect shape11 81
 wait 800
-expect shape11 79
-turn K1 5 200
-wait 50
-expect shape11 87
-wait 800
-# fast, six clicks: the first wakes it, then 1 1 1 2 2 steps
+# fast, six clicks: 1 1 1 1 2 2 steps
 turn K1 6 60
-expect shape11 101
+expect shape11 97
 wait 800
 turn K1 -6 20
-expect shape11 87
+expect shape11 81
 wait 800
-# a long fast spin: 1 1 1, then 2 (six clicks), then 3
+# a long fast spin: four at 1, six at 2, then 3
 turn K1 -14 20
-expect shape11 33
+expect shape11 25
 wait 800
 tap GLO
 turn SELECT 6 30
-expect row 5
+expect row 6
+tap HOME
+wait 800
+# choosing settles harder: ALGO with drone 1's key held, its PLAYS (HELD, AT TIMES, EVERY 2 ..). A setting
+# reached, the detent's spring back and its bounce (30 ms apart) change nothing; a turn back after a moment,
+# and a steady turn back, every click counts
+dswell 0
+key b0 down
+turn ALGO 1 30
+expect dswell 1
+turn ALGO -1 30
+turn ALGO 1 30
+expect dswell 1
+expect dtcyc1 0
+wait 800
+turn ALGO 1 200
+expect dtcyc1 1
+wait 800
+turn ALGO -2 150
+expect dswell 0
+key b0 up

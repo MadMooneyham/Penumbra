@@ -64,7 +64,8 @@ static void d_sing(void *x, int m, int vel, int snd)
 }
 static uint32_t blooms;
 static void d_bloom(void *x) { (void)x; blooms++; }
-static const jr_sink_t SINK = {0, d_note, d_latch, d_rel, d_swell, d_sing, d_bloom};
+static void d_drop(void *x, int v) { (void)x; (void)v; }
+static const jr_sink_t SINK = {0, d_note, d_latch, d_rel, d_swell, d_drop, d_sing, d_bloom};
 
 #define STEP_FRAMES 7350u                          /* a 16th at 90 BPM */
 #define PER_MIN (60u * 6u)                         /* 16ths a minute at 90 BPM */

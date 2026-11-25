@@ -81,6 +81,8 @@ typedef struct {
     uint32_t enc_t[8];                 /* each knob's last click (EN_*): a fast turn goes further */
     int8_t enc_dir[8];                 /* and which way it went (a click straight back: the detent's snap) */
     uint8_t enc_run[8];                /* its quick clicks in a row */
+    uint8_t enc_bounce[8];             /* a click back not taken: the next click the first way, as soon, is its
+                                        * bounce back, and not taken either */
     uint8_t mult;                      /* the knob being handled now: 1, 2 or 3 a click (amounts only) */
     uint8_t stars;                     /* notes played since the last frame: a star each */
     /* the holds */
@@ -91,6 +93,7 @@ typedef struct {
     int8_t ctl_last[7];                /* KNOBS: CC RELATIVE: each knob's last turn, + or - steps (the screen's) */
     uint8_t bring_j, bring_s;          /* SCENES' BRING IN (K3): the journey (presets, then user slots), its scene */
     uint8_t bring_on;                  /* K3 turned on the scene shown: SEL brings that one in */
+    uint8_t dtv;                       /* SHAPE's DRONE VOICES: the voice shown (0 .. 4) */
     uint8_t bvel[11];                  /* each black key's velocity as MIDI last pressed it (the hands: 110) */
     uint16_t wheld;                    /* white keys held (bit w) */
     uint32_t used;                     /* buttons held as a hold this press: they do not act when let go */
@@ -717,8 +720,8 @@ static const char *const VOICE_N[EV_N] = {"DRONE", "VOX", "PULSE", "TEXTURE"};
 /* SHAPE's pages: each voice's sound (VOX: three, of the sound of its four playing), the drone's own
  * movement, TIDES, PAN and PAN 2 (ENV, SELECT: the next). ALGO: the voice's level (TIDES: its SHAPE; PAN: the
  * sway's RATE; PAN 2: its OFFSET) */
-enum { PG_DRONE, PG_DRONE2, PG_VOX, PG_VOX2, PG_VOX3, PG_SING, PG_PULSE, PG_PULSE2, PG_TEX, PG_TIDES, PG_PAN, PG_PAN2, NPG };
-enum { PK_SHAPE, PK_VSOUND, PK_VSING, PK_DMOTION, PK_KICK, PK_TIDE, PK_PAN, PK_PAN2 };   /* where a page's knobs are */
+enum { PG_DRONE, PG_DRONE2, PG_VOX, PG_VOX2, PG_VOX3, PG_SING, PG_PULSE, PG_PULSE2, PG_TEX, PG_TIDES, PG_PAN, PG_PAN2, PG_DTIME, NPG };
+enum { PK_SHAPE, PK_VSOUND, PK_VSING, PK_DMOTION, PK_KICK, PK_DTIME, PK_TIDE, PK_PAN, PK_PAN2 };   /* where a page's knobs are */
 typedef struct {
     uint8_t voice, kind;
     const char *name;
@@ -739,16 +742,76 @@ static const spage_t PAGE[NPG] = {
     {EV_TEX, PK_SHAPE, "TEXTURE", {"COLOUR", "SWEEP", "RATE", "WIDTH"}, {SH_K1, SH_K2, SH_K3, SH_K4}, 0x1},
     {EV_N, PK_TIDE, "TIDES", {"RATE", "DRONE", "SPACE", "VOX"}, {TD_RATE, TD_DRONE, TD_SPACE, TD_VOX}, 0},
     {EV_N, PK_PAN, "PAN", {"DRONE", "VOX", "PULSE", "TEXTURE"}, {EV_DRONE, EV_VOX, EV_PULSE, EV_TEX}, 0xF},
-    {EV_N, PK_PAN2, "PAN 2", {"DRONE", "VOX", "PULSE", "TEXTURE"}, {EV_DRONE, EV_VOX, EV_PULSE, EV_TEX}, 0}};
+    {EV_N, PK_PAN2, "PAN 2", {"DRONE", "VOX", "PULSE", "TEXTURE"}, {EV_DRONE, EV_VOX, EV_PULSE, EV_TEX}, 0},
+    {EV_DRONE, PK_DTIME, "DRONE VOICES", {"VOICE", "PLAYS", "ENTERS", "HOLDS"}, {0, 0, 0, 0}, 0}};
 /* the tabs across SHAPE's top: the voices, then TIDES (with PAN: the movement; the page shown lights its own) */
 #define NTABS 5
 static const char *const TAB_N[NTABS] = {"DRONE", "VOX", "PULSE", "TEXTURE", "TIDES"};
 static int pg_tab(int pg) { return PAGE[pg % NPG].kind >= PK_TIDE ? 4 : PAGE[pg % NPG].voice; }
 static uint8_t *vsound(void) { return eng_jr.vsound[eng_jr.vcur % JR_VSOUNDS]; }
+/* DRONE VOICES: each drone voice's timing (journey.h JR_DT_*). PLAYS: HELD, now and then (the voices that come and
+ * go), or every 2 .. 32 bars; ENTERS: at once, or that many bars after the clock starts; HOLDS: a swell's own
+ * seconds (a held voice: it stays), or that many bars */
+#define DPLAYS_N 7
+static const char *const DPLAYS_SHORT[DPLAYS_N] = {"HELD", "AT TIMES", "EVERY 2", "EVERY 4", "EVERY 8", "EVERY 16", "EVERY 32"};
+static const char *const DENTER_SHORT[JR_DT_ENT_N] = {"AT ONCE", "1 BAR", "2 BARS", "4 BARS", "8 BARS", "16 BARS", "32 BARS"};
+static const char *const DHOLD_SHORT[JR_DT_HOLD_N] = {"AS MADE", "1 BAR", "2 BARS", "4 BARS", "8 BARS", "16 BARS", "32 BARS"};
+static int dt_plays(int v)
+{
+    if (!(eng_jr.dswell >> v & 1u))
+        return 0;
+    return 1 + eng_jr.dcycle[v] % JR_DT_CYC_N;
+}
+static void dt_set_plays(int v, int m)
+{
+    if (m <= 0) {
+        eng_jr.dswell &= (uint8_t)~(1u << v);
+        return;
+    }
+    eng_jr.dswell |= (uint8_t)(1u << v);
+    eng_jr.dcycle[v] = (uint8_t)((m - 1) % JR_DT_CYC_N);
+}
+static int dt_enter(int v) { return eng_jr.dentry[v] % JR_DT_ENT_N; }
+static void dt_set_enter(int v, int i) { eng_jr.dentry[v] = (uint8_t)i; }
+static int dt_hold(int v) { return eng_jr.dhold[v] % JR_DT_HOLD_N; }
+static const char *dt_hold_short(int v)           /* "AS MADE" a swell's own seconds; a held voice "STAYS" */
+{
+    return !dt_hold(v) && !(eng_jr.dswell >> v & 1u) ? "STAYS" : DHOLD_SHORT[dt_hold(v)];
+}
+static char *dt_hold_long(char *b, int v)         /* "HOLDS 4 BARS", "LETS GO AFTER 4 BARS", "HOLDS AS MADE", "STAYS" */
+{
+    const int sw = eng_jr.dswell >> v & 1u, h = dt_hold(v);
+    if (!h)
+        return put_s(b, sw ? "HOLDS AS MADE" : "STAYS");
+    return put_s(put_s(b, sw ? "HOLDS " : "LETS GO AFTER "), DHOLD_SHORT[h]);
+}
+static char *dt_plays_long(char *b, int m)        /* "HELD", "SWELLS NOW AND THEN", "SWELLS EVERY 4 BARS" */
+{
+    if (m <= 0)
+        return put_s(b, "HELD");
+    if (m == 1)
+        return put_s(b, "SWELLS NOW AND THEN");
+    return put_s(put_i(put_s(b, "SWELLS EVERY "), JR_DT_CYCLE[(m - 1) % JR_DT_CYC_N]), " BARS");
+}
+static char *dt_enter_long(char *b, int i)        /* "ENTERS AT ONCE", "ENTERS AFTER 4 BARS" */
+{
+    if (!i)
+        return put_s(b, "ENTERS AT ONCE");
+    return put_s(put_s(put_s(b, "ENTERS AFTER "), DENTER_SHORT[i % JR_DT_ENT_N]), "");
+}
 static uint8_t *pg_ptr(int pg, int k)             /* k: a knob, or -1 ALGO's (the level; TIDES: its SHAPE) */
 {
     const spage_t *p = &PAGE[pg % NPG];
+    static uint8_t dt_shown;                      /* (DRONE VOICES' PLAYS and ENTERS: read, never written through) */
     switch (p->kind) {
+    case PK_DTIME:
+        if (k < 0)
+            return &eng_jr.shape[EV_DRONE][SH_LEVEL];
+        if (k == 0)
+            return &ui.dtv;
+        dt_shown = (uint8_t)(k == 1 ? dt_plays(ui.dtv % ENG_DRONES) : k == 2 ? dt_enter(ui.dtv % ENG_DRONES)
+                                                                           : dt_hold(ui.dtv % ENG_DRONES));
+        return &dt_shown;
     case PK_VSOUND: return &vsound()[k < 0 ? VS_LEVEL : p->f[k]];
     case PK_VSING: return k < 0 ? &vsound()[VS_LEVEL] : &eng_jr.sing[p->f[k]][eng_jr.vcur % JR_VSOUNDS];
     case PK_DMOTION: return k < 0 ? &eng_jr.shape[EV_DRONE][SH_LEVEL] : &eng_jr.dmotion[p->f[k]];
@@ -782,6 +845,8 @@ static int pg_octave(int pg, int k)               /* an octave: down, as is, up 
 }
 static int pg_steps(int pg, int k)                /* a knob of a few steps (else 0 .. 127): its top */
 {
+    if (k >= 0 && PAGE[pg % NPG].kind == PK_DTIME)   /* (DRONE VOICES: the voice, PLAYS, ENTERS, HOLDS) */
+        return k == 0 ? ENG_DRONES - 1 : k == 1 ? DPLAYS_N - 1 : k == 2 ? JR_DT_ENT_N - 1 : JR_DT_HOLD_N - 1;
     if (pg_octave(pg, k))
         return 2;
     if (k >= 0 && PAGE[pg % NPG].kind == PK_KICK && PAGE[pg % NPG].f[k] == JR_KK_TUNE)
@@ -809,6 +874,14 @@ static void shape_text(int pg, int k, char *b)
     int x = *pg_ptr(pg, k);
     if (pg_octave(pg, k))
         put_s(b, x == 0 ? "-1" : x == 2 ? "+1" : "0");
+    else if (p->kind == PK_DTIME && k == 0)
+        put_i(b, x + 1);
+    else if (p->kind == PK_DTIME && k == 1)
+        put_s(b, DPLAYS_SHORT[x % DPLAYS_N]);
+    else if (p->kind == PK_DTIME && k == 2)
+        put_s(b, DENTER_SHORT[x % JR_DT_ENT_N]);
+    else if (p->kind == PK_DTIME && k == 3)
+        put_s(b, dt_hold_short(ui.dtv % ENG_DRONES));
     else if (p->kind == PK_KICK && k == 0)        /* the kick's note in the key */
         put_s(b, KTUNE_N[x % JR_KTUNE_N]);
     else if (p->kind == PK_KICK && k == 3)        /* by itself */
@@ -850,10 +923,42 @@ static void shape_text(int pg, int k, char *b)
     else
         put_pct(b, x);
 }
+static void dtime_turn(int k, int e)              /* DRONE VOICES: K1 the voice, K2 PLAYS, K3 ENTERS, K4 HOLDS */
+{
+    const int v = ui.dtv % ENG_DRONES;
+    char t[48];
+    if (k == 0) {
+        ui.dtv = (uint8_t)clamp_i(v + (e > 0 ? 1 : -1), 0, ENG_DRONES - 1);
+        put_s(dt_enter_long(put_s(dt_plays_long(put_s(put_i(put_s(t, "DRONE "), ui.dtv + 1), ": "), dt_plays(ui.dtv)), ", "),
+                            dt_enter(ui.dtv)), "");
+        say(t, 0);
+        return;
+    }
+    if (k == 1)
+        dt_set_plays(v, clamp_i(dt_plays(v) + (e > 0 ? 1 : -1), 0, DPLAYS_N - 1));
+    else if (k == 2)
+        dt_set_enter(v, clamp_i(dt_enter(v) + (e > 0 ? 1 : -1), 0, JR_DT_ENT_N - 1));
+    else
+        eng_jr.dhold[v] = (uint8_t)clamp_i(dt_hold(v) + (e > 0 ? 1 : -1), 0, JR_DT_HOLD_N - 1);
+    changed_jr();
+    put_s(put_i(put_s(t, "DRONE "), v + 1), " ");
+    if (k == 1)
+        dt_plays_long(t + 8, dt_plays(v));
+    else if (k == 2)
+        dt_enter_long(t + 8, dt_enter(v));
+    else
+        dt_hold_long(t + 8, v);
+    say(t, 0);
+}
 static void shape_turn(int k, int e)
 {
     char t[40], b[12];
-    uint8_t *p = pg_ptr(ui.vsel, k);
+    uint8_t *p;
+    if (PAGE[ui.vsel].kind == PK_DTIME && k >= 0) {
+        dtime_turn(k, e);
+        return;
+    }
+    p = pg_ptr(ui.vsel, k);
     *p = (uint8_t)(pg_steps(ui.vsel, k) ? clamp_i(*p + (e > 0 ? 1 : -1), 0, pg_steps(ui.vsel, k)) : clamp_i(*p + 2 * e * ui.mult, 0, 127));
     changed_jr();
     shape_text(ui.vsel, k, b);
@@ -1029,18 +1134,21 @@ static void bloom_auto_knob(int e)
     changed_jr();
     say(eng_jr.bloom_auto ? "BLOOM BY ITSELF, " : "BLOOM ", BLOOM_AUTO_N[eng_jr.bloom_auto]);
 }
-static void drone_mode(int e)                     /* ALGO, a drone key held: HELD (left) or SWELL, comes and goes (right) */
+static void drone_mode(int e)                     /* ALGO, a drone key held: how it PLAYS, HELD (left) .. SWELLS
+                                                   * now and then, every 2 .. 32 bars (right); the voices held go
+                                                   * the first one's way */
 {
-    char t[40];
-    int first = lowest_bit(ui.dheld);
-    if (e > 0)
-        eng_jr.dswell |= ui.dheld;
-    else
-        eng_jr.dswell &= (uint8_t)~ui.dheld;
+    char t[48];
+    int v, first = lowest_bit(ui.dheld);
+    const int m = clamp_i(dt_plays(first) + (e > 0 ? 1 : -1), 0, DPLAYS_N - 1);
+    for (v = 0; v < ENG_DRONES; v++)
+        if (ui.dheld >> v & 1u)
+            dt_set_plays(v, m);
     ui.dturned |= ui.dheld;
-    ui.vsel = PG_DRONE;
+    ui.vsel = PG_DTIME;                           /* (ENV next: DRONE VOICES, this voice shown) */
+    ui.dtv = (uint8_t)first;
     changed_jr();
-    put_s(put_i(put_s(t, "DRONE "), first + 1), e > 0 ? " SWELLS: COMES AND GOES" : " HELD");
+    dt_plays_long(put_s(put_i(put_s(t, "DRONE "), first + 1), " "), m);
     say(t, 0);
 }
 static void thr_text(int k, char *b)              /* DIP: left a low-pass, right a high-pass */
@@ -1298,12 +1406,19 @@ static void reset_now(int what)
 {
     static journey_t d;                           /* (the sound as made: jr_sound_default's part of it) */
     const int all = what == RS_ALL, kind = all ? -1 : PAGE[(what - 1) % NPG].kind;
-    const int voice = all ? -1 : kind == PK_DMOTION || kind == PK_KICK || kind >= PK_TIDE ? EV_N : PAGE[(what - 1) % NPG].voice;
+    const int voice = all ? -1 : kind == PK_DMOTION || kind == PK_KICK || kind == PK_DTIME || kind >= PK_TIDE ? EV_N
+                                                                                                    : PAGE[(what - 1) % NPG].voice;
     int v, k;
     jr_sound_default(&d);
     if (all || kind == PK_DMOTION)                /* DRONE 2: the drone's movement as it was made */
         for (k = 0; k < JR_DMOTION; k++)
             eng_jr.dmotion[k] = d.dmotion[k];
+    if (all || kind == PK_DTIME) {                /* DRONE VOICES: each voice as made (its PLAYS; at once, as made) */
+        if (!all)
+            eng_jr.dswell = d.dswell;
+        for (v = 0; v < ENG_DRONES; v++)
+            eng_jr.dcycle[v] = eng_jr.dentry[v] = eng_jr.dhold[v] = 0;
+    }
     if (all || kind == PK_TIDE)
         for (k = 0; k < JR_TIDE; k++)
             eng_jr.tide[k] = d.tide[k];
@@ -1465,13 +1580,17 @@ static void loop_layer_out(void);                 /* (LOOP's SEL: below, with th
 #define KNOB_QUICK_MS 70u
 #define KNOB_RUN2 4u
 #define KNOB_RUN3 10u
-/* the detents: a knob let go can snap on to the next detent, or back. From rest (no click for KNOB_REST_MS)
- * the first click only wakes the knob; a click straight back within KNOB_BACK_MS of the last is the snap,
- * and is not taken. Turning, every click counts. knobs_exact: 1 a click a step (the simulator's scenarios,
- * unless one asks otherwise), 2 no detents but the speed (the browser's knobs) */
-#define KNOB_REST_MS 600u
-#define KNOB_BACK_MS 250u
+/* the detents: a knob let go can spring back a detent by itself, a click the other way hard on the last. A
+ * click straight back within KNOB_BACK_MS is that, and is not taken; every other click counts, the first after
+ * a rest too (no waking click: a knob answers at once). A knob choosing (a behaviour, a row, a page, a key: a
+ * step a setting, choosing()) settles harder: a click back within KNOB_BACK_CHOOSE_MS is not taken either, so
+ * a setting reached stays put as the hand lets go; an amount (a level, a filter) answers every turn. knobs_exact:
+ * 1 a click a step (the simulator's scenarios, unless one asks otherwise), 2 no detents but the speed (the
+ * browser's knobs) */
+#define KNOB_BACK_MS 80u
+#define KNOB_BACK_CHOOSE_MS 300u
 uint8_t knobs_exact;
+static int choosing(int role);                    /* (below, with the knobs' handlers) */
 static int knob_take(int role, int e, uint32_t now)   /* the clicks the knob's handler gets (0: none) */
 {
     const int r = role & 7, dir = e > 0 ? 1 : -1;
@@ -1480,15 +1599,19 @@ static int knob_take(int role, int e, uint32_t now)   /* the clicks the knob's h
         ui.mult = 1;
         return e;
     }
-    const int rest = knobs_exact != 2 && (dt >= KNOB_REST_MS || !ui.enc_t[r]);   /* (never turned yet: at rest) */
+    const int fresh = !ui.enc_t[r];               /* (never turned yet: no last click to spring back from) */
+    const uint32_t win = choosing(role) ? KNOB_BACK_CHOOSE_MS : KNOB_BACK_MS;
+    const int bounce = ui.enc_bounce[r];
     ui.enc_t[r] = now ? now : 1u;
-    if (rest) {
-        ui.enc_dir[r] = (int8_t)dir;
-        ui.enc_run[r] = 0;
-        e -= dir;                                  /* (from rest: the first wakes it) */
-    } else if (knobs_exact != 2 && dir != ui.enc_dir[r] && dt < KNOB_BACK_MS) {
-        return 0;                                  /* (straight back: the snap) */
-    }
+    ui.enc_bounce[r] = 0;
+    if (!fresh && knobs_exact != 2 && dt < win) {
+        if (bounce && dir == ui.enc_dir[r])
+            return 0;                             /* (the snap's bounce the first way: settled where it was) */
+        if (!bounce && dir != ui.enc_dir[r]) {
+            ui.enc_bounce[r] = 1;                 /* (straight back: the snap, not taken) */
+            return 0;
+        }
+    }                                             /* (a second click back: the hand, turning back) */
     if (dir != ui.enc_dir[r] || dt >= KNOB_QUICK_MS)
         ui.enc_run[r] = 0;
     else if (ui.enc_run[r] < 255u)
@@ -2199,6 +2322,50 @@ static void hk_turn(int k, int e)
 enum { CT_K1, CT_K2, CT_K3, CT_K4, CT_SELECT, CT_ALGO, CT_PRESET, CT_N };
 static const uint8_t CTL_CC[CT_N] = {74, 75, 76, 77, 78, 79, 80};
 static const char *const CTL_N[CT_N] = {"KNOB 1", "KNOB 2", "KNOB 3", "KNOB 4", "SELECT", "ALGO", "PRESETS"};
+/* a knob choosing, not setting an amount: what it turns now (the hold, the page) steps through settings. Its
+ * detents settle harder (knob_take) */
+static int ctl_on(void);
+static int choosing(int role)
+{
+    const int lay = layer(), k = role - EN_K1;
+    int max;
+    if (ctl_on())
+        return 0;                                 /* (KNOBS: CC, a DAW's) */
+    if (role == EN_PRESET)
+        return 1;                                 /* (scenes, the journeys list) */
+    if (role == EN_ALGO) {
+        if ((ui.btn >> B_PLAY & 1u) || lay == L_DRONE || lay == L_VSOUND || lay == L_BLOOM || lay == L_KICK)
+            return 1;                             /* (the loop's speed; a hold's by itself, how it plays) */
+        if (lay == L_THROW || lay == L_BEND || ui.view == V_SHAPE)
+            return 0;                             /* (WARP, the pitch, a level) */
+        return ui.view == V_HOME || (ui.view == V_LOOP && loop_layers());   /* (HOME's page, a layer's length; else the tempo) */
+    }
+    if (role == EN_SELECT)
+        return lay != L_SOUND && ui.view != V_HOME;   /* (A to B, and MORPH: amounts; the rows, the pages) */
+    switch (lay) {
+    case L_DRONE: return k == DV_OCT;
+    case L_BLOOM: return k == 2;                  /* (HEIGHT) */
+    case L_KICK: return k == 3;                   /* (TUNE) */
+    case L_VSOUND:
+    case L_THROW:
+    case L_BEND:
+    case L_SOUND: return 0;
+    default: break;
+    }
+    switch (ui.view) {
+    case V_HOME: hk_get(k, &max); return max < 16;
+    case V_SHAPE: return pg_steps(ui.vsel, k) > 0;
+    case V_SCENE:
+        return k == 0 || ui.srow == SF_KEY || ui.srow == SF_SCALE || ui.srow == SF_PEDAL || ui.srow == SF_VOICING ||
+               ui.srow == SF_REG || ui.srow == SF_TRAVEL || ui.srow == SF_LAND;
+    case V_FX: return engine_fx_max(fx_of(ui.fxrow, k)) <= 8;
+    case V_LOOP: return !ui.lpage && k != 0;      /* (SOUND, OCTAVE, MUTE; LEVEL and page 2's: amounts) */
+    case V_SCENES:
+    case V_JOURNEY:
+    case V_SYSTEM: return 1;
+    default: return 0;
+    }
+}
 static int ctl_on(void)
 {
     return cfg.knobs && ui.view == V_HOME && layer() == L_PAGE && !(ui.btn >> B_PLAY & 1u);
@@ -3229,9 +3396,28 @@ static void draw_shape(void)
     int v, k, lv = *pg_ptr(ui.vsel, -1);
     for (v = 0; v < NTABS; v++) {                 /* the tabs: the page shown has its own name */
         int cx = 24 + v * 48, sel = v == pg_tab(ui.vsel);
-        text_c(cx, 4, &FONT_XS, sel ? pg->name : TAB_N[v], sel ? C_AMB : C_DIM);
+        text_c(cx, 4, &FONT_XS, sel ? (pg->kind == PK_DTIME ? "VOICES" : pg->name) : TAB_N[v], sel ? C_AMB : C_DIM);   /* (DRONE VOICES: its tab's width) */
         if (sel)
             cv_rect(cx - 20, 16, 40, 2, C_AMB);
+    }
+    if (pg->kind == PK_DTIME) {                   /* DRONE VOICES: a row a voice, how it plays and when it enters;
+                                                   * the one the knobs set lit, a bead lit while it sounds */
+        for (v = 0; v < ENG_DRONES; v++) {
+            const int y = 22 + v * 17, sel = v == ui.dtv % ENG_DRONES;
+            if (sel)
+                sel_band(y - 1, 16);
+            put_i(b, v + 1);
+            cv_text(10, y + 2, &FONT_XS, b, sel ? C_HI : C_GRAY);
+            cv_rect(24, y + 5, 5, 5, engine_drone_on(v) ? C_AMB : C_LINE);
+            cv_text(40, y + 2, &FONT_XS, DPLAYS_SHORT[dt_plays(v) % DPLAYS_N], sel ? C_AMB : C_HI);
+            text_r(166, y + 2, &FONT_XS, DENTER_SHORT[dt_enter(v)], sel ? C_AMB : dt_enter(v) ? C_HI : C_GRAY);
+            text_r(232, y + 2, &FONT_XS, dt_hold_short(v), sel ? C_AMB : dt_hold(v) ? C_HI : C_GRAY);
+        }
+        cv_text(40, 108, &FONT_XS, "PLAYS", C_DIM);
+        text_r(166, 108, &FONT_XS, "ENTERS", C_DIM);
+        text_r(232, 108, &FONT_XS, "HOLDS", C_DIM);
+        (void)lv;
+        return;
     }
     if (pg->kind == PK_PAN || pg->kind == PK_PAN2) {   /* PAN: the field, left to right, each part where it is
                                                    * now (the tide's sway in it; where it is put, marked). PAN 2:
@@ -3527,8 +3713,8 @@ static void draw_knobs(void)
             dv_text(v, k, a);
             cell(k, DVF_N[k], a, C_AMB);
         }
-        put_s(put_i(put_s(a, "DRONE "), v + 1), eng_jr.dswell >> v & 1u ? ": SWELL" : ": HELD");
-        hint(a, "ALGO: HELD / SWELL");
+        put_s(put_s(put_i(put_s(a, "DRONE "), v + 1), ": "), DPLAYS_SHORT[dt_plays(v) % DPLAYS_N]);
+        hint(a, "ALGO: HOW IT PLAYS");
         cv_commit(2, 0, KNOB_Y);
         return;
     }
